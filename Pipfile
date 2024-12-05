@@ -19,4 +19,4 @@ ruff = "*"
 python_version = "3.12"
 
 [scripts]
-my_app = "python -c \"from my_app.cli import main; main()\""
+dsc = "python -c \"from dsc.cli import main; main()\""
