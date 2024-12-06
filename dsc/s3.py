@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
-from boto3 import client
+import boto3
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
@@ -14,10 +14,10 @@ logger = logging.getLogger(__name__)
 
 
 class S3Client:
-    """An S3 class that provides a generic boto3 s3 client."""
+    """A class to perform common S3 operations for this application."""
 
     def __init__(self) -> None:
-        self.client = client("s3")
+        self.client = boto3.client("s3")
 
     def archive_file_with_new_key(
         self, bucket: str, key: str, archived_key_prefix: str
@@ -54,10 +54,10 @@ class S3Client:
             Bucket=bucket,
             Key=key,
         )
-        logger.debug("%s uploaded to S3", key)
+        logger.debug(f"'{key}' uploaded to S3")
         return response
 
-    def retrieve_file_type_from_bucket(
+    def get_files_iter(
         self, bucket: str, file_type: str, excluded_key_prefix: str
     ) -> Iterator[str]:
         """Retrieve file based on file type, bucket, and without excluded prefix.
@@ -68,12 +68,13 @@ class S3Client:
             excluded_key_prefix: Files with this key prefix will not be retrieved.
         """
         paginator = self.client.get_paginator("list_objects_v2")
-        pages = paginator.paginate(Bucket=bucket)
-        for s3_object in [
-            s3_object
-            for page in pages
-            for s3_object in page["Contents"]
-            if s3_object["Key"].endswith(file_type)
-            and excluded_key_prefix not in s3_object["Key"]
-        ]:
-            yield s3_object["Key"]
+        page_iterator = paginator.paginate(Bucket=bucket)
+
+        for page in page_iterator:
+            files = [
+                content["Key"]
+                for content in page["Contents"]
+                if content["Key"].endswith(file_type)
+                and excluded_key_prefix not in content["Key"]
+            ]
+            yield from files

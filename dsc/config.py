@@ -33,20 +33,22 @@ class Config:
         self, logger: logging.Logger, stream: StringIO, *, verbose: bool
     ) -> str:
         logging_format_base = "%(asctime)s %(levelname)s %(name)s.%(funcName)s()"
+        logger.addHandler(logging.StreamHandler(stream))
+
         if verbose:
-            logging.basicConfig(
-                format=logging_format_base + " line %(lineno)d: %(message)s",
-            )
-            logger.setLevel(logging.DEBUG)
-            logger.addHandler(logging.StreamHandler(stream))
+            log_method, log_level = logger.debug, logging.DEBUG
+            template = logging_format_base + " line %(lineno)d: %(message)s"
             for handler in logging.root.handlers:
                 handler.addFilter(logging.Filter("dsc"))
-            logger.debug(f"{logging.getLevelName(logger.getEffectiveLevel())}")
         else:
-            logging.basicConfig(format=logging_format_base + ": %(message)s")
-            logger.setLevel(logging.INFO)
-            logger.addHandler(logging.StreamHandler(stream))
-            logger.info(f"{logging.getLevelName(logger.getEffectiveLevel())}")
+            log_method, log_level = logger.info, logging.INFO
+            template = logging_format_base + ": %(message)s"
+
+        logger.setLevel(log_level)
+        logging.basicConfig(format=template)
+        logger.addHandler(logging.StreamHandler(stream))
+        log_method(f"{logging.getLevelName(logger.getEffectiveLevel())}")
+
         return (
             f"Logger '{logger.name}' configured with level="
             f"{logging.getLevelName(logger.getEffectiveLevel())}"
