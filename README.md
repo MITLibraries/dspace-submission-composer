@@ -21,7 +21,13 @@ Description of the app
 ```shell
 SENTRY_DSN=### If set to a valid Sentry DSN, enables Sentry exception monitoring. This is not needed for local development.
 WORKSPACE=### Set to `dev` for local development, this will be set to `stage` and `prod` in those environments by Terraform.
+AWS_REGION_NAME=### Default AWS region.
 ```
 
+### Optional
+
+```shell
+LOG_LEVEL=### Logging level. Defaults to 'INFO'.
+```
 
 
