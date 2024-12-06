@@ -1,0 +1,2 @@
+class InvalidSQSMessageError(Exception):
+    pass
