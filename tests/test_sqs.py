@@ -133,21 +133,31 @@ def test_sqs_send_success(
     assert response["ResponseMetadata"]["HTTPStatusCode"] == HTTPStatus.OK
 
 
-def test_sqs_valid_result_message_attributes_false(mocked_sqs_input, sqs_client):
-    assert not sqs_client.valid_result_message_attributes(sqs_message={})
-
-
-def test_sqs_valid_result_message_attributes_true(
+def test_sqs_validate_message_no_receipthandle_false(
     mocked_sqs_input, sqs_client, result_message_valid
 ):
-    assert sqs_client.valid_result_message_attributes(sqs_message=result_message_valid)
+    assert not sqs_client.validate_message(sqs_message={})
 
 
-def test_sqs_valid_result_message_body_false(caplog, mocked_sqs_input, sqs_client):
-    assert not sqs_client.valid_result_message_body(sqs_message={None})
+def test_sqs_validate_message_true(mocked_sqs_input, sqs_client, result_message_valid):
+    assert sqs_client.validate_message(sqs_message=result_message_valid)
 
 
-def test_sqs_valid_result_message_body_true(
+def test_sqs_validate_message_attributes_false(mocked_sqs_input, sqs_client):
+    assert not sqs_client.validate_message_attributes(sqs_message={})
+
+
+def test_sqs_validate_message_attributes_true(
     mocked_sqs_input, sqs_client, result_message_valid
 ):
-    assert sqs_client.valid_result_message_body(sqs_message=result_message_valid)
+    assert sqs_client.validate_message_attributes(sqs_message=result_message_valid)
+
+
+def test_sqs_validate_message_body_false(caplog, mocked_sqs_input, sqs_client):
+    assert not sqs_client.validate_message_body(sqs_message={None})
+
+
+def test_sqs_validate_message_body_true(
+    mocked_sqs_input, sqs_client, result_message_valid
+):
+    assert sqs_client.validate_message_body(sqs_message=result_message_valid)

@@ -38,7 +38,7 @@ class SESClient:
         """
         message = self._create_email(subject, attachment_content, attachment_name)
         self._send_email(source_email_address, recipient_email_address, message)
-        logger.debug("Logs sent to %s", recipient_email_address)
+        logger.debug(f"Logs sent to {recipient_email_address}")
 
     def _create_email(
         self,

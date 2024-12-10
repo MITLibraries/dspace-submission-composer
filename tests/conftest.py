@@ -7,9 +7,9 @@ from click.testing import CliRunner
 from moto import mock_aws
 
 from dsc.config import Config
-from dsc.s3 import S3Client
-from dsc.ses import SESClient
-from dsc.sqs import SQSClient
+from dsc.utilities.aws.s3 import S3Client
+from dsc.utilities.aws.ses import SESClient
+from dsc.utilities.aws.sqs import SQSClient
 
 
 @pytest.fixture(autouse=True)
@@ -106,7 +106,6 @@ def ses_client(config_instance):
 def sqs_client(config_instance):
     return SQSClient(
         region=config_instance.AWS_REGION_NAME,
-        base_url="https://queue.amazonaws.com/123456789012/",
         queue_name="mock-output-queue",
     )
 
