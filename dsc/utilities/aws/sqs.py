@@ -114,8 +114,7 @@ class SQSClient:
         Args:
             sqs_message: An SQS result message to be processed.
         """
-        if not self.validate_message(sqs_message):
-            raise InvalidSQSMessageError
+        self.validate_message(sqs_message)
         identifier = sqs_message["MessageAttributes"]["PackageID"]["StringValue"]
         message_body = json.loads(str(sqs_message["Body"]))
         self.delete(sqs_message["ReceiptHandle"])
@@ -160,56 +159,45 @@ class SQSClient:
         logger.debug(f"Response from SQS queue: {response}")
         return response
 
-    def validate_message(self, sqs_message: MessageTypeDef) -> bool:
+    def validate_message(self, sqs_message: MessageTypeDef) -> None:
         """Validate that an SQS message is formatted as expected.
 
         Args:
             sqs_message:  An SQS message to be evaluated.
 
         """
-        valid = False
         if not sqs_message.get("ReceiptHandle"):
-            logger.exception(
-                f"Failed to retrieve 'ReceiptHandle' from message: {sqs_message}"
-            )
-        elif self.validate_message_attributes(
-            sqs_message=sqs_message
-        ) and self.validate_message_body(sqs_message=sqs_message):
-            valid = True
-        return valid
+            message = f"Failed to retrieve 'ReceiptHandle' from message: {sqs_message}"
+            raise InvalidSQSMessageError(message)
+        self.validate_message_attributes(sqs_message=sqs_message)
+        self.validate_message_body(sqs_message=sqs_message)
 
     @staticmethod
-    def validate_message_attributes(sqs_message: MessageTypeDef) -> bool:
+    def validate_message_attributes(sqs_message: MessageTypeDef) -> None:
         """Validate that "MessageAttributes" field is formatted as expected.
 
         Args:
             sqs_message: An SQS message to be evaluated.
         """
-        valid = False
         if (
-            "MessageAttributes" in sqs_message
-            and any(
+            "MessageAttributes" not in sqs_message
+            or not any(
                 field
                 for field in sqs_message["MessageAttributes"]
                 if "PackageID" in field
             )
-            and sqs_message["MessageAttributes"]["PackageID"].get("StringValue")
+            or not sqs_message["MessageAttributes"]["PackageID"].get("StringValue")
         ):
-            valid = True
-        else:
-            logger.exception(f"Failed to parse SQS message attributes: {sqs_message}")
-        return valid
+            message = f"Failed to parse SQS message attributes: {sqs_message}"
+            raise InvalidSQSMessageError(message)
 
     @staticmethod
-    def validate_message_body(sqs_message: MessageTypeDef) -> bool:
+    def validate_message_body(sqs_message: MessageTypeDef) -> None:
         """Validate that "Body" field is formatted as expected.
 
         Args:
             sqs_message: An SQS message to be evaluated.
         """
-        valid = False
-        if "Body" in sqs_message and json.loads(str(sqs_message["Body"])):
-            valid = True
-        else:
-            logger.exception(f"Failed to parse SQS message body: {sqs_message}")
-        return valid
+        if "Body" not in sqs_message or not json.loads(str(sqs_message["Body"])):
+            message = f"Failed to parse SQS message body: {sqs_message}"
+            raise InvalidSQSMessageError(message)

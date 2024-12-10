@@ -133,31 +133,34 @@ def test_sqs_send_success(
     assert response["ResponseMetadata"]["HTTPStatusCode"] == HTTPStatus.OK
 
 
-def test_sqs_validate_message_no_receipthandle_false(
+def test_sqs_validate_message_no_receipthandle_invalid(
     mocked_sqs_input, sqs_client, result_message_valid
 ):
-    assert not sqs_client.validate_message(sqs_message={})
+    with pytest.raises(InvalidSQSMessageError):
+        sqs_client.validate_message(sqs_message={})
 
 
-def test_sqs_validate_message_true(mocked_sqs_input, sqs_client, result_message_valid):
-    assert sqs_client.validate_message(sqs_message=result_message_valid)
+def test_sqs_validate_message_valid(mocked_sqs_input, sqs_client, result_message_valid):
+    assert not sqs_client.validate_message(sqs_message=result_message_valid)
 
 
-def test_sqs_validate_message_attributes_false(mocked_sqs_input, sqs_client):
-    assert not sqs_client.validate_message_attributes(sqs_message={})
+def test_sqs_validate_message_attributes_invalid(mocked_sqs_input, sqs_client):
+    with pytest.raises(InvalidSQSMessageError):
+        sqs_client.validate_message_attributes(sqs_message={})
 
 
-def test_sqs_validate_message_attributes_true(
+def test_sqs_validate_message_attributes_valid(
     mocked_sqs_input, sqs_client, result_message_valid
 ):
-    assert sqs_client.validate_message_attributes(sqs_message=result_message_valid)
+    assert not sqs_client.validate_message_attributes(sqs_message=result_message_valid)
 
 
-def test_sqs_validate_message_body_false(caplog, mocked_sqs_input, sqs_client):
-    assert not sqs_client.validate_message_body(sqs_message={None})
+def test_sqs_validate_message_body_invalid(caplog, mocked_sqs_input, sqs_client):
+    with pytest.raises(InvalidSQSMessageError):
+        sqs_client.validate_message_body(sqs_message={})
 
 
-def test_sqs_validate_message_body_true(
+def test_sqs_validate_message_body_valid(
     mocked_sqs_input, sqs_client, result_message_valid
 ):
-    assert sqs_client.validate_message_body(sqs_message=result_message_valid)
+    assert not sqs_client.validate_message_body(sqs_message=result_message_valid)
