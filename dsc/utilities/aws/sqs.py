@@ -181,11 +181,7 @@ class SQSClient:
         """
         if (
             "MessageAttributes" not in sqs_message
-            or not any(
-                field
-                for field in sqs_message["MessageAttributes"]
-                if "PackageID" in field
-            )
+            or "PackageID" not in sqs_message["MessageAttributes"]
             or not sqs_message["MessageAttributes"]["PackageID"].get("StringValue")
         ):
             message = f"Failed to parse SQS message attributes: {sqs_message}"
