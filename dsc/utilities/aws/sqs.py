@@ -167,8 +167,9 @@ class SQSClient:
 
         """
         if not sqs_message.get("ReceiptHandle"):
-            message = f"Failed to retrieve 'ReceiptHandle' from message: {sqs_message}"
-            raise InvalidSQSMessageError(message)
+            raise InvalidSQSMessageError(
+                f"Failed to retrieve 'ReceiptHandle' from message: {sqs_message}"
+            )
         self.validate_message_attributes(sqs_message=sqs_message)
         self.validate_message_body(sqs_message=sqs_message)
 
@@ -184,8 +185,9 @@ class SQSClient:
             or "PackageID" not in sqs_message["MessageAttributes"]
             or not sqs_message["MessageAttributes"]["PackageID"].get("StringValue")
         ):
-            message = f"Failed to parse SQS message attributes: {sqs_message}"
-            raise InvalidSQSMessageError(message)
+            raise InvalidSQSMessageError(
+                f"Failed to parse SQS message attributes: {sqs_message}"
+            )
 
     @staticmethod
     def validate_message_body(sqs_message: MessageTypeDef) -> None:
@@ -195,5 +197,6 @@ class SQSClient:
             sqs_message: An SQS message to be evaluated.
         """
         if "Body" not in sqs_message or not json.loads(str(sqs_message["Body"])):
-            message = f"Failed to parse SQS message body: {sqs_message}"
-            raise InvalidSQSMessageError(message)
+            raise InvalidSQSMessageError(
+                f"Failed to parse SQS message body: {sqs_message}"
+            )
