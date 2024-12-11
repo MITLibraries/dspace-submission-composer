@@ -30,7 +30,7 @@ def config_instance() -> Config:
 def mocked_s3(config_instance):
     with mock_aws():
         s3 = boto3.client("s3", region_name=config_instance.AWS_REGION_NAME)
-        s3.create_bucket(Bucket="awd")
+        s3.create_bucket(Bucket="dsc")
         yield s3
 
 
@@ -130,11 +130,11 @@ def submission_message_body():
         {
             "SubmissionSystem": "DSpace@MIT",
             "CollectionHandle": "123.4/5678",
-            "MetadataLocation": "s3://awd/10.1002-term.3131.json",
+            "MetadataLocation": "s3://dsc/10.1002-term.3131.json",
             "Files": [
                 {
                     "BitstreamName": "10.1002-term.3131.pdf",
-                    "FileLocation": "s3://awd/10.1002-term.3131.pdf",
+                    "FileLocation": "s3://dsc/10.1002-term.3131.pdf",
                     "BitstreamDescription": None,
                 }
             ],
