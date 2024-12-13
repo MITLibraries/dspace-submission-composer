@@ -7,6 +7,7 @@ from click.testing import CliRunner
 from moto import mock_aws
 
 from dsc.config import Config
+from dsc.item_submission import ItemSubmission
 from dsc.utilities.aws.s3 import S3Client
 from dsc.utilities.aws.ses import SESClient
 from dsc.utilities.aws.sqs import SQSClient
@@ -22,8 +23,44 @@ def _test_env(monkeypatch):
 
 
 @pytest.fixture
-def config_instance() -> Config:
+def config_instance():
     return Config()
+
+
+@pytest.fixture
+def item_submission_instance(metadata_mapping, s3_client):
+    source_metadata = {"title": "Title", "contributor": "Author 1|Author 2"}
+    return ItemSubmission(
+        source_metadata=source_metadata,
+        metadata_mapping=metadata_mapping,
+        s3_client=s3_client,
+        bitstream_uris=[
+            "s3://dsc/workflow/folder/123_01.pdf",
+            "s3://dsc/workflow/folder/123_02.pdf",
+        ],
+        metadata_keyname="workflow/folder/123_metadata.json",
+    )
+
+
+@pytest.fixture
+def metadata_mapping():
+    return {
+        "item_identifier": {
+            "source_field_name": "item_identifier",
+            "language": None,
+            "delimiter": "",
+        },
+        "dc.title": {
+            "source_field_name": "title",
+            "language": "en_US",
+            "delimiter": "",
+        },
+        "dc.contributor": {
+            "source_field_name": "contributor",
+            "language": None,
+            "delimiter": "|",
+        },
+    }
 
 
 @pytest.fixture
