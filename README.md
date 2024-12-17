@@ -22,6 +22,7 @@ Description of the app
 SENTRY_DSN=### If set to a valid Sentry DSN, enables Sentry exception monitoring. This is not needed for local development.
 WORKSPACE=### Set to `dev` for local development, this will be set to `stage` and `prod` in those environments by Terraform.
 AWS_REGION_NAME=### Default AWS region.
+DSS_INPUT_QUEUE=### The DSS SQS input queue to which submission messages are sent.
 ```
 
 ### Optional
