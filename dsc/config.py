@@ -11,6 +11,7 @@ class Config:
         "WORKSPACE",
         "SENTRY_DSN",
         "AWS_REGION_NAME",
+        "DSS_INPUT_QUEUE",
     ]
 
     OPTIONAL_ENV_VARS: Iterable[str] = ["LOG_LEVEL"]
