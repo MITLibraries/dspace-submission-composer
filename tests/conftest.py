@@ -11,7 +11,7 @@ from dsc.item_submission import ItemSubmission
 from dsc.utilities.aws.s3 import S3Client
 from dsc.utilities.aws.ses import SESClient
 from dsc.utilities.aws.sqs import SQSClient
-from dsc.workflows.base.base_workflow import BaseWorkflow
+from dsc.workflows.base import BaseWorkflow
 
 
 @pytest.fixture(autouse=True)
@@ -102,7 +102,7 @@ def item_submission_instance(dspace_metadata):
             "s3://dsc/workflow/folder/123_01.pdf",
             "s3://dsc/workflow/folder/123_02.pdf",
         ],
-        metadata_keyname="workflow/folder/123_metadata.json",
+        metadata_s3_key="workflow/folder/123_metadata.json",
     )
 
 
@@ -113,11 +113,13 @@ def metadata_mapping():
             "source_field_name": "item_identifier",
             "language": None,
             "delimiter": "",
+            "required": True,
         },
         "dc.title": {
             "source_field_name": "title",
             "language": "en_US",
             "delimiter": "",
+            "required": True,
         },
         "dc.contributor": {
             "source_field_name": "contributor",

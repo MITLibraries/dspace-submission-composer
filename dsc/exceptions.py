@@ -4,3 +4,7 @@ class InvalidDSpaceMetadataError(Exception):
 
 class InvalidSQSMessageError(Exception):
     pass
+
+
+class ItemMetadatMissingRequiredFieldError(Exception):
+    pass

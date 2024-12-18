@@ -7,12 +7,10 @@ def test_itemsubmission_init_success(item_submission_instance, dspace_metadata):
         "s3://dsc/workflow/folder/123_01.pdf",
         "s3://dsc/workflow/folder/123_02.pdf",
     ]
-    assert (
-        item_submission_instance.metadata_keyname == "workflow/folder/123_metadata.json"
-    )
+    assert item_submission_instance.metadata_s3_key == "workflow/folder/123_metadata.json"
 
 
-def test_upload_dspace_metadata(mocked_s3, item_submission_instance, s3_client):
+def test_upload_dspace_metadata_success(mocked_s3, item_submission_instance, s3_client):
     item_submission_instance.upload_dspace_metadata("dsc")
     assert (
         item_submission_instance.metadata_uri
