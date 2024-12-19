@@ -7,9 +7,11 @@ from click.testing import CliRunner
 from moto import mock_aws
 
 from dsc.config import Config
+from dsc.item_submission import ItemSubmission
 from dsc.utilities.aws.s3 import S3Client
 from dsc.utilities.aws.ses import SESClient
 from dsc.utilities.aws.sqs import SQSClient
+from dsc.workflows.base import BaseWorkflow
 
 
 @pytest.fixture(autouse=True)
@@ -19,18 +21,119 @@ def _test_env(monkeypatch):
     monkeypatch.setenv("AWS_REGION_NAME", "us-east-1")
     monkeypatch.setenv("AWS_ACCESS_KEY_ID", "testing")
     monkeypatch.setenv("AWS_SECRET_ACCESS_KEY", "testing")
+    monkeypatch.setenv("DSS_INPUT_QUEUE", "mock-input-queue")
 
 
 @pytest.fixture
-def config_instance() -> Config:
+def base_workflow_instance(item_metadata, metadata_mapping, mocked_s3):
+    class TestBaseWorkflow(BaseWorkflow):
+
+        def batch_metadata_iter(self):
+            yield from [item_metadata]
+
+        def get_item_identifier(self, item_metadata):
+            return item_metadata["item_identifier"]
+
+        def get_bitstream_uris(self, item_identifier):
+            bitstreams = [
+                "s3://dsc/workflow/folder/123_01.pdf",
+                "s3://dsc/workflow/folder/123_02.pdf",
+                "s3://dsc/workflow/folder/456_01.pdf",
+            ]
+            return [bitstream for bitstream in bitstreams if item_identifier in bitstream]
+
+        def process_deposit_results(self):
+            pass
+
+    return TestBaseWorkflow(
+        workflow_name="test",
+        submission_system="Test@MIT",
+        email_recipients=["test@test.test"],
+        metadata_mapping=metadata_mapping,
+        s3_bucket="dsc",
+        s3_prefix="workflow/folder",
+        collection_handle="123.4/5678",
+        output_queue="mock-output_queue",
+    )
+
+
+@pytest.fixture
+def config_instance():
     return Config()
+
+
+@pytest.fixture
+def dspace_metadata():
+    return {
+        "metadata": [
+            {
+                "key": "dc.title",
+                "language": "en_US",
+                "value": "Title",
+            },
+            {
+                "key": "dc.contributor",
+                "language": None,
+                "value": "Author 1",
+            },
+            {
+                "key": "dc.contributor",
+                "language": None,
+                "value": "Author 2",
+            },
+        ]
+    }
+
+
+@pytest.fixture
+def item_metadata():
+    return {
+        "title": "Title",
+        "contributor": "Author 1|Author 2",
+        "item_identifier": "123",
+    }
+
+
+@pytest.fixture
+def item_submission_instance(dspace_metadata):
+    return ItemSubmission(
+        dspace_metadata=dspace_metadata,
+        bitstream_uris=[
+            "s3://dsc/workflow/folder/123_01.pdf",
+            "s3://dsc/workflow/folder/123_02.pdf",
+        ],
+        metadata_s3_key="workflow/folder/123_metadata.json",
+    )
+
+
+@pytest.fixture
+def metadata_mapping():
+    return {
+        "item_identifier": {
+            "source_field_name": "item_identifier",
+            "language": None,
+            "delimiter": "",
+            "required": True,
+        },
+        "dc.title": {
+            "source_field_name": "title",
+            "language": "en_US",
+            "delimiter": "",
+            "required": True,
+        },
+        "dc.contributor": {
+            "source_field_name": "contributor",
+            "language": None,
+            "delimiter": "|",
+        },
+    }
 
 
 @pytest.fixture
 def mocked_s3(config_instance):
     with mock_aws():
         s3 = boto3.client("s3", region_name=config_instance.AWS_REGION_NAME)
-        s3.create_bucket(Bucket="awd")
+        s3.create_bucket(Bucket="dsc")
         yield s3
 
 
@@ -43,7 +146,7 @@ def mocked_ses(config_instance):
 
 
 @pytest.fixture
-def mocked_sqs_input(sqs_client, config_instance):
+def mocked_sqs_input(config_instance):
     with mock_aws():
         sqs = boto3.resource("sqs", region_name=config_instance.AWS_REGION_NAME)
         sqs.create_queue(QueueName="mock-input-queue")
@@ -130,11 +233,11 @@ def submission_message_body():
         {
             "SubmissionSystem": "DSpace@MIT",
             "CollectionHandle": "123.4/5678",
-            "MetadataLocation": "s3://awd/10.1002-term.3131.json",
+            "MetadataLocation": "s3://dsc/10.1002-term.3131.json",
             "Files": [
                 {
                     "BitstreamName": "10.1002-term.3131.pdf",
-                    "FileLocation": "s3://awd/10.1002-term.3131.pdf",
+                    "FileLocation": "s3://dsc/10.1002-term.3131.pdf",
                     "BitstreamDescription": None,
                 }
             ],

@@ -17,9 +17,9 @@ def test_sqs_create_dss_message_body(sqs_client, submission_message_body):
     dss_message_body = sqs_client.create_dss_message_body(
         submission_system="DSpace@MIT",
         collection_handle="123.4/5678",
-        metadata_s3_uri="s3://awd/10.1002-term.3131.json",
+        metadata_s3_uri="s3://dsc/10.1002-term.3131.json",
         bitstream_file_name="10.1002-term.3131.pdf",
-        bitstream_s3_uri="s3://awd/10.1002-term.3131.pdf",
+        bitstream_s3_uri="s3://dsc/10.1002-term.3131.pdf",
     )
     assert dss_message_body == submission_message_body
 
