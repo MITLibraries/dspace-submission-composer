@@ -1,3 +1,5 @@
+from http import HTTPStatus
+
 import pytest
 
 from dsc.exceptions import (
@@ -5,6 +7,19 @@ from dsc.exceptions import (
     ItemMetadatMissingRequiredFieldError,
 )
 from dsc.item_submission import ItemSubmission
+
+
+def test_base_workflow_run_success(
+    caplog, base_workflow_instance, mocked_s3, mocked_sqs_input, mocked_sqs_output
+):
+    caplog.set_level("DEBUG")
+    response = next(base_workflow_instance.run())
+    assert "Processing submission for '123'" in caplog.text
+    assert (
+        "Metadata uploaded to S3: s3://dsc/workflow/folder/123_metadata.json"
+        in caplog.text
+    )
+    assert response["ResponseMetadata"]["HTTPStatusCode"] == HTTPStatus.OK
 
 
 def test_base_workflow_item_submission_iter_success(base_workflow_instance):

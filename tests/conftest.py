@@ -37,7 +37,7 @@ def base_workflow_instance(item_metadata, metadata_mapping, mocked_s3):
         def get_item_identifier(self, item_metadata):
             return item_metadata["item_identifier"]
 
-        def get_bitstream_uris(self, item_identifier):
+        def get_bitstream_s3_uris(self, item_identifier):
             bitstreams = [
                 "s3://dsc/base/batch-aaa/123_01.pdf",
                 "s3://dsc/base/batch-aaa/123_02.pdf",
@@ -115,11 +115,11 @@ def item_metadata():
 def item_submission_instance(dspace_metadata):
     return ItemSubmission(
         dspace_metadata=dspace_metadata,
-        bitstream_uris=[
+        bitstream_s3_uris=[
             "s3://dsc/workflow/folder/123_01.pdf",
             "s3://dsc/workflow/folder/123_02.pdf",
         ],
-        metadata_s3_key="workflow/folder/123_metadata.json",
+        item_identifier="123",
     )
 
 
