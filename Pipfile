@@ -8,6 +8,7 @@ boto3 = "*"
 boto3-stubs = {extras = ["essential","ses"], version = "*"}
 click = "*"
 sentry-sdk = "*"
+smart_open = {extras = ["s3"], version = "*"}
 
 [dev-packages]
 black = "*"

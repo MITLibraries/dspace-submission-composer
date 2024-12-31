@@ -1,3 +1,4 @@
+import csv
 import json
 from io import StringIO
 
@@ -12,6 +13,7 @@ from dsc.utilities.aws.s3 import S3Client
 from dsc.utilities.aws.ses import SESClient
 from dsc.utilities.aws.sqs import SQSClient
 from dsc.workflows.base import BaseWorkflow
+from dsc.workflows.base.simple_csv import SimpleCSV
 
 
 @pytest.fixture(autouse=True)
@@ -52,6 +54,20 @@ def base_workflow_instance(item_metadata, metadata_mapping, mocked_s3):
         metadata_mapping=metadata_mapping,
         s3_bucket="dsc",
         s3_prefix="workflow/folder",
+        collection_handle="123.4/5678",
+        output_queue="mock-output_queue",
+    )
+
+
+@pytest.fixture
+def simple_csv_workflow_instance():
+    return SimpleCSV(
+        workflow_name="test-simplecsv",
+        submission_system="Test@MIT",
+        email_recipients=["test@test.test"],
+        metadata_mapping=metadata_mapping,
+        s3_bucket="dsc",
+        s3_prefix="simple_csv/folder",
         collection_handle="123.4/5678",
         output_queue="mock-output_queue",
     )
@@ -135,6 +151,25 @@ def mocked_s3(config_instance):
         s3 = boto3.client("s3", region_name=config_instance.AWS_REGION_NAME)
         s3.create_bucket(Bucket="dsc")
         yield s3
+
+
+@pytest.fixture
+def mocked_s3_simple_csv(mocked_s3, item_metadata):
+    # write in-memory metadata CSV file
+    csv_buffer = StringIO()
+    fieldnames = item_metadata.keys()
+    writer = csv.DictWriter(csv_buffer, fieldnames=fieldnames)
+    writer.writeheader()
+    writer.writerows([item_metadata])
+
+    # seek to the beginning of the in-memory file before uploading
+    csv_buffer.seek(0)
+
+    mocked_s3.put_object(
+        Bucket="dsc",
+        Key="simple_csv/folder/metadata.csv",
+        Body=csv_buffer.getvalue(),
+    )
 
 
 @pytest.fixture

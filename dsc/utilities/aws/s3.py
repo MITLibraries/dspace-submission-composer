@@ -58,23 +58,51 @@ class S3Client:
         return response
 
     def get_files_iter(
-        self, bucket: str, file_type: str, excluded_key_prefix: str
+        self,
+        bucket: str,
+        prefix: str = "",
+        file_identifier: str = "",
+        file_type: str = "",
+        exclude_prefixes: list[str] | None = None,
     ) -> Iterator[str]:
-        """Retrieve file based on file type, bucket, and without excluded prefix.
+        """Yield object keys for files stored on S3.
+
+        Results can be filtered by prefix, file identifier, and file type.
+        This method can also exclude files containing certain prefixes
+        (i.e., to skip files in 'archived/' folder).
 
         Args:
-            bucket: The S3 bucket to search.
-            file_type: The file type to retrieve.
-            excluded_key_prefix: Files with this key prefix will not be retrieved.
+            bucket (str): S3 bucket name.
+            prefix (str): Filter file list by prefix (i.e., subfolder in S3 bucket).
+            file_identifier (str, optional): Filter file list by unique identifier
+                in filename. Defaults to an empty string ("").
+            file_type (str, optional): Filter file list by file type (extension).
+                Defaults to an empty string ("").
+            exclude_prefixes (list[str], optional): Filter file list by excluding
+                file keys containing certain prefixes (e.g., 'archived').
+
+        Yields:
+            Iterator[str]: Files matching filters.
         """
         paginator = self.client.get_paginator("list_objects_v2")
-        page_iterator = paginator.paginate(Bucket=bucket)
+        page_iterator = paginator.paginate(Bucket=bucket, Prefix=prefix)
+
+        if exclude_prefixes is None:
+            exclude_prefixes = []
 
         for page in page_iterator:
-            files = [
-                content["Key"]
-                for content in page["Contents"]
-                if content["Key"].endswith(file_type)
-                and excluded_key_prefix not in content["Key"]
-            ]
-            yield from files
+            if page.get("Contents") is None:
+                return
+
+            for content in page["Contents"]:
+                if (
+                    content["Key"].endswith(file_type)
+                    and file_identifier in content["Key"]
+                ):
+                    if any(
+                        exclude_prefix in content["Key"]
+                        for exclude_prefix in exclude_prefixes
+                    ):
+                        continue
+
+                    yield content["Key"]
