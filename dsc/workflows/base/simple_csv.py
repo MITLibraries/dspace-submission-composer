@@ -1,17 +1,18 @@
 import csv
 import logging
-from typing import Any, Iterator
+from collections.abc import Iterator
+from typing import Any
 
 import smart_open
 
-from dsc.workflows.base import BaseWorkflow
 from dsc.utilities.aws import S3Client
+from dsc.workflows.base import BaseWorkflow
 
 logger = logging.getLogger(__name__)
 
 
 class SimpleCSV(BaseWorkflow):
-    def batch_metadata_iter(
+    def item_metadata_iter(
         self, metadata_file: str = "metadata.csv"
     ) -> Iterator[dict[str, Any]]:
         """Yield dicts of item metadata from metadata CSV file.
@@ -27,9 +28,7 @@ class SimpleCSV(BaseWorkflow):
         with smart_open.open(
             f"s3://{self.s3_bucket}/{self.s3_prefix}/{metadata_file}"
         ) as csvfile:
-            reader = csv.DictReader(csvfile)
-            for metadata_entry in reader:
-                yield metadata_entry
+            yield from csv.DictReader(csvfile)
 
     def get_bitstream_uris(self, item_identifier: str) -> list[str]:
         """Get S3 URIs for bitstreams for a given item.
@@ -50,18 +49,18 @@ class SimpleCSV(BaseWorkflow):
             list[str]: Bitstream URIs for a given item.
         """
         s3_client = S3Client()
-        return [
-            bitstream_uri
-            for bitstream_uri in s3_client.get_files_iter(
+        return list(
+            s3_client.get_files_iter(
                 bucket=self.s3_bucket,
                 prefix=self.s3_prefix,
                 file_identifier=item_identifier,
             )
-        ]
+        )
 
     def get_item_identifier(self, item_metadata: dict[str, Any]) -> str:
         """Get 'item_identifier' from item metadata entry."""
         return item_metadata["item_identifier"]
 
-    def process_deposit_results(self):
-        pass
+    def process_deposit_results(self) -> list[str]:
+        """TODO: Stub method."""
+        return [""]

@@ -30,7 +30,7 @@ def _test_env(monkeypatch):
 def base_workflow_instance(item_metadata, metadata_mapping, mocked_s3):
     class TestBaseWorkflow(BaseWorkflow):
 
-        def batch_metadata_iter(self):
+        def item_metadata_iter(self):
             yield from [item_metadata]
 
         def get_item_identifier(self, item_metadata):

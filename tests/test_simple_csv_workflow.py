@@ -1,10 +1,10 @@
 from unittest.mock import patch
 
 
-def test_simple_csv_workflow_batch_metadata_iter_success(
+def test_simple_csv_workflow_item_metadata_iter_success(
     simple_csv_workflow_instance, mocked_s3_simple_csv, item_metadata
 ):
-    metadata_iter = simple_csv_workflow_instance.batch_metadata_iter(
+    metadata_iter = simple_csv_workflow_instance.item_metadata_iter(
         metadata_file="metadata.csv"
     )
     assert next(metadata_iter) == item_metadata

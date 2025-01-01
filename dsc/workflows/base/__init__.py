@@ -26,7 +26,7 @@ class BaseWorkflow(ABC):
         email_recipients: list[str],
         metadata_mapping: dict,
         s3_bucket: str,
-        s3_prefix: str | None,
+        s3_prefix: str,
         collection_handle: str,
         output_queue: str,
     ) -> None:
@@ -53,7 +53,7 @@ class BaseWorkflow(ABC):
         self.email_recipients: list[str] = email_recipients
         self.metadata_mapping: dict = metadata_mapping
         self.s3_bucket: str = s3_bucket
-        self.s3_prefix: str | None = s3_prefix
+        self.s3_prefix: str = s3_prefix
         self.collection_handle: str = collection_handle
         self.output_queue: str = output_queue
 
@@ -81,11 +81,11 @@ class BaseWorkflow(ABC):
 
     @final
     def item_submissions_iter(self) -> Iterator[ItemSubmission]:
-        """Generate a batch of item submissions for the DSpace Submission Service.
+        """Yield item submissions for the DSpace Submission Service.
 
         MUST NOT be overridden by workflow subclasses.
         """
-        for item_metadata in self.batch_metadata_iter():
+        for item_metadata in self.item_metadata_iter():
             item_identifier = self.get_item_identifier(item_metadata)
             logger.info(f"Processing submission for '{item_identifier}'")
             metadata_s3_key = f"{self.s3_prefix}/{item_identifier}_metadata.json"
@@ -99,7 +99,7 @@ class BaseWorkflow(ABC):
             yield item_submission
 
     @abstractmethod
-    def batch_metadata_iter(self) -> Iterator[dict[str, Any]]:
+    def item_metadata_iter(self) -> Iterator[dict[str, Any]]:
         """Iterate through batch metadata to yield item metadata.
 
         MUST be overridden by workflow subclasses.
