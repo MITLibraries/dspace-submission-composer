@@ -45,55 +45,55 @@ def test_s3_client_put_file_success(mocked_s3, s3_client):
     )
 
 
-def test_s3_client_get_files_iter_success(mocked_s3, s3_client):
+def test_s3_client_files_iter_success(mocked_s3, s3_client):
     s3_client.put_file(
         file_content="",
         bucket="dsc",
         key="metadata.csv",
     )
 
-    assert list(s3_client.get_files_iter(bucket="dsc")) == ["metadata.csv"]
+    assert list(s3_client.files_iter(bucket="dsc")) == ["metadata.csv"]
 
 
-def test_s3_client_get_files_iter_with_prefix_success(mocked_s3, s3_client):
+def test_s3_client_files_iter_with_prefix_success(mocked_s3, s3_client):
     s3_client.put_file(
         file_content="",
         bucket="dsc",
         key="workflow/folder/metadata.csv",
     )
 
-    assert list(s3_client.get_files_iter(bucket="dsc", prefix="workflow/folder")) == [
+    assert list(s3_client.files_iter(bucket="dsc", prefix="workflow/folder")) == [
         "workflow/folder/metadata.csv"
     ]
 
 
-def test_s3_client_get_files_iter_with_file_identifier_success(mocked_s3, s3_client):
+def test_s3_client_files_iter_with_item_identifier_success(mocked_s3, s3_client):
     s3_client.put_file(file_content="", bucket="dsc", key="workflow/folder/aaa.pdf")
     s3_client.put_file(file_content="", bucket="dsc", key="workflow/folder/bbb.pdf")
 
     assert list(
-        s3_client.get_files_iter(
-            bucket="dsc", prefix="workflow/folder/", file_identifier="aaa"
+        s3_client.files_iter(
+            bucket="dsc", prefix="workflow/folder/", item_identifier="aaa"
         )
     ) == ["workflow/folder/aaa.pdf"]
 
 
-def test_s3_client_get_files_iter_with_file_type_success(mocked_s3, s3_client):
+def test_s3_client_files_iter_with_file_type_success(mocked_s3, s3_client):
     s3_client.put_file(file_content="", bucket="dsc", key="workflow/folder/aaa.pdf")
     s3_client.put_file(file_content="", bucket="dsc", key="workflow/folder/aaa.tiff")
     s3_client.put_file(file_content="", bucket="dsc", key="workflow/folder/bbb.pdf")
 
     assert list(
-        s3_client.get_files_iter(
+        s3_client.files_iter(
             bucket="dsc",
             prefix="workflow/folder/",
-            file_identifier="aaa",
+            item_identifier="aaa",
             file_type="pdf",
         )
     ) == ["workflow/folder/aaa.pdf"]
 
 
-def test_s3_client_get_files_iter_with_exclude_prefixes_success(mocked_s3, s3_client):
+def test_s3_client_files_iter_with_exclude_prefixes_success(mocked_s3, s3_client):
     s3_client.put_file(
         file_content="",
         bucket="dsc",
@@ -111,7 +111,7 @@ def test_s3_client_get_files_iter_with_exclude_prefixes_success(mocked_s3, s3_cl
     )
 
     assert list(
-        s3_client.get_files_iter(
+        s3_client.files_iter(
             bucket="dsc",
             prefix="workflow/folder",
             exclude_prefixes=["workflow/folder/archived"],

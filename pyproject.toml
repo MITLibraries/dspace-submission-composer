@@ -30,8 +30,6 @@ show-fixes = true
 select = ["ALL", "PT"]
 ignore = [
     # default
-    "ANN101", 
-    "ANN102", 
     "C90",
     "COM812",
     "D100",

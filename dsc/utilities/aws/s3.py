@@ -57,11 +57,11 @@ class S3Client:
         logger.debug(f"'{key}' uploaded to S3")
         return response
 
-    def get_files_iter(
+    def files_iter(
         self,
         bucket: str,
         prefix: str = "",
-        file_identifier: str = "",
+        item_identifier: str = "",
         file_type: str = "",
         exclude_prefixes: list[str] | None = None,
     ) -> Iterator[str]:
@@ -74,7 +74,7 @@ class S3Client:
         Args:
             bucket (str): S3 bucket name.
             prefix (str): Filter file list by prefix (i.e., subfolder in S3 bucket).
-            file_identifier (str, optional): Filter file list by unique identifier
+            item_identifier (str, optional): Filter file list by unique identifier
                 in filename. Defaults to an empty string ("").
             file_type (str, optional): Filter file list by file type (extension).
                 Defaults to an empty string ("").
@@ -97,7 +97,7 @@ class S3Client:
             for content in page["Contents"]:
                 if (
                     content["Key"].endswith(file_type)
-                    and file_identifier in content["Key"]
+                    and item_identifier in content["Key"]
                 ):
                     if any(
                         exclude_prefix in content["Key"]

@@ -17,10 +17,10 @@ def test_base_workflow_item_submission_iter_success(base_workflow_instance):
             ]
         },
         bitstream_uris=[
-            "s3://dsc/workflow/folder/123_01.pdf",
-            "s3://dsc/workflow/folder/123_02.pdf",
+            "s3://dsc/base/batch-aaa/123_01.pdf",
+            "s3://dsc/base/batch-aaa/123_02.pdf",
         ],
-        metadata_s3_key="workflow/folder/123_metadata.json",
+        metadata_s3_key="base/batch-aaa/123_metadata.json",
         metadata_uri="",
     )
 

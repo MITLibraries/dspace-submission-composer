@@ -38,9 +38,9 @@ def base_workflow_instance(item_metadata, metadata_mapping, mocked_s3):
 
         def get_bitstream_uris(self, item_identifier):
             bitstreams = [
-                "s3://dsc/workflow/folder/123_01.pdf",
-                "s3://dsc/workflow/folder/123_02.pdf",
-                "s3://dsc/workflow/folder/456_01.pdf",
+                "s3://dsc/base/batch-aaa/123_01.pdf",
+                "s3://dsc/base/batch-aaa/123_02.pdf",
+                "s3://dsc/base/batch-aaa/456_01.pdf",
             ]
             return [bitstream for bitstream in bitstreams if item_identifier in bitstream]
 
@@ -48,12 +48,12 @@ def base_workflow_instance(item_metadata, metadata_mapping, mocked_s3):
             pass
 
     return TestBaseWorkflow(
-        workflow_name="test",
+        workflow_name="base",
         submission_system="Test@MIT",
         email_recipients=["test@test.test"],
         metadata_mapping=metadata_mapping,
         s3_bucket="dsc",
-        s3_prefix="workflow/folder",
+        batch_id="batch-aaa",
         collection_handle="123.4/5678",
         output_queue="mock-output_queue",
     )
@@ -62,12 +62,12 @@ def base_workflow_instance(item_metadata, metadata_mapping, mocked_s3):
 @pytest.fixture
 def simple_csv_workflow_instance():
     return SimpleCSV(
-        workflow_name="test-simplecsv",
+        workflow_name="simple_csv",
         submission_system="Test@MIT",
         email_recipients=["test@test.test"],
         metadata_mapping=metadata_mapping,
         s3_bucket="dsc",
-        s3_prefix="simple_csv/folder",
+        batch_id="batch-aaa",
         collection_handle="123.4/5678",
         output_queue="mock-output_queue",
     )
@@ -167,7 +167,7 @@ def mocked_s3_simple_csv(mocked_s3, item_metadata):
 
     mocked_s3.put_object(
         Bucket="dsc",
-        Key="simple_csv/folder/metadata.csv",
+        Key="simple_csv/batch-aaa/metadata.csv",
         Body=csv_buffer.getvalue(),
     )
 

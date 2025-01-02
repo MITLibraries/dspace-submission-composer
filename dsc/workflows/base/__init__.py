@@ -26,36 +26,43 @@ class BaseWorkflow(ABC):
         email_recipients: list[str],
         metadata_mapping: dict,
         s3_bucket: str,
-        s3_prefix: str,
+        batch_id: str,
         collection_handle: str,
         output_queue: str,
     ) -> None:
         """Initialize base instance.
 
         Args:
-            workflow_name: The name of the workflow.
-            submission_system: The system to which item submissions will be sent (e.g.
-            DSpace@MIT)
-            email_recipients: The email addresses to notify after runs of the workflow.
-            metadata_mapping: A mapping file for generating DSpace metadata from the
-            workflow's source metadata.
-            s3_bucket: The S3 bucket containing bitstream and metadata files for the
-            workflow.
-            s3_prefix: The S3 prefix used for objects in this workflow. This prefix does
-            NOT include the bucket name.
-            collection_handle: The handle of the DSpace collection to which submissions
-            will be uploaded
-            output_queue: The SQS output queue used for retrieving result messages from
-            the workflow's submissions.
+            workflow_name (str): The name of the workflow.
+            submission_system (str): The system to which item submissions will be sent
+                (e.g. DSpace@MIT).
+            email_recipients (list[str]): The email addresses to notify after runs of
+                the workflow.
+            metadata_mapping (dict):  A mapping file for generating DSpace metadata
+                from the workflow's source metadata.
+            s3_bucket (str): The S3 bucket containing bitstream and metadata files for
+                the workflow.
+            batch_id (str): Unique identifier for a 'batch' deposit that corresponds
+                to the name of a subfolder in the workflow directory of the S3 bucket.
+                This subfolder is where the S3 client will search for bitstream
+                and metadata files.
+            collection_handle (str): The handle of the DSpace collection to which
+                submissions will be uploaded.
+            output_queue (str): The SQS output queue used for retrieving result messages
+                from the workflow's submissions.
         """
         self.workflow_name: str = workflow_name
         self.submission_system: str = submission_system
         self.email_recipients: list[str] = email_recipients
         self.metadata_mapping: dict = metadata_mapping
         self.s3_bucket: str = s3_bucket
-        self.s3_prefix: str = s3_prefix
+        self.batch_id: str = batch_id
         self.collection_handle: str = collection_handle
         self.output_queue: str = output_queue
+
+    @property
+    def batch_path(self) -> str:
+        return f"{self.workflow_name}/{self.batch_id}"
 
     @final  # noqa: B027
     def run(self) -> None:
@@ -88,7 +95,7 @@ class BaseWorkflow(ABC):
         for item_metadata in self.item_metadata_iter():
             item_identifier = self.get_item_identifier(item_metadata)
             logger.info(f"Processing submission for '{item_identifier}'")
-            metadata_s3_key = f"{self.s3_prefix}/{item_identifier}_metadata.json"
+            metadata_s3_key = f"{self.batch_path}/{item_identifier}_metadata.json"
             dspace_metadata = self.create_dspace_metadata(item_metadata)
             self.validate_dspace_metadata(dspace_metadata)
             item_submission = ItemSubmission(

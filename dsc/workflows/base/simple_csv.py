@@ -26,14 +26,14 @@ class SimpleCSV(BaseWorkflow):
             Iterator[dict[str, Any]]: Item metadata.
         """
         with smart_open.open(
-            f"s3://{self.s3_bucket}/{self.s3_prefix}/{metadata_file}"
+            f"s3://{self.s3_bucket}/{self.batch_path}/{metadata_file}"
         ) as csvfile:
             yield from csv.DictReader(csvfile)
 
     def get_bitstream_uris(self, item_identifier: str) -> list[str]:
         """Get S3 URIs for bitstreams for a given item.
 
-        This method uses S3Client.get_files_iter to get a list of files
+        This method uses S3Client.files_iter to get a list of files
         on S3 stored at s3://bucket/prefix/ and includes the 'item_identifier'
         in the object key.
 
@@ -50,10 +50,11 @@ class SimpleCSV(BaseWorkflow):
         """
         s3_client = S3Client()
         return list(
-            s3_client.get_files_iter(
+            s3_client.files_iter(
                 bucket=self.s3_bucket,
-                prefix=self.s3_prefix,
-                file_identifier=item_identifier,
+                prefix=self.batch_path,
+                item_identifier=item_identifier,
+                exclude_prefixes=["archived"],
             )
         )
 

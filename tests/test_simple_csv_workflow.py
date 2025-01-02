@@ -16,11 +16,11 @@ def test_simple_csv_workflow_get_item_identifier_success(
     assert simple_csv_workflow_instance.get_item_identifier(item_metadata)
 
 
-@patch("dsc.utilities.aws.s3.S3Client.get_files_iter")
+@patch("dsc.utilities.aws.s3.S3Client.files_iter")
 def test_simple_csv_get_bitstreams_uris_if_prefix_id_success(
-    mock_s3_client_get_files_iter, simple_csv_workflow_instance
+    mock_s3_client_files_iter, simple_csv_workflow_instance
 ):
-    mock_s3_client_get_files_iter.return_value = [
+    mock_s3_client_files_iter.return_value = [
         "s3://dsc/simple_csv/folder/123_001.pdf",
         "s3://dsc/simple_csv/folder/123_002.pdf",
     ]
@@ -31,11 +31,11 @@ def test_simple_csv_get_bitstreams_uris_if_prefix_id_success(
     ]
 
 
-@patch("dsc.utilities.aws.s3.S3Client.get_files_iter")
+@patch("dsc.utilities.aws.s3.S3Client.files_iter")
 def test_simple_csv_get_bitstreams_uris_if_filename_id_success(
-    mock_s3_client_get_files_iter, simple_csv_workflow_instance
+    mock_s3_client_files_iter, simple_csv_workflow_instance
 ):
-    mock_s3_client_get_files_iter.return_value = [
+    mock_s3_client_files_iter.return_value = [
         "s3://dsc/simple_csv/folder/123.pdf",
     ]
 
