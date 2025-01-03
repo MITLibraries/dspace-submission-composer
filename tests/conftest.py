@@ -1,3 +1,4 @@
+import csv
 import json
 from io import StringIO
 
@@ -12,6 +13,7 @@ from dsc.utilities.aws.s3 import S3Client
 from dsc.utilities.aws.ses import SESClient
 from dsc.utilities.aws.sqs import SQSClient
 from dsc.workflows.base import BaseWorkflow
+from dsc.workflows.base.simple_csv import SimpleCSV
 
 
 @pytest.fixture(autouse=True)
@@ -22,13 +24,14 @@ def _test_env(monkeypatch):
     monkeypatch.setenv("AWS_ACCESS_KEY_ID", "testing")
     monkeypatch.setenv("AWS_SECRET_ACCESS_KEY", "testing")
     monkeypatch.setenv("DSS_INPUT_QUEUE", "mock-input-queue")
+    monkeypatch.delenv("AWS_ENDPOINT_URL", raising=False)
 
 
 @pytest.fixture
 def base_workflow_instance(item_metadata, metadata_mapping, mocked_s3):
     class TestBaseWorkflow(BaseWorkflow):
 
-        def batch_metadata_iter(self):
+        def item_metadata_iter(self):
             yield from [item_metadata]
 
         def get_item_identifier(self, item_metadata):
@@ -36,9 +39,9 @@ def base_workflow_instance(item_metadata, metadata_mapping, mocked_s3):
 
         def get_bitstream_uris(self, item_identifier):
             bitstreams = [
-                "s3://dsc/workflow/folder/123_01.pdf",
-                "s3://dsc/workflow/folder/123_02.pdf",
-                "s3://dsc/workflow/folder/456_01.pdf",
+                "s3://dsc/base/batch-aaa/123_01.pdf",
+                "s3://dsc/base/batch-aaa/123_02.pdf",
+                "s3://dsc/base/batch-aaa/456_01.pdf",
             ]
             return [bitstream for bitstream in bitstreams if item_identifier in bitstream]
 
@@ -46,12 +49,26 @@ def base_workflow_instance(item_metadata, metadata_mapping, mocked_s3):
             pass
 
     return TestBaseWorkflow(
-        workflow_name="test",
+        workflow_name="base",
         submission_system="Test@MIT",
         email_recipients=["test@test.test"],
         metadata_mapping=metadata_mapping,
         s3_bucket="dsc",
-        s3_prefix="workflow/folder",
+        batch_id="batch-aaa",
+        collection_handle="123.4/5678",
+        output_queue="mock-output_queue",
+    )
+
+
+@pytest.fixture
+def simple_csv_workflow_instance():
+    return SimpleCSV(
+        workflow_name="simple_csv",
+        submission_system="Test@MIT",
+        email_recipients=["test@test.test"],
+        metadata_mapping=metadata_mapping,
+        s3_bucket="dsc",
+        batch_id="batch-aaa",
         collection_handle="123.4/5678",
         output_queue="mock-output_queue",
     )
@@ -135,6 +152,25 @@ def mocked_s3(config_instance):
         s3 = boto3.client("s3", region_name=config_instance.AWS_REGION_NAME)
         s3.create_bucket(Bucket="dsc")
         yield s3
+
+
+@pytest.fixture
+def mocked_s3_simple_csv(mocked_s3, item_metadata):
+    # write in-memory metadata CSV file
+    csv_buffer = StringIO()
+    fieldnames = item_metadata.keys()
+    writer = csv.DictWriter(csv_buffer, fieldnames=fieldnames)
+    writer.writeheader()
+    writer.writerows([item_metadata])
+
+    # seek to the beginning of the in-memory file before uploading
+    csv_buffer.seek(0)
+
+    mocked_s3.put_object(
+        Bucket="dsc",
+        Key="simple_csv/batch-aaa/metadata.csv",
+        Body=csv_buffer.getvalue(),
+    )
 
 
 @pytest.fixture

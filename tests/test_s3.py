@@ -1,12 +1,14 @@
+import json
+import re
 from http import HTTPStatus
 
 import pytest
 from botocore.exceptions import ClientError
 
 
-def test_s3_archive_file_in_bucket(mocked_s3, s3_client):
+def test_s3_client_archive_file_with_new_key_success(mocked_s3, s3_client):
     s3_client.put_file(
-        file_content="test1,test2,test3,test4",
+        file_content="",
         bucket="dsc",
         key="test.csv",
     )
@@ -15,53 +17,103 @@ def test_s3_archive_file_in_bucket(mocked_s3, s3_client):
         key="test.csv",
         archived_key_prefix="archived",
     )
-    with pytest.raises(ClientError) as e:
-        response = s3_client.client.get_object(Bucket="dsc", Key="test.csv")
-    assert (
-        "An error occurred (NoSuchKey) when calling the GetObject operation: The"
-        " specified key does not exist." in str(e.value)
-    )
+    with pytest.raises(
+        ClientError,
+        match=re.escape(
+            "An error occurred (NoSuchKey) when calling the GetObject operation: "
+            "The specified key does not exist."
+        ),
+    ):
+        s3_client.client.get_object(Bucket="dsc", Key="test.csv")
     response = s3_client.client.get_object(Bucket="dsc", Key="archived/test.csv")
+
     assert response["ResponseMetadata"]["HTTPStatusCode"] == HTTPStatus.OK
 
 
-def test_s3_put_file(mocked_s3, s3_client):
+def test_s3_client_put_file_success(mocked_s3, s3_client):
     assert "Contents" not in s3_client.client.list_objects(Bucket="dsc")
+
     s3_client.put_file(
-        file_content=str({"metadata": {"key": "dc.title", "value": "A Title"}}),
+        file_content=json.dumps({"metadata": {"key": "dc.title", "value": "A Title"}}),
         bucket="dsc",
         key="test.json",
     )
+
     assert len(s3_client.client.list_objects(Bucket="dsc")["Contents"]) == 1
     assert (
         s3_client.client.list_objects(Bucket="dsc")["Contents"][0]["Key"] == "test.json"
     )
 
 
-def test_s3_get_files_iter_with_matching_csv(mocked_s3, s3_client):
+def test_s3_client_files_iter_success(mocked_s3, s3_client):
     s3_client.put_file(
-        file_content="test1,test2,test3,test4",
+        file_content="",
         bucket="dsc",
-        key="test.csv",
+        key="metadata.csv",
     )
+
+    assert list(s3_client.files_iter(bucket="dsc")) == ["metadata.csv"]
+
+
+def test_s3_client_files_iter_with_prefix_success(mocked_s3, s3_client):
+    s3_client.put_file(
+        file_content="",
+        bucket="dsc",
+        key="workflow/batch-aaa/metadata.csv",
+    )
+
+    assert list(s3_client.files_iter(bucket="dsc", prefix="workflow/batch-aaa")) == [
+        "workflow/batch-aaa/metadata.csv"
+    ]
+
+
+def test_s3_client_files_iter_with_item_identifier_success(mocked_s3, s3_client):
+    s3_client.put_file(file_content="", bucket="dsc", key="workflow/batch-aaa/123.pdf")
+    s3_client.put_file(file_content="", bucket="dsc", key="workflow/batch-aaa/124.pdf")
+
     assert list(
-        s3_client.get_files_iter(
-            bucket="dsc", file_type="csv", excluded_key_prefix="archived"
+        s3_client.files_iter(
+            bucket="dsc", prefix="workflow/batch-aaa/", item_identifier="123"
         )
-    ) == ["test.csv"]
+    ) == ["workflow/batch-aaa/123.pdf"]
 
 
-def test_s3_get_files_iter_without_matching_csv(mocked_s3, s3_client):
+def test_s3_client_files_iter_with_file_type_success(mocked_s3, s3_client):
+    s3_client.put_file(file_content="", bucket="dsc", key="workflow/batch-aaa/123.pdf")
+    s3_client.put_file(file_content="", bucket="dsc", key="workflow/batch-aaa/123.tiff")
+    s3_client.put_file(file_content="", bucket="dsc", key="workflow/batch-aaa/124.pdf")
+
+    assert list(
+        s3_client.files_iter(
+            bucket="dsc",
+            prefix="workflow/batch-aaa/",
+            item_identifier="123",
+            file_type="pdf",
+        )
+    ) == ["workflow/batch-aaa/123.pdf"]
+
+
+def test_s3_client_files_iter_with_exclude_prefixes_success(mocked_s3, s3_client):
     s3_client.put_file(
-        file_content="test1,test2,test3,test4",
+        file_content="",
         bucket="dsc",
-        key="archived/test.csv",
+        key="workflow/batch-aaa/metadata.csv",
     )
-    assert (
-        list(
-            s3_client.get_files_iter(
-                bucket="dsc", file_type="csv", excluded_key_prefix="archived"
-            )
+    s3_client.put_file(
+        file_content="",
+        bucket="dsc",
+        key="workflow/batch-aaa/123.pdf",
+    )
+    s3_client.archive_file_with_new_key(
+        bucket="dsc",
+        key="workflow/batch-aaa/metadata.csv",
+        archived_key_prefix="workflow/batch-aaa/archived",
+    )
+
+    assert list(
+        s3_client.files_iter(
+            bucket="dsc",
+            prefix="workflow/batch-aaa",
+            exclude_prefixes=["archived"],
         )
-        == []
-    )
+    ) == ["workflow/batch-aaa/123.pdf"]
