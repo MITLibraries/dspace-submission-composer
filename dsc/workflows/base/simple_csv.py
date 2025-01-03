@@ -12,6 +12,12 @@ logger = logging.getLogger(__name__)
 
 
 class SimpleCSV(BaseWorkflow):
+    """Base workflow for deposits that rely on a metadata CSV file.
+
+    The metadata CSV file must be stored in a designated path for the
+    deposit on S3.
+    """
+
     def item_metadata_iter(
         self, metadata_file: str = "metadata.csv"
     ) -> Iterator[dict[str, Any]]:

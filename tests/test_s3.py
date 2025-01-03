@@ -59,61 +59,61 @@ def test_s3_client_files_iter_with_prefix_success(mocked_s3, s3_client):
     s3_client.put_file(
         file_content="",
         bucket="dsc",
-        key="workflow/folder/metadata.csv",
+        key="workflow/batch-aaa/metadata.csv",
     )
 
-    assert list(s3_client.files_iter(bucket="dsc", prefix="workflow/folder")) == [
-        "workflow/folder/metadata.csv"
+    assert list(s3_client.files_iter(bucket="dsc", prefix="workflow/batch-aaa")) == [
+        "workflow/batch-aaa/metadata.csv"
     ]
 
 
 def test_s3_client_files_iter_with_item_identifier_success(mocked_s3, s3_client):
-    s3_client.put_file(file_content="", bucket="dsc", key="workflow/folder/aaa.pdf")
-    s3_client.put_file(file_content="", bucket="dsc", key="workflow/folder/bbb.pdf")
+    s3_client.put_file(file_content="", bucket="dsc", key="workflow/batch-aaa/123.pdf")
+    s3_client.put_file(file_content="", bucket="dsc", key="workflow/batch-aaa/124.pdf")
 
     assert list(
         s3_client.files_iter(
-            bucket="dsc", prefix="workflow/folder/", item_identifier="aaa"
+            bucket="dsc", prefix="workflow/batch-aaa/", item_identifier="123"
         )
-    ) == ["workflow/folder/aaa.pdf"]
+    ) == ["workflow/batch-aaa/123.pdf"]
 
 
 def test_s3_client_files_iter_with_file_type_success(mocked_s3, s3_client):
-    s3_client.put_file(file_content="", bucket="dsc", key="workflow/folder/aaa.pdf")
-    s3_client.put_file(file_content="", bucket="dsc", key="workflow/folder/aaa.tiff")
-    s3_client.put_file(file_content="", bucket="dsc", key="workflow/folder/bbb.pdf")
+    s3_client.put_file(file_content="", bucket="dsc", key="workflow/batch-aaa/123.pdf")
+    s3_client.put_file(file_content="", bucket="dsc", key="workflow/batch-aaa/123.tiff")
+    s3_client.put_file(file_content="", bucket="dsc", key="workflow/batch-aaa/124.pdf")
 
     assert list(
         s3_client.files_iter(
             bucket="dsc",
-            prefix="workflow/folder/",
-            item_identifier="aaa",
+            prefix="workflow/batch-aaa/",
+            item_identifier="123",
             file_type="pdf",
         )
-    ) == ["workflow/folder/aaa.pdf"]
+    ) == ["workflow/batch-aaa/123.pdf"]
 
 
 def test_s3_client_files_iter_with_exclude_prefixes_success(mocked_s3, s3_client):
     s3_client.put_file(
         file_content="",
         bucket="dsc",
-        key="workflow/folder/metadata.csv",
+        key="workflow/batch-aaa/metadata.csv",
     )
     s3_client.put_file(
         file_content="",
         bucket="dsc",
-        key="workflow/folder/aaa.pdf",
+        key="workflow/batch-aaa/123.pdf",
     )
     s3_client.archive_file_with_new_key(
         bucket="dsc",
-        key="workflow/folder/metadata.csv",
-        archived_key_prefix="workflow/folder/archived",
+        key="workflow/batch-aaa/metadata.csv",
+        archived_key_prefix="workflow/batch-aaa/archived",
     )
 
     assert list(
         s3_client.files_iter(
             bucket="dsc",
-            prefix="workflow/folder",
-            exclude_prefixes=["workflow/folder/archived"],
+            prefix="workflow/batch-aaa",
+            exclude_prefixes=["archived"],
         )
-    ) == ["workflow/folder/aaa.pdf"]
+    ) == ["workflow/batch-aaa/123.pdf"]

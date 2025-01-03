@@ -24,6 +24,7 @@ def _test_env(monkeypatch):
     monkeypatch.setenv("AWS_ACCESS_KEY_ID", "testing")
     monkeypatch.setenv("AWS_SECRET_ACCESS_KEY", "testing")
     monkeypatch.setenv("DSS_INPUT_QUEUE", "mock-input-queue")
+    monkeypatch.delenv("AWS_ENDPOINT_URL", raising=False)
 
 
 @pytest.fixture
