@@ -24,12 +24,11 @@ class SimpleCSV(BaseWorkflow):
         """Yield dicts of item metadata from metadata CSV file.
 
         Args:
-            metadata_file (str, optional): Metadata CSV filename with
-                the filename extension (.csv) included.
-                Defaults to 'metadata.csv'.
+            metadata_file: Metadata CSV filename with the filename extension
+                (.csv) included. Defaults to 'metadata.csv'.
 
         Yields:
-            Iterator[dict[str, Any]]: Item metadata.
+            Item metadata.
         """
         with smart_open.open(
             f"s3://{self.s3_bucket}/{self.batch_path}/{metadata_file}"
@@ -49,10 +48,10 @@ class SimpleCSV(BaseWorkflow):
           bitstreams are retrieved.
 
         Args:
-            item_identifier (str): Item identifier used to filter bitstreams.
+            item_identifier: Item identifier used to filter bitstreams.
 
         Returns:
-            list[str]: Bitstream URIs for a given item.
+            Bitstream URIs for a given item.
         """
         s3_client = S3Client()
         return list(

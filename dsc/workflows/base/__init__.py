@@ -33,22 +33,22 @@ class BaseWorkflow(ABC):
         """Initialize base instance.
 
         Args:
-            workflow_name (str): The name of the workflow.
-            submission_system (str): The system to which item submissions will be sent
+            workflow_name: The name of the workflow.
+            submission_system: The system to which item submissions will be sent
                 (e.g. DSpace@MIT).
-            email_recipients (list[str]): The email addresses to notify after runs of
+            email_recipients: The email addresses to notify after runs of
                 the workflow.
-            metadata_mapping (dict):  A mapping file for generating DSpace metadata
+            metadata_mapping: A mapping file for generating DSpace metadata
                 from the workflow's source metadata.
-            s3_bucket (str): The S3 bucket containing bitstream and metadata files for
+            s3_bucket: The S3 bucket containing bitstream and metadata files for
                 the workflow.
-            batch_id (str): Unique identifier for a 'batch' deposit that corresponds
+            batch_id: Unique identifier for a 'batch' deposit that corresponds
                 to the name of a subfolder in the workflow directory of the S3 bucket.
                 This subfolder is where the S3 client will search for bitstream
                 and metadata files.
-            collection_handle (str): The handle of the DSpace collection to which
+            collection_handle: The handle of the DSpace collection to which
                 submissions will be uploaded.
-            output_queue (str): The SQS output queue used for retrieving result messages
+            output_queue: The SQS output queue used for retrieving result messages
                 from the workflow's submissions.
         """
         self.workflow_name: str = workflow_name

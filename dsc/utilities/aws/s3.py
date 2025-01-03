@@ -72,17 +72,17 @@ class S3Client:
         (i.e., to skip files in 'archived/' folder).
 
         Args:
-            bucket (str): S3 bucket name.
-            prefix (str): Filter file list by prefix (i.e., subfolder in S3 bucket).
-            item_identifier (str, optional): Filter file list by unique identifier
+            bucket: S3 bucket name.
+            prefix: Filter file list by prefix (i.e., subfolder in S3 bucket).
+            item_identifier: Filter file list by unique identifier
                 in filename. Defaults to an empty string ("").
-            file_type (str, optional): Filter file list by file type (extension).
+            file_type: Filter file list by file type (extension).
                 Defaults to an empty string ("").
-            exclude_prefixes (list[str], optional): Filter file list by excluding
+            exclude_prefixes: Filter file list by excluding
                 file keys containing certain prefixes (e.g., 'archived').
 
         Yields:
-            Iterator[str]: Files matching filters.
+            Files matching filters.
         """
         paginator = self.client.get_paginator("list_objects_v2")
         page_iterator = paginator.paginate(Bucket=bucket, Prefix=prefix)
