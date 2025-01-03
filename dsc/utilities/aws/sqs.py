@@ -48,6 +48,10 @@ class SQSClient:
     ) -> dict[str, Any]:
         """Create attributes for a DSpace Submission Service message.
 
+        Link to the DSS input message specification:
+
+        https://github.com/MITLibraries/dspace-submission-service/blob/main/docs/specifications/submission-message-specification.md#messageattributes
+
         Args:
             identifier: The submission's identifier which is populates the PackageID
             field.
@@ -68,6 +72,10 @@ class SQSClient:
         bitstream_s3_uris: list[str],
     ) -> str:
         """Create body for a DSpace Submission Service message.
+
+        Link to the DSS input message specification:
+
+        https://github.com/MITLibraries/dspace-submission-service/blob/main/docs/specifications/submission-message-specification.md#messagebody
 
         Args:
             submission_system: The system where the submission is uploaded
