@@ -35,7 +35,7 @@ class SimpleCSV(BaseWorkflow):
         ) as csvfile:
             yield from csv.DictReader(csvfile)
 
-    def get_bitstream_uris(self, item_identifier: str) -> list[str]:
+    def get_bitstream_s3_uris(self, item_identifier: str) -> list[str]:
         """Get S3 URIs for bitstreams for a given item.
 
         This method uses S3Client.files_iter to get a list of files

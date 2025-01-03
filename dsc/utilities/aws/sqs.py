@@ -44,18 +44,22 @@ class SQSClient:
 
     @staticmethod
     def create_dss_message_attributes(
-        package_id: str, submission_source: str, output_queue: str
+        item_identifier: str, submission_source: str, output_queue: str
     ) -> dict[str, Any]:
         """Create attributes for a DSpace Submission Service message.
 
+        Link to the DSS input message specification:
+
+        https://github.com/MITLibraries/dspace-submission-service/blob/main/docs/specifications/submission-message-specification.md#messageattributes
+
         Args:
-            package_id: The PackageID field which is populated by the submission's
-            identifier.
+            item_identifier: The submission's identifier which is populates the PackageID
+            field.
             submission_source: The source for the submission.
             output_queue: The SQS output queue used for retrieving result messages.
         """
         return {
-            "PackageID": {"DataType": "String", "StringValue": package_id},
+            "PackageID": {"DataType": "String", "StringValue": item_identifier},
             "SubmissionSource": {"DataType": "String", "StringValue": submission_source},
             "OutputQueue": {"DataType": "String", "StringValue": output_queue},
         }
@@ -65,31 +69,37 @@ class SQSClient:
         submission_system: str,
         collection_handle: str,
         metadata_s3_uri: str,
-        bitstream_file_name: str,
-        bitstream_s3_uri: str,
+        bitstream_s3_uris: list[str],
     ) -> str:
         """Create body for a DSpace Submission Service message.
 
+        Link to the DSS input message specification:
+
+        https://github.com/MITLibraries/dspace-submission-service/blob/main/docs/specifications/submission-message-specification.md#messagebody
+
         Args:
-        submission_system: The system where the article is uploaded.
-        collection_handle: The handle of collection where the article is uploaded.
-        metadata_s3_uri: The S3 URI for the metadata JSON file.
-        bitstream_file_name: The file name for the article content which is uploaded as a
-        bitstream.
-        bitstream_s3_uri: The S3 URI for the article content file.
+            submission_system: The system where the submission is uploaded
+            (e.g. DSpace@MIT).
+            collection_handle: The handle of collection where the submission is uploaded.
+            metadata_s3_uri: The S3 URI for the metadata JSON file.
+            bitstream_s3_uris: The S3 URIs for the submission's bitstreams.
         """
+        files = []
+        for bitstream_s3_uri in bitstream_s3_uris:
+            bitstream_file_name = bitstream_s3_uri.split("/")[-1]
+            files.append(
+                {
+                    "BitstreamName": bitstream_file_name,
+                    "FileLocation": bitstream_s3_uri,
+                    "BitstreamDescription": None,
+                }
+            )
         return json.dumps(
             {
                 "SubmissionSystem": submission_system,
                 "CollectionHandle": collection_handle,
                 "MetadataLocation": metadata_s3_uri,
-                "Files": [
-                    {
-                        "BitstreamName": bitstream_file_name,
-                        "FileLocation": bitstream_s3_uri,
-                        "BitstreamDescription": None,
-                    }
-                ],
+                "Files": files,
             }
         )
 
@@ -114,7 +124,7 @@ class SQSClient:
         Args:
             sqs_message: An SQS result message to be processed.
         """
-        self.validate_message(sqs_message)
+        self.validate_result_message(sqs_message)
         identifier = sqs_message["MessageAttributes"]["PackageID"]["StringValue"]
         message_body = json.loads(str(sqs_message["Body"]))
         self.delete(sqs_message["ReceiptHandle"])
@@ -159,8 +169,8 @@ class SQSClient:
         logger.debug(f"Response from SQS queue: {response}")
         return response
 
-    def validate_message(self, sqs_message: MessageTypeDef) -> None:
-        """Validate that an SQS message is formatted as expected.
+    def validate_result_message(self, sqs_message: MessageTypeDef) -> None:
+        """Validate that an SQS result message is formatted as expected.
 
         Args:
             sqs_message:  An SQS message to be evaluated.

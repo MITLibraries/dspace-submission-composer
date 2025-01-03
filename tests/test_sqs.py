@@ -8,7 +8,9 @@ from dsc.exceptions import InvalidSQSMessageError
 
 def test_sqs_create_dss_message_attributes(sqs_client, submission_message_attributes):
     dss_message_attributes = sqs_client.create_dss_message_attributes(
-        package_id="123", submission_source="Submission system", output_queue="DSS queue"
+        item_identifier="123",
+        submission_source="Submission system",
+        output_queue="DSS queue",
     )
     assert dss_message_attributes == submission_message_attributes
 
@@ -18,8 +20,7 @@ def test_sqs_create_dss_message_body(sqs_client, submission_message_body):
         submission_system="DSpace@MIT",
         collection_handle="123.4/5678",
         metadata_s3_uri="s3://dsc/10.1002-term.3131.json",
-        bitstream_file_name="10.1002-term.3131.pdf",
-        bitstream_s3_uri="s3://dsc/10.1002-term.3131.pdf",
+        bitstream_s3_uris=["s3://dsc/10.1002-term.3131.pdf"],
     )
     assert dss_message_body == submission_message_body
 
@@ -133,34 +134,36 @@ def test_sqs_send_success(
     assert response["ResponseMetadata"]["HTTPStatusCode"] == HTTPStatus.OK
 
 
-def test_sqs_validate_message_no_receipthandle_invalid(
+def test_sqs_validate_result_message_no_receipthandle_invalid(
     mocked_sqs_input, sqs_client, result_message_valid
 ):
     with pytest.raises(InvalidSQSMessageError):
-        sqs_client.validate_message(sqs_message={})
+        sqs_client.validate_result_message(sqs_message={})
 
 
-def test_sqs_validate_message_valid(mocked_sqs_input, sqs_client, result_message_valid):
-    assert not sqs_client.validate_message(sqs_message=result_message_valid)
+def test_sqs_validate_result_message_valid(
+    mocked_sqs_input, sqs_client, result_message_valid
+):
+    assert not sqs_client.validate_result_message(sqs_message=result_message_valid)
 
 
-def test_sqs_validate_message_attributes_invalid(mocked_sqs_input, sqs_client):
+def test_sqs_validate_result_message_attributes_invalid(mocked_sqs_input, sqs_client):
     with pytest.raises(InvalidSQSMessageError):
         sqs_client.validate_message_attributes(sqs_message={})
 
 
-def test_sqs_validate_message_attributes_valid(
+def test_sqs_validate_result_message_attributes_valid(
     mocked_sqs_input, sqs_client, result_message_valid
 ):
     assert not sqs_client.validate_message_attributes(sqs_message=result_message_valid)
 
 
-def test_sqs_validate_message_body_invalid(caplog, mocked_sqs_input, sqs_client):
+def test_sqs_validate_result_message_body_invalid(caplog, mocked_sqs_input, sqs_client):
     with pytest.raises(InvalidSQSMessageError):
         sqs_client.validate_message_body(sqs_message={})
 
 
-def test_sqs_validate_message_body_valid(
+def test_sqs_validate_result_message_body_valid(
     mocked_sqs_input, sqs_client, result_message_valid
 ):
     assert not sqs_client.validate_message_body(sqs_message=result_message_valid)

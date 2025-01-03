@@ -13,6 +13,8 @@ from dsc.item_submission import ItemSubmission
 if TYPE_CHECKING:
     from collections.abc import Iterator
 
+    from mypy_boto3_sqs.type_defs import SendMessageResultTypeDef
+
 logger = logging.getLogger(__name__)
 
 
@@ -64,27 +66,18 @@ class BaseWorkflow(ABC):
     def batch_path(self) -> str:
         return f"{self.workflow_name}/{self.batch_id}"
 
-    @final  # noqa: B027
-    def run(self) -> None:
-        """Run workflow to submit items to  the DSpace Submission Service.
-
-        PLANNED CODE:
-
-        sqs_client = SQSClient()
+    @final
+    def run(self) -> Iterator[SendMessageResultTypeDef]:
+        """Run workflow to submit items to  the DSpace Submission Service."""
         for item_submission in self.item_submissions_iter():
-            item_submission.upload_dspace_metadata(
-                self.s3_bucket, item_submission.metadata_s3_key
-            )
-            sqs_client.send_submission_message(
-                item_submission.item_identifier,
+            item_submission.upload_dspace_metadata(self.s3_bucket, self.batch_path)
+            response = item_submission.send_submission_message(
                 self.workflow_name,
                 self.output_queue,
                 self.submission_system,
                 self.collection_handle,
-                item_submission.metadata_uri,
-                item_submission.bitstream_uris,
             )
-        """
+            yield response
 
     @final
     def item_submissions_iter(self) -> Iterator[ItemSubmission]:
@@ -95,13 +88,12 @@ class BaseWorkflow(ABC):
         for item_metadata in self.item_metadata_iter():
             item_identifier = self.get_item_identifier(item_metadata)
             logger.info(f"Processing submission for '{item_identifier}'")
-            metadata_s3_key = f"{self.batch_path}/{item_identifier}_metadata.json"
             dspace_metadata = self.create_dspace_metadata(item_metadata)
             self.validate_dspace_metadata(dspace_metadata)
             item_submission = ItemSubmission(
                 dspace_metadata=dspace_metadata,
-                bitstream_uris=self.get_bitstream_uris(item_identifier),
-                metadata_s3_key=metadata_s3_key,
+                bitstream_s3_uris=self.get_bitstream_s3_uris(item_identifier),
+                item_identifier=item_identifier,
             )
             yield item_submission
 
@@ -197,7 +189,7 @@ class BaseWorkflow(ABC):
         return valid
 
     @abstractmethod
-    def get_bitstream_uris(self, item_identifier: str) -> list[str]:
+    def get_bitstream_s3_uris(self, item_identifier: str) -> list[str]:
         """Get bitstreams for an item submission according to the workflow subclass.
 
         MUST be overridden by workflow subclasses.
