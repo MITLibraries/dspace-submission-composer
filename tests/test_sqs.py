@@ -8,7 +8,9 @@ from dsc.exceptions import InvalidSQSMessageError
 
 def test_sqs_create_dss_message_attributes(sqs_client, submission_message_attributes):
     dss_message_attributes = sqs_client.create_dss_message_attributes(
-        identifier="123", submission_source="Submission system", output_queue="DSS queue"
+        item_identifier="123",
+        submission_source="Submission system",
+        output_queue="DSS queue",
     )
     assert dss_message_attributes == submission_message_attributes
 

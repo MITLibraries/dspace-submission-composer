@@ -25,16 +25,16 @@ class ItemSubmission:
     item_identifier: str
     metadata_s3_uri: str = ""
 
-    def upload_dspace_metadata(self, bucket: str, s3_prefix: str) -> None:
+    def upload_dspace_metadata(self, bucket: str, prefix: str) -> None:
         """Upload DSpace metadata to S3 using the specified bucket and keyname.
 
         Args:
             bucket: The S3 bucket for uploading the item metadata file.
-            s3_prefix: The S3 prefix used for objects in this workflow. Does NOT include
+            prefix: The S3 prefix used for objects in this workflow. Does NOT include
             the item identifier.
         """
         s3_client = S3Client()
-        metadata_s3_key = f"{s3_prefix}/{self.item_identifier}_metadata.json"
+        metadata_s3_key = f"{prefix}/{self.item_identifier}_metadata.json"
         s3_client.put_file(json.dumps(self.dspace_metadata), bucket, metadata_s3_key)
         metadata_s3_uri = f"s3://{bucket}/{metadata_s3_key}"
         logger.info(f"Metadata uploaded to S3: {metadata_s3_uri}")

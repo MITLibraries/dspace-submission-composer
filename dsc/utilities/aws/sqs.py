@@ -44,7 +44,7 @@ class SQSClient:
 
     @staticmethod
     def create_dss_message_attributes(
-        identifier: str, submission_source: str, output_queue: str
+        item_identifier: str, submission_source: str, output_queue: str
     ) -> dict[str, Any]:
         """Create attributes for a DSpace Submission Service message.
 
@@ -53,13 +53,13 @@ class SQSClient:
         https://github.com/MITLibraries/dspace-submission-service/blob/main/docs/specifications/submission-message-specification.md#messageattributes
 
         Args:
-            identifier: The submission's identifier which is populates the PackageID
+            item_identifier: The submission's identifier which is populates the PackageID
             field.
             submission_source: The source for the submission.
             output_queue: The SQS output queue used for retrieving result messages.
         """
         return {
-            "PackageID": {"DataType": "String", "StringValue": identifier},
+            "PackageID": {"DataType": "String", "StringValue": item_identifier},
             "SubmissionSource": {"DataType": "String", "StringValue": submission_source},
             "OutputQueue": {"DataType": "String", "StringValue": output_queue},
         }
