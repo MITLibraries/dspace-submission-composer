@@ -1,9 +1,12 @@
 from __future__ import annotations
 
+import json
 import logging
 from abc import ABC, abstractmethod
+from importlib import import_module
 from typing import TYPE_CHECKING, Any, final
 
+from dsc.config import WORKFLOWS
 from dsc.exceptions import (
     InvalidDSpaceMetadataError,
     ItemMetadatMissingRequiredFieldError,
@@ -21,50 +24,72 @@ logger = logging.getLogger(__name__)
 class BaseWorkflow(ABC):
     """A base workflow class from which other workflow classes are derived."""
 
+    workflow_name: str = "base"
+    submission_system: str = "DSpace@MIT"
+    email_recipients: tuple[str] = ("None",)
+    metadata_mapping_path: str = ""
+    s3_bucket: str = ""
+    output_queue: str = ""
+
     def __init__(
         self,
-        workflow_name: str,
-        submission_system: str,
-        email_recipients: list[str],
-        metadata_mapping: dict,
-        s3_bucket: str,
-        batch_id: str,
         collection_handle: str,
-        output_queue: str,
+        batch_id: str,
     ) -> None:
         """Initialize base instance.
 
         Args:
-            workflow_name: The name of the workflow.
-            submission_system: The system to which item submissions will be sent
-                (e.g. DSpace@MIT).
-            email_recipients: The email addresses to notify after runs of
-                the workflow.
-            metadata_mapping: A mapping file for generating DSpace metadata
-                from the workflow's source metadata.
-            s3_bucket: The S3 bucket containing bitstream and metadata files for
-                the workflow.
+            collection_handle: The handle of the DSpace collection to which
+                submissions will be uploaded.
             batch_id: Unique identifier for a 'batch' deposit that corresponds
                 to the name of a subfolder in the workflow directory of the S3 bucket.
                 This subfolder is where the S3 client will search for bitstream
                 and metadata files.
-            collection_handle: The handle of the DSpace collection to which
-                submissions will be uploaded.
-            output_queue: The SQS output queue used for retrieving result messages
-                from the workflow's submissions.
         """
-        self.workflow_name: str = workflow_name
-        self.submission_system: str = submission_system
-        self.email_recipients: list[str] = email_recipients
-        self.metadata_mapping: dict = metadata_mapping
-        self.s3_bucket: str = s3_bucket
-        self.batch_id: str = batch_id
-        self.collection_handle: str = collection_handle
-        self.output_queue: str = output_queue
+        self.batch_id = batch_id
+        self.collection_handle = collection_handle
 
     @property
     def batch_path(self) -> str:
         return f"{self.workflow_name}/{self.batch_id}"
+
+    @property
+    def metadata_mapping(self) -> dict:
+        with open(self.metadata_mapping_path) as mapping_file:
+            return json.load(mapping_file)
+
+    @final
+    @classmethod
+    def load(
+        cls, workflow_name: str, collection_handle: str, batch_id: str
+    ) -> BaseWorkflow:
+        """Return configured workflow class instance.
+
+        Args:
+            workflow_name: The label of the workflow. Must match a key from
+            config.WORKFLOWS.
+            collection_handle: The handle of the DSpace collection to which the batch will
+            be submitted.
+            batch_id: The S3 prefix for the batch of DSpace submissions.
+        """
+        workflow_class = cls.get_workflow(workflow_name)
+        return workflow_class(
+            collection_handle=collection_handle,
+            batch_id=batch_id,
+        )
+
+    @final
+    @classmethod
+    def get_workflow(cls, workflow_name: str) -> type[BaseWorkflow]:
+        """Return workflow class.
+
+        Args:
+            workflow_name: The label of the workflow. Must match a key from
+            config.WORKFLOWS.
+        """
+        module_name, class_name = WORKFLOWS[workflow_name]["workflow-path"].rsplit(".", 1)
+        source_module = import_module(module_name)
+        return getattr(source_module, class_name)
 
     @final
     def run(self) -> Iterator[SendMessageResultTypeDef]:

@@ -16,7 +16,7 @@ def test_base_workflow_run_success(
     response = next(base_workflow_instance.run())
     assert "Processing submission for '123'" in caplog.text
     assert (
-        "Metadata uploaded to S3: s3://dsc/base/batch-aaa/123_metadata.json"
+        "Metadata uploaded to S3: s3://dsc/test/batch-aaa/123_metadata.json"
         in caplog.text
     )
     assert response["ResponseMetadata"]["HTTPStatusCode"] == HTTPStatus.OK
@@ -32,8 +32,8 @@ def test_base_workflow_item_submission_iter_success(base_workflow_instance):
             ]
         },
         bitstream_s3_uris=[
-            "s3://dsc/base/batch-aaa/123_01.pdf",
-            "s3://dsc/base/batch-aaa/123_02.pdf",
+            "s3://dsc/test/batch-aaa/123_01.pdf",
+            "s3://dsc/test/batch-aaa/123_02.pdf",
         ],
         item_identifier="123",
     )
