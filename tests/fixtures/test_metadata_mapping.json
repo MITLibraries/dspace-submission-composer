@@ -1,0 +1,19 @@
+{
+    "item_identifier": {
+        "source_field_name": "item_identifier",
+        "language": null,
+        "delimiter": "",
+        "required": true
+    },
+    "dc.title": {
+        "source_field_name": "title",
+        "language": "en_US",
+        "delimiter": "",
+        "required": true
+    },
+    "dc.contributor": {
+        "source_field_name": "contributor",
+        "language": null,
+        "delimiter": "|"
+    }
+}
