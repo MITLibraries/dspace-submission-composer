@@ -5,12 +5,6 @@ from io import StringIO
 
 import sentry_sdk
 
-WORKFLOWS = {
-    "test": {
-        "workflow-path": "tests.conftest.TestBaseWorkflow",
-    }
-}
-
 
 class Config:
     REQUIRED_ENV_VARS: Iterable[str] = [

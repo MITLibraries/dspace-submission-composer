@@ -3,15 +3,19 @@ from __future__ import annotations
 import json
 import logging
 from abc import ABC, abstractmethod
-from importlib import import_module
 from typing import TYPE_CHECKING, Any, final
 
-from dsc.config import WORKFLOWS
 from dsc.exceptions import (
     InvalidDSpaceMetadataError,
+    InvalidWorkflowNameError,
     ItemMetadatMissingRequiredFieldError,
 )
 from dsc.item_submission import ItemSubmission
+from dsc.utilities import (
+    build_bitstream_dict,
+    match_bitstreams_to_item_identifiers,
+    match_item_identifiers_to_bitstreams,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
@@ -84,12 +88,40 @@ class BaseWorkflow(ABC):
         """Return workflow class.
 
         Args:
-            workflow_name: The label of the workflow. Must match a key from
-            config.WORKFLOWS.
+            workflow_name: The label of the workflow. Must match a workflow_name attribute
+            from BaseWorkflow subclass.
         """
-        module_name, class_name = WORKFLOWS[workflow_name]["workflow-path"].rsplit(".", 1)
-        source_module = import_module(module_name)
-        return getattr(source_module, class_name)
+        for workflow_class in BaseWorkflow.__subclasses__():
+            if workflow_name == workflow_class.workflow_name:
+                return workflow_class
+        raise InvalidWorkflowNameError(f"Invalid workflow name: {workflow_name} ")
+
+    def reconcile_bitstreams_and_metadata(self) -> tuple[set[str], set[str]]:
+        """Reconcile bitstreams against metadata.
+
+        Generate a list of bitstreams without item identifiers and item identifiers
+        without bitstreams. Any discrepancies will be addressed by the engineer and
+        stakeholders as necessary.
+        """
+        bitstream_dict = build_bitstream_dict(self.s3_bucket, self.batch_path)
+
+        # extract item identifiers from batch metadata
+        item_identifiers = [
+            self.get_item_identifier(item_metadata)
+            for item_metadata in self.item_metadata_iter()
+        ]
+
+        # reconcile item identifiers against bitstreams
+        item_identifier_matches = match_item_identifiers_to_bitstreams(
+            bitstream_dict.keys(), item_identifiers
+        )
+        file_matches = match_bitstreams_to_item_identifiers(
+            bitstream_dict.keys(), item_identifiers
+        )
+        logger.info(f"Item identifiers and bitstreams matched: {item_identifier_matches}")
+        no_bitstreams = set(item_identifiers) - set(item_identifier_matches)
+        no_item_identifiers = set(bitstream_dict.keys()) - set(file_matches)
+        return no_bitstreams, no_item_identifiers
 
     @final
     def run(self) -> Iterator[SendMessageResultTypeDef]:

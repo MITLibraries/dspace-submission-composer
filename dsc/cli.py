@@ -6,11 +6,6 @@ from time import perf_counter
 import click
 
 from dsc.config import Config
-from dsc.utilities import (
-    build_bitstream_dict,
-    match_bitstreams_to_item_identifiers,
-    match_item_identifiers_to_bitstreams,
-)
 from dsc.workflows.base import BaseWorkflow
 
 logger = logging.getLogger(__name__)
@@ -21,20 +16,20 @@ CONFIG = Config()
 @click.pass_context
 @click.option(
     "-w",
-    "--workflow_name",
+    "--workflow-name",
     help="The workflow to use for the batch of DSpace submissions",
     required=True,
 )
 @click.option(
-    "-b",
-    "--batch_id",
-    help="The S3 prefix for the batch of DSpace submissions",
+    "-c",
+    "--collection-handle",
+    help="The handle of the DSpace collection to which the batch will be submitted",
     required=True,
 )
 @click.option(
-    "-c",
-    "--collection_handle",
-    help="The handle of the DSpace collection to which the batch will be submitted",
+    "-b",
+    "--batch-id",
+    help="The S3 prefix for the batch of DSpace submissions",
     required=True,
 )
 @click.option(
@@ -80,43 +75,14 @@ def post_main_group_subcommand(
 
 @main.command()
 @click.pass_context
-@click.option(
-    "-f",
-    "--file_type",
-    help="Optional parameter to filter bitstreams to specified file type",
-)
-def reconcile(ctx: click.Context, file_type: str) -> None:
-    """Match files in the S3 directory with entries in the batch metadata."""
+def reconcile(ctx: click.Context) -> None:
+    """Reconcile bitstreams with item identifiers from the metadata."""
     workflow = ctx.obj["workflow"]
+    no_bitstreams, no_item_identifiers = workflow.reconcile_bitstreams_and_metadata()
 
-    bitstream_dict = build_bitstream_dict(
-        workflow.s3_bucket, file_type, workflow.batch_path
-    )
-
-    # extract item identifiers from batch metadata
-    item_identifiers = [
-        workflow.get_item_identifier(item_metadata)
-        for item_metadata in workflow.item_metadata_iter()
-    ]
-
-    # reconcile item identifiers against S3 files
-    item_identifier_matches = match_item_identifiers_to_bitstreams(
-        bitstream_dict.keys(), item_identifiers
-    )
-    file_matches = match_bitstreams_to_item_identifiers(
-        bitstream_dict.keys(), item_identifiers
-    )
-    no_bitstreams = set(item_identifiers) - set(item_identifier_matches)
-    no_identifiers = set(bitstream_dict.keys()) - set(file_matches)
-
-    logger.info(
-        f"Item identifiers and bitstreams successfully matched: {item_identifier_matches}"
-    )
     if no_bitstreams:
+        logger.error(f"No bitstreams found for these item identifiers: {no_bitstreams}")
+    if no_item_identifiers:
         logger.error(
-            f"No bitstreams found for the following item identifiers: {no_bitstreams}"
-        )
-    if no_identifiers:
-        logger.error(
-            f"No item identifiers found for the following bitstreams: {no_identifiers}"
+            f"No item identifiers found for these bitstreams: {no_item_identifiers}"
         )

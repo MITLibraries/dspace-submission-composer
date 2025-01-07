@@ -5,25 +5,12 @@ from dsc.utilities import (
 )
 
 
-def test_build_bitstream_dict_with_file_type_success(mocked_s3, s3_client):
+def test_build_bitstream_dict_success(mocked_s3, s3_client):
     s3_client.put_file(file_content="", bucket="dsc", key="test/batch-aaa/123_01.pdf")
     s3_client.put_file(file_content="", bucket="dsc", key="test/batch-aaa/123_02.pdf")
     s3_client.put_file(file_content="", bucket="dsc", key="test/batch-aaa/456_01.pdf")
     s3_client.put_file(file_content="", bucket="dsc", key="test/batch-aaa/789_01.jpg")
-    assert build_bitstream_dict(
-        bucket="dsc", file_type="pdf", prefix="test/batch-aaa/"
-    ) == {
-        "123": ["test/batch-aaa/123_01.pdf", "test/batch-aaa/123_02.pdf"],
-        "456": ["test/batch-aaa/456_01.pdf"],
-    }
-
-
-def test_build_bitstream_dict_without_file_type_success(mocked_s3, s3_client):
-    s3_client.put_file(file_content="", bucket="dsc", key="test/batch-aaa/123_01.pdf")
-    s3_client.put_file(file_content="", bucket="dsc", key="test/batch-aaa/123_02.pdf")
-    s3_client.put_file(file_content="", bucket="dsc", key="test/batch-aaa/456_01.pdf")
-    s3_client.put_file(file_content="", bucket="dsc", key="test/batch-aaa/789_01.jpg")
-    assert build_bitstream_dict(bucket="dsc", file_type="", prefix="test/batch-aaa/") == {
+    assert build_bitstream_dict(bucket="dsc", prefix="test/batch-aaa/") == {
         "123": ["test/batch-aaa/123_01.pdf", "test/batch-aaa/123_02.pdf"],
         "456": ["test/batch-aaa/456_01.pdf"],
         "789": ["test/batch-aaa/789_01.jpg"],
