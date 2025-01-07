@@ -54,6 +54,42 @@ def test_base_workflow_reconcile_bitstreams_and_metadata_success(
     assert "Item identifiers and bitstreams matched: ['123']" in caplog.text
 
 
+def test_build_bitstream_dict_success(mocked_s3, s3_client, base_workflow_instance):
+    s3_client.put_file(file_content="", bucket="dsc", key="test/batch-aaa/123_01.pdf")
+    s3_client.put_file(file_content="", bucket="dsc", key="test/batch-aaa/123_02.pdf")
+    s3_client.put_file(file_content="", bucket="dsc", key="test/batch-aaa/456_01.pdf")
+    s3_client.put_file(file_content="", bucket="dsc", key="test/batch-aaa/789_01.jpg")
+    assert base_workflow_instance._build_bitstream_dict() == {  # noqa: SLF001
+        "123": ["test/batch-aaa/123_01.pdf", "test/batch-aaa/123_02.pdf"],
+        "456": ["test/batch-aaa/456_01.pdf"],
+        "789": ["test/batch-aaa/789_01.jpg"],
+    }
+
+
+def test_match_item_identifiers_to_bitstreams_success(base_workflow_instance):
+    bitstream_dict = {"test": "test_01.pdf"}
+    item_identifiers = ["test", "tast"]
+    item_identifier_matches = (
+        base_workflow_instance._match_item_identifiers_to_bitstreams(  # noqa: SLF001
+            bitstream_dict.keys(), item_identifiers
+        )
+    )
+    assert len(item_identifier_matches) == 1
+    assert "test" in item_identifier_matches
+
+
+def test_match_bitstreams_to_item_identifiers_success(base_workflow_instance):
+    bitstream_dict = {"test": "test_01.pdf", "tast": "tast_01.pdf"}
+    item_identifiers = ["test"]
+    file_matches = (
+        base_workflow_instance._match_bitstreams_to_item_identifiers(  # noqa: SLF001
+            bitstream_dict, item_identifiers
+        )
+    )
+    assert len(file_matches) == 1
+    assert "test" in file_matches
+
+
 def test_base_workflow_run_success(
     caplog, base_workflow_instance, mocked_s3, mocked_sqs_input, mocked_sqs_output
 ):

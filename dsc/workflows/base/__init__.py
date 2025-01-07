@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import logging
 from abc import ABC, abstractmethod
+from collections import defaultdict
 from typing import TYPE_CHECKING, Any, final
 
 from dsc.exceptions import (
@@ -11,13 +12,10 @@ from dsc.exceptions import (
     ItemMetadatMissingRequiredFieldError,
 )
 from dsc.item_submission import ItemSubmission
-from dsc.utilities import (
-    build_bitstream_dict,
-    match_bitstreams_to_item_identifiers,
-    match_item_identifiers_to_bitstreams,
-)
+from dsc.utilities.aws.s3 import S3Client
 
 if TYPE_CHECKING:
+    from _collections_abc import dict_keys
     from collections.abc import Iterator
 
     from mypy_boto3_sqs.type_defs import SendMessageResultTypeDef
@@ -103,7 +101,7 @@ class BaseWorkflow(ABC):
         without bitstreams. Any discrepancies will be addressed by the engineer and
         stakeholders as necessary.
         """
-        bitstream_dict = build_bitstream_dict(self.s3_bucket, self.batch_path)
+        bitstream_dict = self._build_bitstream_dict()
 
         # extract item identifiers from batch metadata
         item_identifiers = [
@@ -112,16 +110,67 @@ class BaseWorkflow(ABC):
         ]
 
         # reconcile item identifiers against bitstreams
-        item_identifier_matches = match_item_identifiers_to_bitstreams(
+        item_identifier_matches = self._match_item_identifiers_to_bitstreams(
             bitstream_dict.keys(), item_identifiers
         )
-        file_matches = match_bitstreams_to_item_identifiers(
+        file_matches = self._match_bitstreams_to_item_identifiers(
             bitstream_dict.keys(), item_identifiers
         )
         logger.info(f"Item identifiers and bitstreams matched: {item_identifier_matches}")
         no_bitstreams = set(item_identifiers) - set(item_identifier_matches)
         no_item_identifiers = set(bitstream_dict.keys()) - set(file_matches)
         return no_bitstreams, no_item_identifiers
+
+    def _build_bitstream_dict(self) -> dict:
+        """Build a dict of potential bitstreams with an item identifier for the key.
+
+        An underscore (if present) serves as the delimiter between the item identifier
+        and any additional suffixes in the case of multiple matching bitstreams.
+        """
+        s3_client = S3Client()
+        bitstreams = list(
+            s3_client.files_iter(bucket=self.s3_bucket, prefix=self.batch_path)
+        )
+        bitstream_dict: dict[str, list[str]] = defaultdict(list)
+        for bitstream in bitstreams:
+            file_name = bitstream.split("/")[-1]
+            item_identifier = file_name.split("_")[0] if "_" in file_name else file_name
+            bitstream_dict[item_identifier].append(bitstream)
+        return bitstream_dict
+
+    def _match_bitstreams_to_item_identifiers(
+        self, bitstreams: dict_keys, item_identifiers: list[str]
+    ) -> list[str]:
+        """Create list of bitstreams matched to item identifiers.
+
+        Args:
+            bitstreams: A dict of S3 files with base file IDs and full URIs.
+            item_identifiers: A list of item identifiers retrieved from the batch
+            metadata.
+        """
+        return [
+            file_id
+            for item_identifier in item_identifiers
+            for file_id in bitstreams
+            if file_id == item_identifier
+        ]
+
+    def _match_item_identifiers_to_bitstreams(
+        self, bitstreams: dict_keys, item_identifiers: list[str]
+    ) -> list[str]:
+        """Create list of item identifers matched to bitstreams.
+
+        Args:
+            bitstreams: A dict of S3 files with base file IDs and full URIs.
+            item_identifiers: A list of item identifiers retrieved from the batch
+            metadata.
+        """
+        return [
+            item_identifier
+            for file_id in bitstreams
+            for item_identifier in item_identifiers
+            if file_id == item_identifier
+        ]
 
     @final
     def run(self) -> Iterator[SendMessageResultTypeDef]:
