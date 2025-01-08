@@ -110,23 +110,27 @@ class BaseWorkflow(ABC):
         ]
 
         # reconcile item identifiers against bitstreams
-        item_identifiers_with_bitstream_matches = (
-            self._match_item_identifiers_to_bitstreams(
-                bitstream_dict.keys(), item_identifiers
-            )
-        )
-        file_matches = self._match_bitstreams_to_item_identifiers(
+        item_identifiers_with_bitstreams = self._match_item_identifiers_to_bitstreams(
             bitstream_dict.keys(), item_identifiers
         )
+
+        bitstreams_with_item_identifiers = self._match_bitstreams_to_item_identifiers(
+            bitstream_dict.keys(), item_identifiers
+        )
+
         logger.info(
             "Item identifiers from batch metadata with matching bitstreams: "
-            f"{item_identifiers_with_bitstream_matches}"
+            f"{item_identifiers_with_bitstreams}"
         )
-        bitstreams_with_item_identifier_matches = set(item_identifiers) - set(
-            item_identifiers_with_bitstream_matches
+
+        item_identifiers_without_bitstreams = set(item_identifiers) - set(
+            item_identifiers_with_bitstreams
         )
-        no_item_identifiers = set(bitstream_dict.keys()) - set(file_matches)
-        return bitstreams_with_item_identifier_matches, no_item_identifiers
+        bitstreams_without_item_identifiers = set(bitstream_dict.keys()) - set(
+            bitstreams_with_item_identifiers
+        )
+
+        return item_identifiers_without_bitstreams, bitstreams_without_item_identifiers
 
     def _build_bitstream_dict(self) -> dict:
         """Build a dict of potential bitstreams with an item identifier for the key.
