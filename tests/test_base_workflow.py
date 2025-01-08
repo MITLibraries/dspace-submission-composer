@@ -51,7 +51,10 @@ def test_base_workflow_reconcile_bitstreams_and_metadata_success(
         {"789"},
         {"456"},
     )
-    assert "Item identifiers and bitstreams matched: ['123']" in caplog.text
+    assert (
+        "Item identifiers from batch metadata with matching bitstreams: ['123']"
+        in caplog.text
+    )
 
 
 def test_build_bitstream_dict_success(mocked_s3, s3_client, base_workflow_instance):

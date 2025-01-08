@@ -19,7 +19,10 @@ def test_reconcile_success(caplog, runner, mocked_s3, base_workflow_instance, s3
     )
     assert result.output == ""
     assert result.exit_code == 0
-    assert "Item identifiers and bitstreams matched: ['123']" in caplog.text
+    assert (
+        "Item identifiers from batch metadata with matching bitstreams: ['123']"
+        in caplog.text
+    )
     assert "No bitstreams found for these item identifiers: {'789'}" in caplog.text
     assert "No item identifiers found for these bitstreams: {'456'}" in caplog.text
     assert "Total time elapsed" in caplog.text
