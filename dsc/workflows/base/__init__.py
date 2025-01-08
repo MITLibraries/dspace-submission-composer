@@ -1,16 +1,21 @@
 from __future__ import annotations
 
+import json
 import logging
 from abc import ABC, abstractmethod
+from collections import defaultdict
 from typing import TYPE_CHECKING, Any, final
 
 from dsc.exceptions import (
     InvalidDSpaceMetadataError,
+    InvalidWorkflowNameError,
     ItemMetadatMissingRequiredFieldError,
 )
 from dsc.item_submission import ItemSubmission
+from dsc.utilities.aws.s3 import S3Client
 
 if TYPE_CHECKING:
+    from _collections_abc import dict_keys
     from collections.abc import Iterator
 
     from mypy_boto3_sqs.type_defs import SendMessageResultTypeDef
@@ -21,50 +26,162 @@ logger = logging.getLogger(__name__)
 class BaseWorkflow(ABC):
     """A base workflow class from which other workflow classes are derived."""
 
+    workflow_name: str = "base"
+    submission_system: str = "DSpace@MIT"
+    email_recipients: tuple[str] = ("None",)
+    metadata_mapping_path: str = ""
+    s3_bucket: str = ""
+    output_queue: str = ""
+
     def __init__(
         self,
-        workflow_name: str,
-        submission_system: str,
-        email_recipients: list[str],
-        metadata_mapping: dict,
-        s3_bucket: str,
-        batch_id: str,
         collection_handle: str,
-        output_queue: str,
+        batch_id: str,
     ) -> None:
         """Initialize base instance.
 
         Args:
-            workflow_name: The name of the workflow.
-            submission_system: The system to which item submissions will be sent
-                (e.g. DSpace@MIT).
-            email_recipients: The email addresses to notify after runs of
-                the workflow.
-            metadata_mapping: A mapping file for generating DSpace metadata
-                from the workflow's source metadata.
-            s3_bucket: The S3 bucket containing bitstream and metadata files for
-                the workflow.
+            collection_handle: The handle of the DSpace collection to which
+                submissions will be uploaded.
             batch_id: Unique identifier for a 'batch' deposit that corresponds
                 to the name of a subfolder in the workflow directory of the S3 bucket.
                 This subfolder is where the S3 client will search for bitstream
                 and metadata files.
-            collection_handle: The handle of the DSpace collection to which
-                submissions will be uploaded.
-            output_queue: The SQS output queue used for retrieving result messages
-                from the workflow's submissions.
         """
-        self.workflow_name: str = workflow_name
-        self.submission_system: str = submission_system
-        self.email_recipients: list[str] = email_recipients
-        self.metadata_mapping: dict = metadata_mapping
-        self.s3_bucket: str = s3_bucket
-        self.batch_id: str = batch_id
-        self.collection_handle: str = collection_handle
-        self.output_queue: str = output_queue
+        self.batch_id = batch_id
+        self.collection_handle = collection_handle
 
     @property
     def batch_path(self) -> str:
         return f"{self.workflow_name}/{self.batch_id}"
+
+    @property
+    def metadata_mapping(self) -> dict:
+        with open(self.metadata_mapping_path) as mapping_file:
+            return json.load(mapping_file)
+
+    @final
+    @classmethod
+    def load(
+        cls, workflow_name: str, collection_handle: str, batch_id: str
+    ) -> BaseWorkflow:
+        """Return configured workflow class instance.
+
+        Args:
+            workflow_name: The label of the workflow. Must match a key from
+            config.WORKFLOWS.
+            collection_handle: The handle of the DSpace collection to which the batch will
+            be submitted.
+            batch_id: The S3 prefix for the batch of DSpace submissions.
+        """
+        workflow_class = cls.get_workflow(workflow_name)
+        return workflow_class(
+            collection_handle=collection_handle,
+            batch_id=batch_id,
+        )
+
+    @final
+    @classmethod
+    def get_workflow(cls, workflow_name: str) -> type[BaseWorkflow]:
+        """Return workflow class.
+
+        Args:
+            workflow_name: The label of the workflow. Must match a workflow_name attribute
+            from BaseWorkflow subclass.
+        """
+        for workflow_class in BaseWorkflow.__subclasses__():
+            if workflow_name == workflow_class.workflow_name:
+                return workflow_class
+        raise InvalidWorkflowNameError(f"Invalid workflow name: {workflow_name} ")
+
+    def reconcile_bitstreams_and_metadata(self) -> tuple[set[str], set[str]]:
+        """Reconcile bitstreams against metadata.
+
+        Generate a list of bitstreams without item identifiers and item identifiers
+        without bitstreams. Any discrepancies will be addressed by the engineer and
+        stakeholders as necessary.
+        """
+        bitstream_dict = self._build_bitstream_dict()
+
+        # extract item identifiers from batch metadata
+        item_identifiers = [
+            self.get_item_identifier(item_metadata)
+            for item_metadata in self.item_metadata_iter()
+        ]
+
+        # reconcile item identifiers against bitstreams
+        item_identifiers_with_bitstreams = self._match_item_identifiers_to_bitstreams(
+            bitstream_dict.keys(), item_identifiers
+        )
+
+        bitstreams_with_item_identifiers = self._match_bitstreams_to_item_identifiers(
+            bitstream_dict.keys(), item_identifiers
+        )
+
+        logger.info(
+            "Item identifiers from batch metadata with matching bitstreams: "
+            f"{item_identifiers_with_bitstreams}"
+        )
+
+        item_identifiers_without_bitstreams = set(item_identifiers) - set(
+            item_identifiers_with_bitstreams
+        )
+        bitstreams_without_item_identifiers = set(bitstream_dict.keys()) - set(
+            bitstreams_with_item_identifiers
+        )
+
+        return item_identifiers_without_bitstreams, bitstreams_without_item_identifiers
+
+    def _build_bitstream_dict(self) -> dict:
+        """Build a dict of potential bitstreams with an item identifier for the key.
+
+        An underscore (if present) serves as the delimiter between the item identifier
+        and any additional suffixes in the case of multiple matching bitstreams.
+        """
+        s3_client = S3Client()
+        bitstreams = list(
+            s3_client.files_iter(bucket=self.s3_bucket, prefix=self.batch_path)
+        )
+        bitstream_dict: dict[str, list[str]] = defaultdict(list)
+        for bitstream in bitstreams:
+            file_name = bitstream.split("/")[-1]
+            item_identifier = file_name.split("_")[0] if "_" in file_name else file_name
+            bitstream_dict[item_identifier].append(bitstream)
+        return bitstream_dict
+
+    def _match_bitstreams_to_item_identifiers(
+        self, bitstreams: dict_keys, item_identifiers: list[str]
+    ) -> list[str]:
+        """Create list of bitstreams matched to item identifiers.
+
+        Args:
+            bitstreams: A dict of S3 files with base file IDs and full URIs.
+            item_identifiers: A list of item identifiers retrieved from the batch
+            metadata.
+        """
+        return [
+            file_id
+            for item_identifier in item_identifiers
+            for file_id in bitstreams
+            if file_id == item_identifier
+        ]
+
+    def _match_item_identifiers_to_bitstreams(
+        self, bitstreams: dict_keys, item_identifiers: list[str]
+    ) -> list[str]:
+        """Create list of item identifers matched to bitstreams.
+
+        Args:
+            bitstreams: A dict of S3 files with base file IDs and full URIs.
+            item_identifiers: A list of item identifiers retrieved from the batch
+            metadata.
+        """
+        return [
+            item_identifier
+            for file_id in bitstreams
+            for item_identifier in item_identifiers
+            if file_id == item_identifier
+        ]
 
     @final
     def run(self) -> Iterator[SendMessageResultTypeDef]:

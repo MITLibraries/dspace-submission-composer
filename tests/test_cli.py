@@ -1,17 +1,28 @@
 from dsc.cli import main
 
 
-def test_cli_no_options(caplog, runner):
-    result = runner.invoke(main)
+def test_reconcile_success(caplog, runner, mocked_s3, base_workflow_instance, s3_client):
+    s3_client.put_file(file_content="", bucket="dsc", key="test/batch-aaa/123_01.pdf")
+    s3_client.put_file(file_content="", bucket="dsc", key="test/batch-aaa/123_02.jpg")
+    s3_client.put_file(file_content="", bucket="dsc", key="test/batch-aaa/456_01.pdf")
+    result = runner.invoke(
+        main,
+        [
+            "--workflow-name",
+            "test",
+            "--collection-handle",
+            "123.4/5678",
+            "--batch-id",
+            "batch-aaa",
+            "reconcile",
+        ],
+    )
+    assert result.output == ""
     assert result.exit_code == 0
-    assert "Logger 'root' configured with level=INFO" in caplog.text
-    assert "Running process" in caplog.text
-    assert "Total time to complete process" in caplog.text
-
-
-def test_cli_all_options(caplog, runner):
-    result = runner.invoke(main, ["--verbose"])
-    assert result.exit_code == 0
-    assert "Logger 'root' configured with level=DEBUG" in caplog.text
-    assert "Running process" in caplog.text
-    assert "Total time to complete process" in caplog.text
+    assert (
+        "Item identifiers from batch metadata with matching bitstreams: ['123']"
+        in caplog.text
+    )
+    assert "No bitstreams found for these item identifiers: {'789'}" in caplog.text
+    assert "No item identifiers found for these bitstreams: {'456'}" in caplog.text
+    assert "Total time elapsed" in caplog.text

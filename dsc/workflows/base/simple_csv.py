@@ -18,6 +18,8 @@ class SimpleCSV(BaseWorkflow):
     deposit on S3.
     """
 
+    workflow_name: str = "simple_csv"
+
     def item_metadata_iter(
         self, metadata_file: str = "metadata.csv"
     ) -> Iterator[dict[str, Any]]:

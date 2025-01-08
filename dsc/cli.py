@@ -6,27 +6,83 @@ from time import perf_counter
 import click
 
 from dsc.config import Config
+from dsc.workflows.base import BaseWorkflow
 
 logger = logging.getLogger(__name__)
 CONFIG = Config()
 
 
-@click.command()
+@click.group()
+@click.pass_context
+@click.option(
+    "-w",
+    "--workflow-name",
+    help="The workflow to use for the batch of DSpace submissions",
+    required=True,
+)
+@click.option(
+    "-c",
+    "--collection-handle",
+    help="The handle of the DSpace collection to which the batch will be submitted",
+    required=True,
+)
+@click.option(
+    "-b",
+    "--batch-id",
+    help="The S3 prefix for the batch of DSpace submissions",
+    required=True,
+)
 @click.option(
     "-v", "--verbose", is_flag=True, help="Pass to log at debug level instead of info"
 )
-def main(*, verbose: bool) -> None:
-    start_time = perf_counter()
+def main(
+    ctx: click.Context,
+    workflow_name: str,
+    collection_handle: str,
+    batch_id: str,
+    verbose: bool,  # noqa: FBT001
+) -> None:
+    ctx.ensure_object(dict)
+    ctx.obj["start_time"] = perf_counter()
+
+    ctx.obj["workflow"] = BaseWorkflow.load(workflow_name, collection_handle, batch_id)
+
     stream = StringIO()
     root_logger = logging.getLogger()
     logger.info(CONFIG.configure_logger(root_logger, stream, verbose=verbose))
     logger.info(CONFIG.configure_sentry())
     CONFIG.check_required_env_vars()
+    ctx.obj["stream"] = stream
+
     logger.info("Running process")
 
-    # Do things here!
 
-    elapsed_time = perf_counter() - start_time
+@main.result_callback()
+@click.pass_context
+def post_main_group_subcommand(
+    ctx: click.Context,
+    *_args: tuple,
+    **_kwargs: dict,
+) -> None:
+    """Callback for any work to perform after a main sub-command completes."""
     logger.info(
-        "Total time to complete process: %s", str(timedelta(seconds=elapsed_time))
+        "Total time elapsed: %s",
+        str(
+            timedelta(seconds=perf_counter() - ctx.obj["start_time"]),
+        ),
     )
+
+
+@main.command()
+@click.pass_context
+def reconcile(ctx: click.Context) -> None:
+    """Reconcile bitstreams with item identifiers from the metadata."""
+    workflow = ctx.obj["workflow"]
+    no_bitstreams, no_item_identifiers = workflow.reconcile_bitstreams_and_metadata()
+
+    if no_bitstreams:
+        logger.error(f"No bitstreams found for these item identifiers: {no_bitstreams}")
+    if no_item_identifiers:
+        logger.error(
+            f"No item identifiers found for these bitstreams: {no_item_identifiers}"
+        )

@@ -16,6 +16,54 @@ from dsc.workflows.base import BaseWorkflow
 from dsc.workflows.base.simple_csv import SimpleCSV
 
 
+class TestBaseWorkflow(BaseWorkflow):
+
+    workflow_name: str = "test"
+    submission_system: str = "Test@MIT"
+    email_recipients: tuple[str] = ("test@test.test",)
+    metadata_mapping_path: str = "tests/fixtures/test_metadata_mapping.json"
+    s3_bucket: str = "dsc"
+    output_queue: str = "mock-output_queue"
+
+    def item_metadata_iter(self):
+        yield from [
+            {
+                "title": "Title",
+                "contributor": "Author 1|Author 2",
+                "item_identifier": "123",
+            },
+            {
+                "title": "2nd Title",
+                "contributor": "Author 3|Author 4",
+                "item_identifier": "789",
+            },
+        ]
+
+    def get_item_identifier(self, item_metadata):
+        return item_metadata["item_identifier"]
+
+    def get_bitstream_s3_uris(self, item_identifier):
+        bitstreams = [
+            "s3://dsc/test/batch-aaa/123_01.pdf",
+            "s3://dsc/test/batch-aaa/123_02.pdf",
+            "s3://dsc/test/batch-aaa/456_01.pdf",
+        ]
+        return [bitstream for bitstream in bitstreams if item_identifier in bitstream]
+
+    def process_deposit_results(self):
+        pass
+
+
+class TestSimpleCSV(SimpleCSV):
+
+    workflow_name: str = "simple_csv"
+    submission_system: str = "Test@MIT"
+    email_recipients: tuple[str] = ("test@test.test",)
+    metadata_mapping_path: str = "tests/fixtures/test_metadata_mapping.json"
+    s3_bucket: str = "dsc"
+    output_queue: str = "mock-output_queue"
+
+
 @pytest.fixture(autouse=True)
 def _test_env(monkeypatch):
     monkeypatch.setenv("SENTRY_DSN", "None")
@@ -29,48 +77,17 @@ def _test_env(monkeypatch):
 
 @pytest.fixture
 def base_workflow_instance(item_metadata, metadata_mapping, mocked_s3):
-    class TestBaseWorkflow(BaseWorkflow):
-
-        def item_metadata_iter(self):
-            yield from [item_metadata]
-
-        def get_item_identifier(self, item_metadata):
-            return item_metadata["item_identifier"]
-
-        def get_bitstream_s3_uris(self, item_identifier):
-            bitstreams = [
-                "s3://dsc/base/batch-aaa/123_01.pdf",
-                "s3://dsc/base/batch-aaa/123_02.pdf",
-                "s3://dsc/base/batch-aaa/456_01.pdf",
-            ]
-            return [bitstream for bitstream in bitstreams if item_identifier in bitstream]
-
-        def process_deposit_results(self):
-            pass
-
     return TestBaseWorkflow(
-        workflow_name="base",
-        submission_system="Test@MIT",
-        email_recipients=["test@test.test"],
-        metadata_mapping=metadata_mapping,
-        s3_bucket="dsc",
-        batch_id="batch-aaa",
         collection_handle="123.4/5678",
-        output_queue="mock-output_queue",
+        batch_id="batch-aaa",
     )
 
 
 @pytest.fixture
-def simple_csv_workflow_instance():
-    return SimpleCSV(
-        workflow_name="simple_csv",
-        submission_system="Test@MIT",
-        email_recipients=["test@test.test"],
-        metadata_mapping=metadata_mapping,
-        s3_bucket="dsc",
-        batch_id="batch-aaa",
+def simple_csv_workflow_instance(metadata_mapping):
+    return TestSimpleCSV(
         collection_handle="123.4/5678",
-        output_queue="mock-output_queue",
+        batch_id="batch-aaa",
     )
 
 
@@ -125,25 +142,8 @@ def item_submission_instance(dspace_metadata):
 
 @pytest.fixture
 def metadata_mapping():
-    return {
-        "item_identifier": {
-            "source_field_name": "item_identifier",
-            "language": None,
-            "delimiter": "",
-            "required": True,
-        },
-        "dc.title": {
-            "source_field_name": "title",
-            "language": "en_US",
-            "delimiter": "",
-            "required": True,
-        },
-        "dc.contributor": {
-            "source_field_name": "contributor",
-            "language": None,
-            "delimiter": "|",
-        },
-    }
+    with open("tests/fixtures/test_metadata_mapping.json") as mapping_file:
+        return json.load(mapping_file)
 
 
 @pytest.fixture
