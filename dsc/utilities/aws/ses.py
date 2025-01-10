@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING
 
 from boto3 import client
 
-if TYPE_CHECKING:
+if TYPE_CHECKING:  # pragma: no cover
     from mypy_boto3_ses.type_defs import SendRawEmailResponseTypeDef
 
 logger = logging.getLogger(__name__)

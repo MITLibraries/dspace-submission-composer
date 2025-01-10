@@ -15,7 +15,7 @@ from dsc.exceptions import (
 from dsc.item_submission import ItemSubmission
 from dsc.utilities.aws.s3 import S3Client
 
-if TYPE_CHECKING:
+if TYPE_CHECKING:  # pragma: no cover
     from _collections_abc import dict_keys
     from collections.abc import Iterator
 

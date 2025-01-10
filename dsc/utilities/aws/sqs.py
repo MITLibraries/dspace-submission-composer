@@ -8,7 +8,7 @@ from boto3 import client
 
 from dsc.exceptions import InvalidSQSMessageError
 
-if TYPE_CHECKING:
+if TYPE_CHECKING:  # pragma: no cover
     from collections.abc import Iterator, Mapping
 
     from mypy_boto3_sqs.type_defs import (

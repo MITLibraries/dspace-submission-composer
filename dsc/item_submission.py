@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING, Any
 from dsc.utilities.aws.s3 import S3Client
 from dsc.utilities.aws.sqs import SQSClient
 
-if TYPE_CHECKING:
+if TYPE_CHECKING:  # pragma: no cover
 
     from mypy_boto3_sqs.type_defs import SendMessageResultTypeDef
 
