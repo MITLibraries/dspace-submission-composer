@@ -25,7 +25,7 @@ class SESClient:
         attachment_content: str,
         attachment_name: str,
         source_email_address: str,
-        recipient_email_address: str,
+        recipient_email_addresses: list[str],
     ) -> None:
         """Create an email message and send it via SES.
 
@@ -34,11 +34,11 @@ class SESClient:
            attachment_content: The content of the email attachment.
            attachment_name: The name of the email attachment.
            source_email_address: The email address of the sender.
-           recipient_email_address: The email address of the receipient.
+           recipient_email_addresses: The email address of the receipient.
         """
         message = self._create_email(subject, attachment_content, attachment_name)
-        self._send_email(source_email_address, recipient_email_address, message)
-        logger.debug(f"Logs sent to {recipient_email_address}")
+        self._send_email(source_email_address, recipient_email_addresses, message)
+        logger.debug(f"Logs sent to {recipient_email_addresses}")
 
     def _create_email(
         self,
@@ -65,19 +65,19 @@ class SESClient:
     def _send_email(
         self,
         source_email_address: str,
-        recipient_email_address: str,
+        recipient_email_addresses: list[str],
         message: MIMEMultipart,
     ) -> SendRawEmailResponseTypeDef:
         """Send email via SES.
 
         Args:
             source_email_address: The email address of the sender.
-            recipient_email_address: The email address of the receipient.
+            recipient_email_addresses: The email address of the receipient.
             message: The message to be sent.
         """
         return self.client.send_raw_email(
             Source=source_email_address,
-            Destinations=[recipient_email_address],
+            Destinations=recipient_email_addresses,
             RawMessage={
                 "Data": message.as_string(),
             },
