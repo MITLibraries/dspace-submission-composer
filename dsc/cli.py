@@ -27,6 +27,12 @@ CONFIG = Config()
     required=True,
 )
 @click.option(
+    "-e",
+    "--email-recipients",
+    help="The recipients of the submission results email",
+    required=True,
+)
+@click.option(
     "-b",
     "--batch-id",
     help="The S3 prefix for the batch of DSpace submission files",
@@ -43,11 +49,6 @@ CONFIG = Config()
     help="The SQS output queue for the DSS result messages",
 )
 @click.option(
-    "-e",
-    "--email-recipients",
-    help="The recipients of the submission results email",
-)
-@click.option(
     "-v", "--verbose", is_flag=True, help="Pass to log at debug level instead of info"
 )
 def main(
@@ -55,9 +56,9 @@ def main(
     workflow_name: str,
     collection_handle: str,
     batch_id: str,
+    email_recipients: tuple[str],
     s3_bucket: str | None,
     output_queue: str | None,
-    email_recipients: tuple[str] | None,
     verbose: bool,  # noqa: FBT001
 ) -> None:
     ctx.ensure_object(dict)

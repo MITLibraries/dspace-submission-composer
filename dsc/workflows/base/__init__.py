@@ -29,14 +29,15 @@ class Workflow(ABC):
     workflow_name: str = "base"
     submission_system: str = "DSpace@MIT"
     metadata_mapping_path: str = ""
+    output_queue = "dsc-unhandled"
 
     def __init__(
         self,
         collection_handle: str,
         batch_id: str,
-        email_recipients: tuple[str] = ("None",),
-        s3_bucket: str = "dsc",
-        output_queue: str = "dsc-unhandled",
+        email_recipients: tuple[str],
+        s3_bucket: str | None,
+        output_queue: str | None,
     ) -> None:
         """Initialize base instance.
 
@@ -54,8 +55,11 @@ class Workflow(ABC):
         self.collection_handle = collection_handle
         self.batch_id = batch_id
         self.email_recipients = email_recipients
-        self.s3_bucket = s3_bucket
-        self.output_queue = output_queue
+
+        if s3_bucket is not None:
+            self.s3_bucket = s3_bucket
+        if output_queue is not None:
+            self.output_queue = output_queue
 
     @property
     def batch_path(self) -> str:
@@ -68,25 +72,31 @@ class Workflow(ABC):
 
     @final
     @classmethod
-    def load(
+    def load(  # noqa: D417
         cls,
         workflow_name: str,
-        **kwargs: str | tuple | None,
+        collection_handle: str,
+        batch_id: str,
+        email_recipients: tuple[str],
+        s3_bucket: str | None = None,
+        output_queue: str | None = None,
     ) -> Workflow:
         """Return configured workflow class instance.
 
         Args:
             workflow_name: The label of the workflow. Must match a key from
             config.WORKFLOWS.
-            **kwargs: Includes required arguments (collection_handle, batch_id,
-            email_recipients) as well as optional arguments (s3_bucket, output_queue)
-            that override the class's default values.
+
+            See Workflow.__init__ for args.
         """
         workflow_class = cls.get_workflow(workflow_name)
-        filtered_kwargs = {
-            key: value for key, value in kwargs.items() if value is not None
-        }
-        return workflow_class(**filtered_kwargs)  # type: ignore [arg-type]
+        return workflow_class(
+            collection_handle=collection_handle,
+            batch_id=batch_id,
+            email_recipients=email_recipients,
+            s3_bucket=s3_bucket,
+            output_queue=output_queue,
+        )
 
     @final
     @classmethod
