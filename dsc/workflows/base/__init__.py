@@ -4,6 +4,7 @@ import json
 import logging
 from abc import ABC, abstractmethod
 from collections import defaultdict
+from http import HTTPStatus
 from typing import TYPE_CHECKING, Any, final
 
 from dsc.exceptions import (
@@ -17,8 +18,6 @@ from dsc.utilities.aws.s3 import S3Client
 if TYPE_CHECKING:
     from _collections_abc import dict_keys
     from collections.abc import Iterator
-
-    from mypy_boto3_sqs.type_defs import SendMessageResultTypeDef
 
 logger = logging.getLogger(__name__)
 
@@ -201,17 +200,51 @@ class Workflow(ABC):
         ]
 
     @final
-    def run(self) -> Iterator[SendMessageResultTypeDef]:
-        """Run workflow to submit items to  the DSpace Submission Service."""
+    def run(self) -> dict:
+        """Run workflow to submit items to  the DSpace Submission Service.
+
+        Returns a dict with the attempted, successful, and failed submissions as well as
+        the results of each item submission organized by the item identifier.
+        """
+        submission_results: dict[str, Any] = {"success": True}
+        attempted_submissions = 0
+        successful_submissions = 0
+        failed_submissions = 0
         for item_submission in self.item_submissions_iter():
-            item_submission.upload_dspace_metadata(self.s3_bucket, self.batch_path)
-            response = item_submission.send_submission_message(
-                self.workflow_name,
-                self.output_queue,
-                self.submission_system,
-                self.collection_handle,
-            )
-            yield response
+            attempted_submissions += 1
+            try:
+                item_submission.upload_dspace_metadata(self.s3_bucket, self.batch_path)
+                response = item_submission.send_submission_message(
+                    self.workflow_name,
+                    self.output_queue,
+                    self.submission_system,
+                    self.collection_handle,
+                )
+                status_code = response["ResponseMetadata"]["HTTPStatusCode"]
+                if status_code != HTTPStatus.OK:
+                    submission_results["success"] = False
+                submission_results[item_submission.item_identifier] = response[
+                    "MessageId"
+                ]
+                successful_submissions += 1
+            except Exception as e:
+                submission_results["success"] = False
+                logger.exception(
+                    "Error while processing submission: "
+                    f"{item_submission.item_identifier}"
+                )
+                submission_results[item_submission.item_identifier] = e
+                failed_submissions += 1
+                continue
+
+        submission_results["attempted_submissions"] = attempted_submissions
+        submission_results["successful_submissions"] = successful_submissions
+        submission_results["failed_submissions"] = failed_submissions
+        logger.info(
+            f"Submission results, attempted: {attempted_submissions}, successful: "
+            f"{successful_submissions} , failed: {failed_submissions}"
+        )
+        return submission_results
 
     @final
     def item_submissions_iter(self) -> Iterator[ItemSubmission]:

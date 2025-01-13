@@ -1,4 +1,4 @@
-from http import HTTPStatus
+from unittest.mock import patch
 
 import pytest
 
@@ -120,13 +120,66 @@ def test_base_workflow_run_success(
     caplog, base_workflow_instance, mocked_s3, mocked_sqs_input, mocked_sqs_output
 ):
     caplog.set_level("DEBUG")
-    response = next(base_workflow_instance.run())
+    submission_results = base_workflow_instance.run()
     assert "Processing submission for '123'" in caplog.text
     assert (
         "Metadata uploaded to S3: s3://dsc/test/batch-aaa/123_metadata.json"
         in caplog.text
     )
-    assert response["ResponseMetadata"]["HTTPStatusCode"] == HTTPStatus.OK
+    assert submission_results["success"] is True
+    assert submission_results["attempted_submissions"] == 2  # noqa: PLR2004
+    assert submission_results["successful_submissions"] == 2  # noqa: PLR2004
+    assert submission_results["failed_submissions"] == 0
+    assert submission_results["123"]
+    assert submission_results["789"]
+    assert "Submission results, attempted: 2, successful: 2 , failed: 0" in caplog.text
+
+
+@patch("dsc.item_submission.ItemSubmission.send_submission_message")
+def test_base_workflow_run_exceptions_handled(
+    mocked_method,
+    caplog,
+    base_workflow_instance,
+    mocked_s3,
+    mocked_sqs_input,
+    mocked_sqs_output,
+):
+    side_effect = [
+        {"MessageId": "abcd", "ResponseMetadata": {"HTTPStatusCode": 200}},
+        Exception,
+    ]
+    mocked_method.side_effect = side_effect
+    submission_results = base_workflow_instance.run()
+    assert submission_results["success"] is False
+    assert submission_results["attempted_submissions"] == 2  # noqa: PLR2004
+    assert submission_results["successful_submissions"] == 1
+    assert submission_results["failed_submissions"] == 1
+    assert submission_results["123"]
+    assert isinstance(submission_results["789"], Exception)
+    assert "Submission results, attempted: 2, successful: 1 , failed: 1" in caplog.text
+
+
+@patch("dsc.item_submission.ItemSubmission.send_submission_message")
+def test_base_workflow_run_invalid_status_codes_handled(
+    mocked_method,
+    caplog,
+    base_workflow_instance,
+    mocked_s3,
+    mocked_sqs_input,
+    mocked_sqs_output,
+):
+    side_effect = [
+        {"MessageId": "abcd", "ResponseMetadata": {"HTTPStatusCode": 200}},
+        {"ResponseMetadata": {"HTTPStatusCode": 400}},
+    ]
+    mocked_method.side_effect = side_effect
+    submission_results = base_workflow_instance.run()
+    assert submission_results["success"] is False
+    assert submission_results["attempted_submissions"] == 2  # noqa: PLR2004
+    assert submission_results["successful_submissions"] == 1
+    assert submission_results["123"]
+    assert isinstance(submission_results["789"], Exception)
+    assert "Submission results, attempted: 2, successful: 1 , failed: 1" in caplog.text
 
 
 def test_base_workflow_item_submission_iter_success(base_workflow_instance):

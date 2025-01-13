@@ -33,19 +33,23 @@ CONFIG = Config()
     required=True,
 )
 @click.option(
+    "-e",
+    "--email-recipients",
+    help="The recipients of the submission results email as a comma-delimited string, "
+    "this will override the workflow class's default value for this attribute",
+    required=True,
+)
+@click.option(
     "-s",
     "--s3-bucket",
-    help="The S3 bucket containing the DSpace submission files",
+    help="The S3 bucket containing the DSpace submission files, "
+    "this will override the workflow class's default value for this attribute",
 )
 @click.option(
     "-o",
     "--output-queue",
-    help="The SQS output queue for the DSS result messages",
-)
-@click.option(
-    "-e",
-    "--email-recipients",
-    help="The recipients of the submission results email",
+    help="The SQS output queue for the DSS result messages, "
+    "this will override the workflow class's default value for this attribute",
 )
 @click.option(
     "-v", "--verbose", is_flag=True, help="Pass to log at debug level instead of info"
@@ -55,9 +59,9 @@ def main(
     workflow_name: str,
     collection_handle: str,
     batch_id: str,
+    email_recipients: str,
     s3_bucket: str | None,
     output_queue: str | None,
-    email_recipients: tuple[str] | None,
     verbose: bool,  # noqa: FBT001
 ) -> None:
     ctx.ensure_object(dict)
@@ -66,9 +70,9 @@ def main(
         workflow_name=workflow_name,
         collection_handle=collection_handle,
         batch_id=batch_id,
+        email_recipients=email_recipients,
         s3_bucket=s3_bucket,
         output_queue=output_queue,
-        email_recipients=email_recipients,
     )
     ctx.obj["workflow"] = workflow
 
@@ -121,5 +125,5 @@ def deposit(ctx: click.Context) -> None:
     """Send a batch of item submissions to the DSpace Submission Service (DSS)."""
     workflow = ctx.obj["workflow"]
     logger.debug(f"Beginning submission of batch ID: {workflow.batch_id}")
-    for response in workflow.run():
-        logger.debug(response)
+    submission_results = workflow.run()
+    logger.debug(f"Results of submission: {submission_results}")

@@ -14,6 +14,8 @@ def test_reconcile_success(caplog, runner, mocked_s3, base_workflow_instance, s3
             "123.4/5678",
             "--batch-id",
             "batch-aaa",
+            "--email-recipients",
+            "test@test.edu",
             "reconcile",
         ],
     )
@@ -41,6 +43,8 @@ def test_reconcile_discrepancies_logged(
             "123.4/5678",
             "--batch-id",
             "batch-aaa",
+            "--email-recipients",
+            "test@test.edu",
             "reconcile",
         ],
     )
@@ -71,6 +75,8 @@ def test_deposit_success(
             "123.4/5678",
             "--batch-id",
             "batch-aaa",
+            "--email-recipients",
+            "test@test.edu",
             "deposit",
         ],
     )
