@@ -4,6 +4,7 @@ import json
 import logging
 from abc import ABC, abstractmethod
 from collections import defaultdict
+from http import HTTPStatus
 from typing import TYPE_CHECKING, Any, final
 
 from dsc.exceptions import (
@@ -18,25 +19,23 @@ if TYPE_CHECKING:
     from _collections_abc import dict_keys
     from collections.abc import Iterator
 
-    from mypy_boto3_sqs.type_defs import SendMessageResultTypeDef
-
 logger = logging.getLogger(__name__)
 
 
-class BaseWorkflow(ABC):
+class Workflow(ABC):
     """A base workflow class from which other workflow classes are derived."""
 
     workflow_name: str = "base"
     submission_system: str = "DSpace@MIT"
-    email_recipients: tuple[str] = ("None",)
     metadata_mapping_path: str = ""
-    s3_bucket: str = ""
-    output_queue: str = ""
 
     def __init__(
         self,
         collection_handle: str,
         batch_id: str,
+        email_recipients: tuple[str] = ("None",),
+        s3_bucket: str = "dsc",
+        output_queue: str = "dsc-unhandled",
     ) -> None:
         """Initialize base instance.
 
@@ -47,9 +46,15 @@ class BaseWorkflow(ABC):
                 to the name of a subfolder in the workflow directory of the S3 bucket.
                 This subfolder is where the S3 client will search for bitstream
                 and metadata files.
+            email_recipients: The recipients of the submission results email.
+            s3_bucket: The S3 bucket containing the DSpace submission files.
+            output_queue: The SQS output queue for the DSS result messages.
         """
-        self.batch_id = batch_id
         self.collection_handle = collection_handle
+        self.batch_id = batch_id
+        self.email_recipients = email_recipients
+        self.s3_bucket = s3_bucket
+        self.output_queue = output_queue
 
     @property
     def batch_path(self) -> str:
@@ -63,36 +68,44 @@ class BaseWorkflow(ABC):
     @final
     @classmethod
     def load(
-        cls, workflow_name: str, collection_handle: str, batch_id: str
-    ) -> BaseWorkflow:
+        cls,
+        workflow_name: str,
+        **kwargs: str | tuple | None,
+    ) -> Workflow:
         """Return configured workflow class instance.
 
         Args:
             workflow_name: The label of the workflow. Must match a key from
             config.WORKFLOWS.
-            collection_handle: The handle of the DSpace collection to which the batch will
-            be submitted.
-            batch_id: The S3 prefix for the batch of DSpace submissions.
+            **kwargs: Includes required arguments (collection_handle, batch_id,
+            email_recipients) as well as optional arguments (s3_bucket, output_queue)
+            that override the class's default values.
         """
         workflow_class = cls.get_workflow(workflow_name)
-        return workflow_class(
-            collection_handle=collection_handle,
-            batch_id=batch_id,
-        )
+        filtered_kwargs = {
+            key: value for key, value in kwargs.items() if value is not None
+        }
+        return workflow_class(**filtered_kwargs)  # type: ignore [arg-type]
 
     @final
     @classmethod
-    def get_workflow(cls, workflow_name: str) -> type[BaseWorkflow]:
+    def get_workflow(cls, workflow_name: str) -> type[Workflow]:
         """Return workflow class.
 
         Args:
             workflow_name: The label of the workflow. Must match a workflow_name attribute
-            from BaseWorkflow subclass.
+            from Workflow subclass.
         """
-        for workflow_class in BaseWorkflow.__subclasses__():
+        for workflow_class in cls._get_subclasses():
             if workflow_name == workflow_class.workflow_name:
                 return workflow_class
         raise InvalidWorkflowNameError(f"Invalid workflow name: {workflow_name} ")
+
+    @classmethod
+    def _get_subclasses(cls) -> Iterator[type[Workflow]]:
+        for subclass in cls.__subclasses__():
+            yield from subclass._get_subclasses()  # noqa: SLF001
+            yield subclass
 
     def reconcile_bitstreams_and_metadata(self) -> tuple[set[str], set[str]]:
         """Reconcile bitstreams against metadata.
@@ -145,8 +158,11 @@ class BaseWorkflow(ABC):
         bitstream_dict: dict[str, list[str]] = defaultdict(list)
         for bitstream in bitstreams:
             file_name = bitstream.split("/")[-1]
-            item_identifier = file_name.split("_")[0] if "_" in file_name else file_name
-            bitstream_dict[item_identifier].append(bitstream)
+            if file_name and file_name != "metadata.csv":
+                item_identifier = (
+                    file_name.split("_")[0] if "_" in file_name else file_name
+                )
+                bitstream_dict[item_identifier].append(bitstream)
         return bitstream_dict
 
     def _match_bitstreams_to_item_identifiers(
@@ -184,17 +200,51 @@ class BaseWorkflow(ABC):
         ]
 
     @final
-    def run(self) -> Iterator[SendMessageResultTypeDef]:
-        """Run workflow to submit items to  the DSpace Submission Service."""
+    def run(self) -> dict:
+        """Run workflow to submit items to  the DSpace Submission Service.
+
+        Returns a dict with the attempted, successful, and failed submissions as well as
+        the results of each item submission organized by the item identifier.
+        """
+        submission_results: dict[str, Any] = {"success": True}
+        attempted_submissions = 0
+        successful_submissions = 0
+        failed_submissions = 0
         for item_submission in self.item_submissions_iter():
-            item_submission.upload_dspace_metadata(self.s3_bucket, self.batch_path)
-            response = item_submission.send_submission_message(
-                self.workflow_name,
-                self.output_queue,
-                self.submission_system,
-                self.collection_handle,
-            )
-            yield response
+            attempted_submissions += 1
+            try:
+                item_submission.upload_dspace_metadata(self.s3_bucket, self.batch_path)
+                response = item_submission.send_submission_message(
+                    self.workflow_name,
+                    self.output_queue,
+                    self.submission_system,
+                    self.collection_handle,
+                )
+                status_code = response["ResponseMetadata"]["HTTPStatusCode"]
+                if status_code != HTTPStatus.OK:
+                    submission_results["success"] = False
+                submission_results[item_submission.item_identifier] = response[
+                    "MessageId"
+                ]
+                successful_submissions += 1
+            except Exception as e:
+                submission_results["success"] = False
+                logger.exception(
+                    "Error while processing submission: "
+                    f"{item_submission.item_identifier}"
+                )
+                submission_results[item_submission.item_identifier] = e
+                failed_submissions += 1
+                continue
+
+        submission_results["attempted_submissions"] = attempted_submissions
+        submission_results["successful_submissions"] = successful_submissions
+        submission_results["failed_submissions"] = failed_submissions
+        logger.info(
+            f"Submission results, attempted: {attempted_submissions}, successful: "
+            f"{successful_submissions} , failed: {failed_submissions}"
+        )
+        return submission_results
 
     @final
     def item_submissions_iter(self) -> Iterator[ItemSubmission]:

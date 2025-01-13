@@ -6,12 +6,12 @@ from typing import Any
 import smart_open
 
 from dsc.utilities.aws import S3Client
-from dsc.workflows.base import BaseWorkflow
+from dsc.workflows.base import Workflow
 
 logger = logging.getLogger(__name__)
 
 
-class SimpleCSV(BaseWorkflow):
+class SimpleCSV(Workflow):
     """Base workflow for deposits that rely on a metadata CSV file.
 
     The metadata CSV file must be stored in a designated path for the

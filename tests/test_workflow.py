@@ -1,4 +1,4 @@
-from http import HTTPStatus
+from unittest.mock import patch
 
 import pytest
 
@@ -8,29 +8,52 @@ from dsc.exceptions import (
     ItemMetadatMissingRequiredFieldError,
 )
 from dsc.item_submission import ItemSubmission
+from dsc.workflows.base import Workflow
 
 
-def test_base_workflow_load_success(base_workflow_instance):
-    workflow_instance = base_workflow_instance.load(
+def test_base_workflow_load_with_defaults_success():
+    workflow_instance = Workflow.load(
         workflow_name="test",
         collection_handle="123.4/5678",
         batch_id="batch-aaa",
     )
     assert workflow_instance.workflow_name == "test"
     assert workflow_instance.submission_system == "Test@MIT"
-    assert workflow_instance.email_recipients == ("test@test.test",)
     assert (
         workflow_instance.metadata_mapping_path
         == "tests/fixtures/test_metadata_mapping.json"
     )
     assert workflow_instance.s3_bucket == "dsc"
-    assert workflow_instance.output_queue == "mock-output_queue"
+    assert workflow_instance.output_queue == "dsc-unhandled"
+    assert workflow_instance.email_recipients == ("None",)
     assert workflow_instance.collection_handle == "123.4/5678"
     assert workflow_instance.batch_id == "batch-aaa"
 
 
-def test_base_workflow_get_workflow_success(base_workflow_instance):
-    workflow_class = base_workflow_instance.get_workflow("test")
+def test_base_workflow_load_with_optional_params_success():
+    workflow_instance = Workflow.load(
+        workflow_name="test",
+        collection_handle="123.4/5678",
+        batch_id="batch-aaa",
+        s3_bucket="updated-bucket",
+        output_queue="mock-output_queue",
+        email_recipients=("test@test.test",),
+    )
+    assert workflow_instance.workflow_name == "test"
+    assert workflow_instance.submission_system == "Test@MIT"
+    assert (
+        workflow_instance.metadata_mapping_path
+        == "tests/fixtures/test_metadata_mapping.json"
+    )
+    assert workflow_instance.s3_bucket == "updated-bucket"
+    assert workflow_instance.output_queue == "mock-output_queue"
+    assert workflow_instance.email_recipients == ("test@test.test",)
+    assert workflow_instance.collection_handle == "123.4/5678"
+    assert workflow_instance.batch_id == "batch-aaa"
+
+
+def test_base_workflow_get_workflow_success():
+    workflow_class = Workflow.get_workflow("test")
     assert workflow_class.workflow_name == "test"
 
 
@@ -97,13 +120,66 @@ def test_base_workflow_run_success(
     caplog, base_workflow_instance, mocked_s3, mocked_sqs_input, mocked_sqs_output
 ):
     caplog.set_level("DEBUG")
-    response = next(base_workflow_instance.run())
+    submission_results = base_workflow_instance.run()
     assert "Processing submission for '123'" in caplog.text
     assert (
         "Metadata uploaded to S3: s3://dsc/test/batch-aaa/123_metadata.json"
         in caplog.text
     )
-    assert response["ResponseMetadata"]["HTTPStatusCode"] == HTTPStatus.OK
+    assert submission_results["success"] is True
+    assert submission_results["attempted_submissions"] == 2  # noqa: PLR2004
+    assert submission_results["successful_submissions"] == 2  # noqa: PLR2004
+    assert submission_results["failed_submissions"] == 0
+    assert submission_results["123"]
+    assert submission_results["789"]
+    assert "Submission results, attempted: 2, successful: 2 , failed: 0" in caplog.text
+
+
+@patch("dsc.item_submission.ItemSubmission.send_submission_message")
+def test_base_workflow_run_exceptions_handled(
+    mocked_method,
+    caplog,
+    base_workflow_instance,
+    mocked_s3,
+    mocked_sqs_input,
+    mocked_sqs_output,
+):
+    side_effect = [
+        {"MessageId": "abcd", "ResponseMetadata": {"HTTPStatusCode": 200}},
+        Exception,
+    ]
+    mocked_method.side_effect = side_effect
+    submission_results = base_workflow_instance.run()
+    assert submission_results["success"] is False
+    assert submission_results["attempted_submissions"] == 2  # noqa: PLR2004
+    assert submission_results["successful_submissions"] == 1
+    assert submission_results["failed_submissions"] == 1
+    assert submission_results["123"]
+    assert isinstance(submission_results["789"], Exception)
+    assert "Submission results, attempted: 2, successful: 1 , failed: 1" in caplog.text
+
+
+@patch("dsc.item_submission.ItemSubmission.send_submission_message")
+def test_base_workflow_run_invalid_status_codes_handled(
+    mocked_method,
+    caplog,
+    base_workflow_instance,
+    mocked_s3,
+    mocked_sqs_input,
+    mocked_sqs_output,
+):
+    side_effect = [
+        {"MessageId": "abcd", "ResponseMetadata": {"HTTPStatusCode": 200}},
+        {"ResponseMetadata": {"HTTPStatusCode": 400}},
+    ]
+    mocked_method.side_effect = side_effect
+    submission_results = base_workflow_instance.run()
+    assert submission_results["success"] is False
+    assert submission_results["attempted_submissions"] == 2  # noqa: PLR2004
+    assert submission_results["successful_submissions"] == 1
+    assert submission_results["123"]
+    assert isinstance(submission_results["789"], Exception)
+    assert "Submission results, attempted: 2, successful: 1 , failed: 1" in caplog.text
 
 
 def test_base_workflow_item_submission_iter_success(base_workflow_instance):

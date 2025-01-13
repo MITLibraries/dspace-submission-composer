@@ -12,11 +12,11 @@ from dsc.item_submission import ItemSubmission
 from dsc.utilities.aws.s3 import S3Client
 from dsc.utilities.aws.ses import SESClient
 from dsc.utilities.aws.sqs import SQSClient
-from dsc.workflows.base import BaseWorkflow
+from dsc.workflows.base import Workflow
 from dsc.workflows.base.simple_csv import SimpleCSV
 
 
-class TestBaseWorkflow(BaseWorkflow):
+class TestWorkflow(Workflow):
 
     workflow_name: str = "test"
     submission_system: str = "Test@MIT"
@@ -77,7 +77,7 @@ def _test_env(monkeypatch):
 
 @pytest.fixture
 def base_workflow_instance(item_metadata, metadata_mapping, mocked_s3):
-    return TestBaseWorkflow(
+    return TestWorkflow(
         collection_handle="123.4/5678",
         batch_id="batch-aaa",
     )
