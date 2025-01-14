@@ -12,18 +12,16 @@ from dsc.item_submission import ItemSubmission
 from dsc.utilities.aws.s3 import S3Client
 from dsc.utilities.aws.ses import SESClient
 from dsc.utilities.aws.sqs import SQSClient
-from dsc.workflows.base import BaseWorkflow
+from dsc.workflows.base import Workflow
 from dsc.workflows.base.simple_csv import SimpleCSV
 
 
-class TestBaseWorkflow(BaseWorkflow):
+class TestWorkflow(Workflow):
 
     workflow_name: str = "test"
     submission_system: str = "Test@MIT"
     email_recipients: tuple[str] = ("test@test.test",)
     metadata_mapping_path: str = "tests/fixtures/test_metadata_mapping.json"
-    s3_bucket: str = "dsc"
-    output_queue: str = "mock-output_queue"
 
     def item_metadata_iter(self):
         yield from [
@@ -56,7 +54,7 @@ class TestBaseWorkflow(BaseWorkflow):
 
 class TestSimpleCSV(SimpleCSV):
 
-    workflow_name: str = "simple_csv"
+    workflow_name = "simple_csv"
     submission_system: str = "Test@MIT"
     email_recipients: tuple[str] = ("test@test.test",)
     metadata_mapping_path: str = "tests/fixtures/test_metadata_mapping.json"
@@ -77,9 +75,10 @@ def _test_env(monkeypatch):
 
 @pytest.fixture
 def base_workflow_instance(item_metadata, metadata_mapping, mocked_s3):
-    return TestBaseWorkflow(
+    return TestWorkflow(
         collection_handle="123.4/5678",
         batch_id="batch-aaa",
+        email_recipients=["test@test.test"],
     )
 
 
@@ -88,6 +87,7 @@ def simple_csv_workflow_instance(metadata_mapping):
     return TestSimpleCSV(
         collection_handle="123.4/5678",
         batch_id="batch-aaa",
+        email_recipients=["test@test.test"],
     )
 
 
