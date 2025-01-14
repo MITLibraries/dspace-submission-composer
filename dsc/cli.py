@@ -66,11 +66,11 @@ def main(
 ) -> None:
     ctx.ensure_object(dict)
     ctx.obj["start_time"] = perf_counter()
-    workflow = Workflow.load(
-        workflow_name=workflow_name,
+    workflow_class = Workflow.get_workflow(workflow_name)
+    workflow = workflow_class(
         collection_handle=collection_handle,
         batch_id=batch_id,
-        email_recipients=email_recipients,
+        email_recipients=tuple(email_recipients.split(",")),
         s3_bucket=s3_bucket,
         output_queue=output_queue,
     )
@@ -125,5 +125,4 @@ def deposit(ctx: click.Context) -> None:
     """Send a batch of item submissions to the DSpace Submission Service (DSS)."""
     workflow = ctx.obj["workflow"]
     logger.debug(f"Beginning submission of batch ID: {workflow.batch_id}")
-    submission_results = workflow.run()
-    logger.debug(f"Results of submission: {submission_results}")
+    workflow.run()

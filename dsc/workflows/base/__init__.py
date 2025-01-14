@@ -28,14 +28,16 @@ class Workflow(ABC):
     workflow_name: str = "base"
     submission_system: str = "DSpace@MIT"
     metadata_mapping_path: str = ""
+    s3_bucket: str = "dsc"
+    output_queue: str = "dsc-unhandled"
 
     def __init__(
         self,
         collection_handle: str,
         batch_id: str,
-        email_recipients: tuple[str] = ("None",),
-        s3_bucket: str = "dsc",
-        output_queue: str = "dsc-unhandled",
+        email_recipients: tuple[str, ...],
+        s3_bucket: str | None = None,
+        output_queue: str | None = None,
     ) -> None:
         """Initialize base instance.
 
@@ -53,8 +55,10 @@ class Workflow(ABC):
         self.collection_handle = collection_handle
         self.batch_id = batch_id
         self.email_recipients = email_recipients
-        self.s3_bucket = s3_bucket
-        self.output_queue = output_queue
+        if s3_bucket:
+            self.s3_bucket = s3_bucket
+        if output_queue:
+            self.output_queue = output_queue
 
     @property
     def batch_path(self) -> str:
@@ -64,28 +68,6 @@ class Workflow(ABC):
     def metadata_mapping(self) -> dict:
         with open(self.metadata_mapping_path) as mapping_file:
             return json.load(mapping_file)
-
-    @final
-    @classmethod
-    def load(
-        cls,
-        workflow_name: str,
-        **kwargs: str | tuple | None,
-    ) -> Workflow:
-        """Return configured workflow class instance.
-
-        Args:
-            workflow_name: The label of the workflow. Must match a key from
-            config.WORKFLOWS.
-            **kwargs: Includes required arguments (collection_handle, batch_id,
-            email_recipients) as well as optional arguments (s3_bucket, output_queue)
-            that override the class's default values.
-        """
-        workflow_class = cls.get_workflow(workflow_name)
-        filtered_kwargs = {
-            key: value for key, value in kwargs.items() if value is not None
-        }
-        return workflow_class(**filtered_kwargs)  # type: ignore [arg-type]
 
     @final
     @classmethod
@@ -203,15 +185,12 @@ class Workflow(ABC):
     def run(self) -> dict:
         """Run workflow to submit items to  the DSpace Submission Service.
 
-        Returns a dict with the attempted, successful, and failed submissions as well as
-        the results of each item submission organized by the item identifier.
+        Returns a dict with the submission results organized into succeeded and failed
+        items.
         """
-        submission_results: dict[str, Any] = {"success": True}
-        attempted_submissions = 0
-        successful_submissions = 0
-        failed_submissions = 0
+        items: dict[str, Any] = {"succeeded": {}, "failed": {}}
         for item_submission in self.item_submissions_iter():
-            attempted_submissions += 1
+            item_id = item_submission.item_identifier
             try:
                 item_submission.upload_dspace_metadata(self.s3_bucket, self.batch_path)
                 response = item_submission.send_submission_message(
@@ -220,31 +199,23 @@ class Workflow(ABC):
                     self.submission_system,
                     self.collection_handle,
                 )
-                status_code = response["ResponseMetadata"]["HTTPStatusCode"]
-                if status_code != HTTPStatus.OK:
-                    submission_results["success"] = False
-                submission_results[item_submission.item_identifier] = response[
-                    "MessageId"
-                ]
-                successful_submissions += 1
-            except Exception as e:
-                submission_results["success"] = False
-                logger.exception(
-                    "Error while processing submission: "
-                    f"{item_submission.item_identifier}"
-                )
-                submission_results[item_submission.item_identifier] = e
-                failed_submissions += 1
+            except Exception as exception:
+                logger.exception(f"Error processing submission: {item_id}")
+                items["failed"][item_id] = exception
                 continue
+            status_code = response["ResponseMetadata"]["HTTPStatusCode"]
+            if status_code != HTTPStatus.OK:
+                items["failed"][item_id] = RuntimeError("Non OK HTTPStatus")
+                continue
+            items["succeeded"][item_id] = response["MessageId"]
 
-        submission_results["attempted_submissions"] = attempted_submissions
-        submission_results["successful_submissions"] = successful_submissions
-        submission_results["failed_submissions"] = failed_submissions
-        logger.info(
-            f"Submission results, attempted: {attempted_submissions}, successful: "
-            f"{successful_submissions} , failed: {failed_submissions}"
-        )
-        return submission_results
+        results = {
+            "success": not items["failed"],
+            "items_count": len(items["succeeded"]) + len(items["failed"]),
+            "items": items,
+        }
+        logger.info(results)
+        return results
 
     @final
     def item_submissions_iter(self) -> Iterator[ItemSubmission]:
