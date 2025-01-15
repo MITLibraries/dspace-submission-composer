@@ -2,7 +2,14 @@
     "item_identifier": {
         "source_field_name": "item_identifier",
         "language": null,
-        "delimiter": ""
+        "delimiter": "",
+        "required": true
+    },
+    "dc.title": {
+        "source_field_name": "dc.title",
+        "language": "en_US",
+        "delimiter": "",
+        "required": true
     },
     "dc.publisher": {
         "source_field_name": "dc.publisher",
@@ -32,11 +39,6 @@
     "dc.relation.isversionof": {
         "source_field_name": "dc.relation.isversionof",
         "language": "",
-        "delimiter": ""
-    },
-    "dc.title": {
-        "source_field_name": "dc.title",
-        "language": "en_US",
         "delimiter": ""
     },
     "dc.relation.journal": {

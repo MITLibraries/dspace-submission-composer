@@ -70,7 +70,7 @@ def main(
     workflow = workflow_class(
         collection_handle=collection_handle,
         batch_id=batch_id,
-        email_recipients=tuple(email_recipients.split(",")),
+        email_recipients=email_recipients.split(","),
         s3_bucket=s3_bucket,
         output_queue=output_queue,
     )

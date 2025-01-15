@@ -35,7 +35,7 @@ class Workflow(ABC):
         self,
         collection_handle: str,
         batch_id: str,
-        email_recipients: tuple[str, ...],
+        email_recipients: list[str],
         s3_bucket: str | None = None,
         output_queue: str | None = None,
     ) -> None:
