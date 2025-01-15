@@ -2,10 +2,10 @@ from __future__ import annotations
 
 import json
 import logging
-import os
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
+from dsc.config import Config
 from dsc.utilities.aws.s3 import S3Client
 from dsc.utilities.aws.sqs import SQSClient
 
@@ -14,6 +14,7 @@ if TYPE_CHECKING:  # pragma: no cover
     from mypy_boto3_sqs.type_defs import SendMessageResultTypeDef
 
 logger = logging.getLogger(__name__)
+CONFIG = Config()
 
 
 @dataclass
@@ -57,7 +58,7 @@ class ItemSubmission:
             collection_handle: The handle of collection where the submission is uploaded.
         """
         sqs_client = SQSClient(
-            region=os.environ["AWS_REGION_NAME"], queue_name=os.environ["DSS_INPUT_QUEUE"]
+            region=CONFIG.aws_region_name, queue_name=CONFIG.dss_input_queue
         )
         message_attributes = sqs_client.create_dss_message_attributes(
             self.item_identifier, submission_source, output_queue

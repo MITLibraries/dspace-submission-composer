@@ -148,7 +148,7 @@ def metadata_mapping():
 @pytest.fixture
 def mocked_s3(config_instance):
     with mock_aws():
-        s3 = boto3.client("s3", region_name=config_instance.AWS_REGION_NAME)
+        s3 = boto3.client("s3", region_name=config_instance.aws_region_name)
         s3.create_bucket(Bucket="dsc")
         yield s3
 
@@ -175,7 +175,7 @@ def mocked_s3_simple_csv(mocked_s3, item_metadata):
 @pytest.fixture
 def mocked_ses(config_instance):
     with mock_aws():
-        ses = boto3.client("ses", region_name=config_instance.AWS_REGION_NAME)
+        ses = boto3.client("ses", region_name=config_instance.aws_region_name)
         ses.verify_email_identity(EmailAddress="noreply@example.com")
         yield ses
 
@@ -183,7 +183,7 @@ def mocked_ses(config_instance):
 @pytest.fixture
 def mocked_sqs_input(config_instance):
     with mock_aws():
-        sqs = boto3.resource("sqs", region_name=config_instance.AWS_REGION_NAME)
+        sqs = boto3.resource("sqs", region_name=config_instance.aws_region_name)
         sqs.create_queue(QueueName="mock-input-queue")
         yield sqs
 
@@ -237,13 +237,13 @@ def s3_client():
 
 @pytest.fixture
 def ses_client(config_instance):
-    return SESClient(region=config_instance.AWS_REGION_NAME)
+    return SESClient(region=config_instance.aws_region_name)
 
 
 @pytest.fixture
 def sqs_client(config_instance):
     return SQSClient(
-        region=config_instance.AWS_REGION_NAME,
+        region=config_instance.aws_region_name,
         queue_name="mock-output-queue",
     )
 
