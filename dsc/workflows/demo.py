@@ -1,7 +1,7 @@
 from dsc.workflows.base.simple_csv import SimpleCSV
 
 
-class DemoWorkflow(SimpleCSV):
+class Demo(SimpleCSV):
 
     workflow_name: str = "demo"
     submission_system: str = "DSpace@MIT"
