@@ -1,0 +1,27 @@
+{
+    "item_identifier": {
+        "source_field_name": "item_identifier",
+        "required": true
+    },
+    "dc.title": {
+        "source_field_name": "course_title",
+        "language": "en_US",
+        "required": true
+    },
+    "dc.description.abstract": {
+        "source_field_name": "course_description"
+    },
+    "dc.subject": {
+        "source_field_name": "topics"
+    },
+    "dc.date.issued": {
+        "source_field_name": "year"
+    },
+    "dc.identifier.other": {
+        "source_field_name": "primary_course_number"
+    },
+    "dc.contributor.author": {
+        "source_field_name": "instructors",
+        "delimiter": "|"
+    }
+}
