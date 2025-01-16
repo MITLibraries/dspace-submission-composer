@@ -1,0 +1,47 @@
+{
+    "item_identifier": {
+        "source_field_name": "item_identifier",
+        "required": true
+    },
+    "dc.title": {
+        "source_field_name": "dc.title",
+        "language": "en_US",
+        "required": true
+    },
+    "dc.publisher": {
+        "source_field_name": "dc.publisher",
+        "language": "en_US"
+    },
+    "dc.eprint.version": {
+        "source_field_name": "dc.eprint.version",
+        "language": "en_US"
+    },
+    "dc.type": {
+        "source_field_name": "dc.type",
+        "language": "en_US"
+    },
+    "dc.source": {
+        "source_field_name": "dc.source",
+        "language": "en_US"
+    },
+    "dc.contributor.author": {
+        "source_field_name": "dc.contributor.author",
+        "language": "en_US",
+        "delimiter": "|"
+    },
+    "dc.relation.isversionof": {
+        "source_field_name": "dc.relation.isversionof"
+    },
+    "dc.relation.journal": {
+        "source_field_name": "dc.relation.journal"
+    },
+    "dc.identifier.issn": {
+        "source_field_name": "dc.identifier.issn"
+    },
+    "dc.date.issued": {
+        "source_field_name": "dc.date.issued"
+    },
+    "dc.rights.uri": {
+        "source_field_name": "dc.rights.uri"
+    }
+}

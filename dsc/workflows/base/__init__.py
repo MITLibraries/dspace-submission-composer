@@ -35,7 +35,7 @@ class Workflow(ABC):
         self,
         collection_handle: str,
         batch_id: str,
-        email_recipients: tuple[str, ...],
+        email_recipients: list[str],
         s3_bucket: str | None = None,
         output_queue: str | None = None,
     ) -> None:
@@ -259,11 +259,18 @@ class Workflow(ABC):
         A metadata mapping is a dict with the format seen below:
 
         {
-        "dc.contributor": {
-            "source_field_name": "contributor",
-            "language": None,
-            "delimiter": "|",
+            "dc.contributor": {
+                "source_field_name": "contributor",
+                "language": "<language>",
+                "delimiter": "<delimiting character>",
+                "required": true | false
+            }
         }
+
+        When setting up the metadata mapping JSON file, "language" and "delimiter"
+        can be omitted from the file if not applicable. Required fields ("item_identifier"
+        and "title") must be set as required (true); if "required" is not listed as a
+        a config, the field defaults as not required (false).
 
         MUST NOT be overridden by workflow subclasses.
 
@@ -281,8 +288,8 @@ class Workflow(ABC):
                         f"{field_mapping["source_field_name"]}'"
                     )
                 if field_value:
-                    delimiter = field_mapping["delimiter"]
-                    language = field_mapping["language"]
+                    delimiter = field_mapping.get("delimiter")
+                    language = field_mapping.get("language")
                     if delimiter:
                         metadata_entries.extend(
                             [

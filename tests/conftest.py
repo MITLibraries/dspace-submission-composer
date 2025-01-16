@@ -20,7 +20,6 @@ class TestWorkflow(Workflow):
 
     workflow_name: str = "test"
     submission_system: str = "Test@MIT"
-    email_recipients: tuple[str] = ("test@test.test",)
     metadata_mapping_path: str = "tests/fixtures/test_metadata_mapping.json"
 
     def item_metadata_iter(self):
@@ -56,10 +55,7 @@ class TestSimpleCSV(SimpleCSV):
 
     workflow_name = "simple_csv"
     submission_system: str = "Test@MIT"
-    email_recipients: tuple[str] = ("test@test.test",)
     metadata_mapping_path: str = "tests/fixtures/test_metadata_mapping.json"
-    s3_bucket: str = "dsc"
-    output_queue: str = "mock-output_queue"
 
 
 @pytest.fixture(autouse=True)
@@ -79,6 +75,7 @@ def base_workflow_instance(item_metadata, metadata_mapping, mocked_s3):
         collection_handle="123.4/5678",
         batch_id="batch-aaa",
         email_recipients=["test@test.test"],
+        output_queue="mock-output_queue",
     )
 
 
@@ -88,6 +85,7 @@ def simple_csv_workflow_instance(metadata_mapping):
         collection_handle="123.4/5678",
         batch_id="batch-aaa",
         email_recipients=["test@test.test"],
+        output_queue="mock-output_queue",
     )
 
 
