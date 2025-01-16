@@ -47,9 +47,6 @@ class TestWorkflow(Workflow):
         ]
         return [bitstream for bitstream in bitstreams if item_identifier in bitstream]
 
-    def process_deposit_results(self):
-        pass
-
 
 class TestSimpleCSV(SimpleCSV):
 
@@ -226,6 +223,15 @@ def result_message_body():
 
 
 @pytest.fixture
+def result_message_valid(result_message_attributes, result_message_body):
+    return {
+        "ReceiptHandle": "lvpqxcxlmyaowrhbvxadosldaghhidsdralddmejhdrnrfeyfuphzs",
+        "Body": result_message_body,
+        "MessageAttributes": result_message_attributes,
+    }
+
+
+@pytest.fixture
 def runner():
     return CliRunner()
 
@@ -278,12 +284,3 @@ def submission_message_body():
             ],
         }
     )
-
-
-@pytest.fixture
-def result_message_valid(result_message_attributes, result_message_body):
-    return {
-        "ReceiptHandle": "lvpqxcxlmyaowrhbvxadosldaghhidsdralddmejhdrnrfeyfuphzs",
-        "Body": result_message_body,
-        "MessageAttributes": result_message_attributes,
-    }
