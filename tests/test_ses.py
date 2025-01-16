@@ -10,9 +10,9 @@ def test_ses_create_and_send_email(caplog, mocked_ses, ses_client):
             attachment_content="<html/>",
             attachment_name="attachment",
             source_email_address="noreply@example.com",
-            recipient_email_address="test@example.com",
+            recipient_email_addresses=["test@example.com"],
         )
-        assert "Logs sent to test@example.com" in caplog.text
+        assert "Logs sent to ['test@example.com']" in caplog.text
 
 
 def test_ses_create_email(ses_client):
@@ -29,7 +29,7 @@ def test_ses_send_email(mocked_ses, ses_client):
     message = MIMEMultipart()
     response = ses_client._send_email(  # noqa: SLF001
         source_email_address="noreply@example.com",
-        recipient_email_address="test@example.com",
+        recipient_email_addresses=["test@example.com"],
         message=message,
     )
     assert response["ResponseMetadata"]["HTTPStatusCode"] == HTTPStatus.OK

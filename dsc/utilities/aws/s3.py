@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING
 
 import boto3
 
-if TYPE_CHECKING:
+if TYPE_CHECKING:  # pragma: no cover
     from collections.abc import Iterator
 
     from mypy_boto3_s3.type_defs import PutObjectOutputTypeDef

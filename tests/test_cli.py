@@ -15,7 +15,7 @@ def test_reconcile_success(caplog, runner, mocked_s3, base_workflow_instance, s3
             "--batch-id",
             "batch-aaa",
             "--email-recipients",
-            "test@test.edu",
+            "test@test.test",
             "reconcile",
         ],
     )
@@ -92,4 +92,48 @@ def test_deposit_success(
         "Metadata uploaded to S3: s3://dsc/test/batch-aaa/789_metadata.json"
         in caplog.text
     )
+    assert "Total time elapsed" in caplog.text
+
+
+def test_finalize_success(
+    caplog,
+    runner,
+    mocked_ses,
+    mocked_sqs_input,
+    mocked_sqs_output,
+    base_workflow_instance,
+    sqs_client,
+    result_message_attributes,
+    result_message_body,
+):
+    caplog.set_level("DEBUG")
+    sqs_client.send(
+        message_attributes=result_message_attributes,
+        message_body=result_message_body,
+    )
+    result = runner.invoke(
+        main,
+        [
+            "--verbose",
+            "--workflow-name",
+            "test",
+            "--collection-handle",
+            "123.4/5678",
+            "--batch-id",
+            "batch-aaa",
+            "--output-queue",
+            "mock-output-queue",
+            "--email-recipients",
+            "test@test.test,test2@test.test",
+            "finalize",
+        ],
+    )
+    assert result.exit_code == 0
+    assert "Processing result messages in 'mock-output-queue'" in caplog.text
+    assert "Receiving messages from SQS queue: 'mock-output-queue'" in caplog.text
+    assert "Message retrieved from SQS queue 'mock-output-queue':" in caplog.text
+    assert "No more messages from SQS queue: 'mock-output-queue'" in caplog.text
+    assert "Messages received and deleted from 'mock-output-queue'" in caplog.text
+    assert "Logs sent to ['test@test.test', 'test2@test.test']" in caplog.text
+    assert "Application exiting" in caplog.text
     assert "Total time elapsed" in caplog.text

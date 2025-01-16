@@ -68,7 +68,3 @@ class SimpleCSV(Workflow):
     def get_item_identifier(self, item_metadata: dict[str, Any]) -> str:
         """Get 'item_identifier' from item metadata entry."""
         return item_metadata["item_identifier"]
-
-    def process_deposit_results(self) -> list[str]:
-        """TODO: Stub method."""
-        return [""]
