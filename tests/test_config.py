@@ -3,28 +3,36 @@ import logging
 import pytest
 
 
+def test_dss_input_queue_raises_error(monkeypatch, config_instance):
+    monkeypatch.delenv("DSS_INPUT_QUEUE")
+    with pytest.raises(OSError, match="Env var 'DSS_INPUT_QUEUE' must be defined"):
+        _ = config_instance.dss_input_queue
+
+
+def test_dsc_source_email_raises_error(monkeypatch, config_instance):
+    monkeypatch.delenv("DSC_SOURCE_EMAIL")
+    with pytest.raises(OSError, match="Env var 'DSC_SOURCE_EMAIL' must be defined"):
+        _ = config_instance.dsc_source_email
+
+
 def test_check_required_env_vars(monkeypatch, config_instance):
     monkeypatch.delenv("WORKSPACE")
     with pytest.raises(OSError, match="Missing required environment variables:"):
         config_instance.check_required_env_vars()
 
 
-def test_configure_logger_not_verbose(config_instance, stream):
+def test_configure_logger_not_verbose(config_instance):
     logger = logging.getLogger(__name__)
-    result = config_instance.configure_logger(logger, stream, verbose=False)
+    result = config_instance.configure_logger(logger, verbose=False)
     assert logger.getEffectiveLevel() == logging.INFO
     assert result == "Logger 'tests.test_config' configured with level=INFO"
-    stream.seek(0)
-    assert next(stream) == "INFO\n"
 
 
-def test_configure_logger_verbose(config_instance, stream):
+def test_configure_logger_verbose(config_instance):
     logger = logging.getLogger(__name__)
-    result = config_instance.configure_logger(logger, stream, verbose=True)
+    result = config_instance.configure_logger(logger, verbose=True)
     assert logger.getEffectiveLevel() == logging.DEBUG
     assert result == "Logger 'tests.test_config' configured with level=DEBUG"
-    stream.seek(0)
-    assert next(stream) == "DEBUG\n"
 
 
 def test_configure_sentry_no_env_variable(monkeypatch, config_instance):

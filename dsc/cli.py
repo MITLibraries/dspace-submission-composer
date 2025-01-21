@@ -1,6 +1,5 @@
 import datetime
 import logging
-from io import StringIO
 from time import perf_counter
 
 import click
@@ -76,12 +75,10 @@ def main(
     )
     ctx.obj["workflow"] = workflow
 
-    log_stream = StringIO()
     root_logger = logging.getLogger()
-    logger.info(CONFIG.configure_logger(root_logger, log_stream, verbose=verbose))
+    logger.info(CONFIG.configure_logger(root_logger, verbose=verbose))
     logger.info(CONFIG.configure_sentry())
     CONFIG.check_required_env_vars()
-    ctx.obj["log_stream"] = log_stream
 
     logger.info("Running process")
 
@@ -122,11 +119,11 @@ def reconcile(ctx: click.Context) -> None:
 
 @main.command()
 @click.pass_context
-def deposit(ctx: click.Context) -> None:
+def submit(ctx: click.Context) -> None:
     """Send a batch of item submissions to the DSpace Submission Service (DSS)."""
     workflow = ctx.obj["workflow"]
     logger.debug(f"Beginning submission of batch ID: {workflow.batch_id}")
-    workflow.run()
+    workflow.submit_items()
 
 
 @main.command()
@@ -135,4 +132,4 @@ def finalize(ctx: click.Context) -> None:
     """Process the result messages from the DSS output queue according the workflow."""
     workflow = ctx.obj["workflow"]
     workflow.process_results()
-    workflow.send_logs(ctx.obj["log_stream"])
+    workflow.report_results()

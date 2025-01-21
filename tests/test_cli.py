@@ -58,7 +58,7 @@ def test_reconcile_discrepancies_logged(
     assert "Total time elapsed" in caplog.text
 
 
-def test_deposit_success(
+def test_submit_success(
     caplog, runner, mocked_s3, mocked_sqs_input, base_workflow_instance, s3_client
 ):
     s3_client.put_file(file_content="", bucket="dsc", key="test/batch-aaa/123_01.pdf")
@@ -77,7 +77,7 @@ def test_deposit_success(
             "batch-aaa",
             "--email-recipients",
             "test@test.edu",
-            "deposit",
+            "submit",
         ],
     )
     assert result.exit_code == 0

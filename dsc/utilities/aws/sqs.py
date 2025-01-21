@@ -118,7 +118,7 @@ class SQSClient:
 
         return response
 
-    def process_result_message(self, sqs_message: MessageTypeDef) -> tuple[str, str]:
+    def process_result_message(self, sqs_message: MessageTypeDef) -> tuple[str, dict]:
         """Validate, extract data, and delete an SQS result message.
 
         Args:
@@ -126,7 +126,7 @@ class SQSClient:
         """
         self.validate_result_message(sqs_message)
         item_identifier = sqs_message["MessageAttributes"]["PackageID"]["StringValue"]
-        message_body = json.loads(str(sqs_message["Body"]))
+        message_body = json.loads(sqs_message["Body"])
         logger.info(f"Item identifier: '{item_identifier}', Result: {message_body}")
         self.delete(sqs_message["ReceiptHandle"])
         return item_identifier, message_body

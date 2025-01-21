@@ -20,7 +20,6 @@ from dsc.utilities.aws import S3Client, SESClient, SQSClient
 if TYPE_CHECKING:  # pragma: no cover
     from _collections_abc import dict_keys
     from collections.abc import Iterator
-    from io import StringIO
 
 logger = logging.getLogger(__name__)
 CONFIG = Config()
@@ -63,6 +62,7 @@ class Workflow(ABC):
             self.s3_bucket = s3_bucket
         if output_queue:
             self.output_queue = output_queue
+        self.report_lines: list[str] = []
 
     @property
     def batch_path(self) -> str:
@@ -186,8 +186,8 @@ class Workflow(ABC):
         ]
 
     @final
-    def run(self) -> dict:
-        """Run workflow to submit items to  the DSpace Submission Service.
+    def submit_items(self) -> dict:
+        """Submit items to the DSpace Submission Service according to the workflow class.
 
         Returns a dict with the submission results organized into succeeded and failed
         items.
@@ -347,8 +347,17 @@ class Workflow(ABC):
             item_identifier: The identifier used for locating the item's bitstreams.
         """
 
-    def process_results(self) -> dict[str, Any]:
-        """Process results in the workflow's output queue.
+    @final
+    def process_results(self) -> None:
+        """Process DSS results from the workflow's output queue.
+
+        Must NOT be overridden by workflow subclasses.
+        """
+        items = self.process_sqs_queue()
+        self.workflow_specific_processing(items)
+
+    def process_sqs_queue(self) -> list[tuple[str, dict[str, Any]]]:
+        """Process messages in DSS ouput queue to extract necessary data.
 
         May be overridden by workflow subclasses.
         """
@@ -357,33 +366,38 @@ class Workflow(ABC):
         sqs_client = SQSClient(
             region=CONFIG.aws_region_name, queue_name=self.output_queue
         )
-        results = []
+        items = []
         for sqs_message in sqs_client.receive():
             try:
-                results.append(sqs_client.process_result_message(sqs_message))
-            except Exception:  # noqa: BLE001
-                logger.error(  # noqa: TRY400
-                    "Error while processing SQS message: %s", sqs_message
+                item_identifier, message_body = sqs_client.process_result_message(
+                    sqs_message
                 )
+                items.append((item_identifier, message_body))
+                logger.debug(item_identifier, message_body)
+                self.report_lines.append(f"{item_identifier}: {message_body}")
+            except Exception:
+                error_message = f"Error while processing SQS message: {sqs_message}"
+                logger.exception(error_message)
+                self.report_lines.append(error_message)
                 continue
-
-        results_dict = dict(results)
         logger.debug(f"Messages received and deleted from '{self.output_queue}'")
-        logger.debug(results_dict)
-        return results_dict
+        return items
 
-    @final
-    def send_logs(self, log_stream: StringIO) -> None:
-        """Send logs email via SES.
+    def workflow_specific_processing(self, items: list[tuple]) -> None:
+        logger.info(
+            f"No extra processing for {len(items)} items based on workflow: "
+            f"'{self.workflow_name}' "
+        )
 
-        Args:
-            log_stream: The logs of the application's current run as StringIO object.
-        """
+    def report_results(self) -> None:
+        """Send report to stakeholders as an email via SES."""
         date = datetime.datetime.now(tz=datetime.UTC).strftime("%Y-%m-%d %H:%M:%S")
+        report = "\n".join(self.report_lines)
+        logger.info(report)
         ses_client = SESClient(region=CONFIG.aws_region_name)
         ses_client.create_and_send_email(
-            subject=f"DSS results {date}",
-            attachment_content=log_stream.getvalue(),
+            subject=f"DSS results - {self.workflow_name} {date}",
+            attachment_content=report,
             attachment_name=f"DSS results - {self.workflow_name} {date}.txt",
             source_email_address=CONFIG.dsc_source_email,
             recipient_email_addresses=list(self.email_recipients),

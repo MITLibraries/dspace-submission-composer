@@ -1,7 +1,6 @@
 import logging
 import os
 from collections.abc import Iterable
-from io import StringIO
 
 import sentry_sdk
 
@@ -31,11 +30,18 @@ class Config:
 
     @property
     def dss_input_queue(self) -> str:
-        return os.getenv("DSS_INPUT_QUEUE", "")
+        value = os.getenv("DSS_INPUT_QUEUE")
+        if not value:
+            raise OSError("Env var 'DSS_INPUT_QUEUE' must be defined")
+        return value
 
     @property
     def dsc_source_email(self) -> str:
-        return os.getenv("DSC_SOURCE_EMAIL", "")
+
+        value = os.getenv("DSC_SOURCE_EMAIL")
+        if not value:
+            raise OSError("Env var 'DSC_SOURCE_EMAIL' must be defined")
+        return value
 
     def check_required_env_vars(self) -> None:
         """Method to raise exception if required env vars not set."""
@@ -44,9 +50,7 @@ class Config:
             message = f"Missing required environment variables: {', '.join(missing_vars)}"
             raise OSError(message)
 
-    def configure_logger(
-        self, logger: logging.Logger, stream: StringIO, *, verbose: bool
-    ) -> str:
+    def configure_logger(self, logger: logging.Logger, *, verbose: bool) -> str:
         logging_format_base = "%(asctime)s %(levelname)s %(name)s.%(funcName)s()"
         if verbose:
             log_method, log_level = logger.debug, logging.DEBUG
@@ -59,7 +63,6 @@ class Config:
 
         logger.setLevel(log_level)
         logging.basicConfig(format=template)
-        logger.addHandler(logging.StreamHandler(stream))
         log_method(f"{logging.getLevelName(logger.getEffectiveLevel())}")
 
         return (

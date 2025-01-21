@@ -255,11 +255,6 @@ def sqs_client(config_instance):
 
 
 @pytest.fixture
-def stream():
-    return StringIO()
-
-
-@pytest.fixture
 def submission_message_attributes():
     return {
         "PackageID": {"DataType": "String", "StringValue": "123"},
