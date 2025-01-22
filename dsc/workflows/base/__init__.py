@@ -62,7 +62,7 @@ class Workflow(ABC):
             self.s3_bucket = s3_bucket
         if output_queue:
             self.output_queue = output_queue
-        self.report_lines: list[str] = []
+        self.report_data: list[str] = []
 
     @property
     def batch_path(self) -> str:
@@ -356,7 +356,7 @@ class Workflow(ABC):
         items = self.process_sqs_queue()
         self.workflow_specific_processing(items)
 
-    def process_sqs_queue(self) -> list[tuple[str, dict[str, Any]]]:
+    def process_sqs_queue(self) -> list[tuple[str, dict]]:
         """Process messages in DSS ouput queue to extract necessary data.
 
         May be overridden by workflow subclasses.
@@ -374,11 +374,11 @@ class Workflow(ABC):
                 )
                 items.append((item_identifier, message_body))
                 logger.debug(item_identifier, message_body)
-                self.report_lines.append(f"{item_identifier}: {message_body}")
+                self.report_data.append(f"{item_identifier}: {message_body}")
             except Exception:
                 error_message = f"Error while processing SQS message: {sqs_message}"
                 logger.exception(error_message)
-                self.report_lines.append(error_message)
+                self.report_data.append(error_message)
                 continue
         logger.debug(f"Messages received and deleted from '{self.output_queue}'")
         return items
@@ -392,7 +392,7 @@ class Workflow(ABC):
     def report_results(self) -> None:
         """Send report to stakeholders as an email via SES."""
         date = datetime.datetime.now(tz=datetime.UTC).strftime("%Y-%m-%d %H:%M:%S")
-        report = "\n".join(self.report_lines)
+        report = "\n".join(self.report_data)
         logger.info(report)
         ses_client = SESClient(region=CONFIG.aws_region_name)
         ses_client.create_and_send_email(

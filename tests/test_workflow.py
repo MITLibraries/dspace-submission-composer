@@ -311,7 +311,7 @@ def test_base_workflow_report_results_success(
     mocked_ses,
 ):
     caplog.set_level("DEBUG")
-    base_workflow_instance.report_lines = [
+    base_workflow_instance.report_data = [
         "10.1002/term.3131: {'ResultType': 'success', 'ItemHandle': '1721.1/131022', "
         "'lastModified': 'Thu Sep 09 17:56:39 UTC 2021', 'Bitstreams': "
         "[{'BitstreamName': '10.1002-term.3131.pdf', 'BitstreamUUID': 'a1b2c3d4e5', "
