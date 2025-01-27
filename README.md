@@ -52,6 +52,7 @@ SENTRY_DSN=### If set to a valid Sentry DSN, enables Sentry exception monitoring
 WORKSPACE=### Set to `dev` for local development, this will be set to `stage` and `prod` in those environments by Terraform.
 AWS_REGION_NAME=### Default AWS region.
 DSS_INPUT_QUEUE=### The DSS SQS input queue to which submission messages are sent.
+DSC_SOURCE_EMAIL=### The email address from which SES emails are sent.
 ```
 
 ### Optional

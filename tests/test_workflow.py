@@ -38,7 +38,7 @@ def test_base_workflow_init_with_optional_params_success():
         batch_id="batch-aaa",
         email_recipients=("test@test.test",),
         s3_bucket="updated-bucket",
-        output_queue="mock-output_queue",
+        output_queue="mock-output-queue",
     )
     assert workflow_instance.workflow_name == "test"
     assert workflow_instance.submission_system == "Test@MIT"
@@ -47,7 +47,7 @@ def test_base_workflow_init_with_optional_params_success():
         == "tests/fixtures/test_metadata_mapping.json"
     )
     assert workflow_instance.s3_bucket == "updated-bucket"
-    assert workflow_instance.output_queue == "mock-output_queue"
+    assert workflow_instance.output_queue == "mock-output-queue"
     assert workflow_instance.collection_handle == "123.4/5678"
     assert workflow_instance.batch_id == "batch-aaa"
     assert workflow_instance.email_recipients == ("test@test.test",)
@@ -117,11 +117,11 @@ def test_match_bitstreams_to_item_identifiers_success(base_workflow_instance):
     assert "test" in file_matches
 
 
-def test_base_workflow_run_success(
+def test_base_workflow_submit_items_success(
     caplog, base_workflow_instance, mocked_s3, mocked_sqs_input, mocked_sqs_output
 ):
     caplog.set_level("DEBUG")
-    submission_results = base_workflow_instance.run()
+    submission_results = base_workflow_instance.submit_items()
     assert "Processing submission for '123'" in caplog.text
     assert (
         "Metadata uploaded to S3: s3://dsc/test/batch-aaa/123_metadata.json"
@@ -134,7 +134,7 @@ def test_base_workflow_run_success(
 
 
 @patch("dsc.item_submission.ItemSubmission.send_submission_message")
-def test_base_workflow_run_exceptions_handled(
+def test_base_workflow_submit_items_exceptions_handled(
     mocked_method,
     caplog,
     base_workflow_instance,
@@ -147,7 +147,7 @@ def test_base_workflow_run_exceptions_handled(
         Exception,
     ]
     mocked_method.side_effect = side_effect
-    submission_results = base_workflow_instance.run()
+    submission_results = base_workflow_instance.submit_items()
     assert submission_results["success"] is False
     assert submission_results["items_count"] == 2  # noqa: PLR2004
     assert submission_results["items"]["succeeded"] == {"123": "abcd"}
@@ -155,7 +155,7 @@ def test_base_workflow_run_exceptions_handled(
 
 
 @patch("dsc.item_submission.ItemSubmission.send_submission_message")
-def test_base_workflow_run_invalid_status_codes_handled(
+def test_base_workflow_submit_items_invalid_status_codes_handled(
     mocked_method,
     caplog,
     base_workflow_instance,
@@ -168,7 +168,7 @@ def test_base_workflow_run_invalid_status_codes_handled(
         {"ResponseMetadata": {"HTTPStatusCode": 400}},
     ]
     mocked_method.side_effect = side_effect
-    submission_results = base_workflow_instance.run()
+    submission_results = base_workflow_instance.submit_items()
     assert submission_results["success"] is False
     assert submission_results["items_count"] == 2  # noqa: PLR2004
     assert submission_results["items"]["succeeded"] == {"123": "abcd"}
@@ -226,3 +226,110 @@ def test_base_workflow_validate_dspace_metadata_invalid_raises_exception(
 ):
     with pytest.raises(InvalidDSpaceMetadataError):
         base_workflow_instance.validate_dspace_metadata({})
+
+
+def test_base_workflow_process_sqs_queue_success(
+    caplog,
+    base_workflow_instance,
+    mocked_sqs_output,
+    result_message_attributes,
+    result_message_body,
+    sqs_client,
+):
+    caplog.set_level("DEBUG")
+    base_workflow_instance.output_queue = "mock-output-queue"
+    sqs_client.send(
+        message_attributes=result_message_attributes,
+        message_body=result_message_body,
+    )
+    results = base_workflow_instance.process_sqs_queue()
+    assert "Messages received and deleted from 'mock-output-queue'" in caplog.text
+    assert (
+        "Item identifier: '10.1002/term.3131', Result: {'ResultType': 'success', "
+        "'ItemHandle': '1721.1/131022', 'lastModified': 'Thu Sep 09 17:56:39 UTC 2021', "
+        "'Bitstreams': [{'BitstreamName': '10.1002-term.3131.pdf', 'BitstreamUUID': "
+        "'a1b2c3d4e5', 'BitstreamChecksum': {'value': 'a4e0f4930dfaff904fa3c6c85b0b8ecc',"
+        " 'checkSumAlgorithm': 'MD5'}}]}" in caplog.text
+    )
+    assert results == [
+        (
+            "10.1002/term.3131",
+            {
+                "Bitstreams": [
+                    {
+                        "BitstreamChecksum": {
+                            "checkSumAlgorithm": "MD5",
+                            "value": "a4e0f4930dfaff904fa3c6c85b0b8ecc",
+                        },
+                        "BitstreamName": "10.1002-term.3131.pdf",
+                        "BitstreamUUID": "a1b2c3d4e5",
+                    }
+                ],
+                "ItemHandle": "1721.1/131022",
+                "ResultType": "success",
+                "lastModified": "Thu Sep 09 17:56:39 UTC 2021",
+            },
+        )
+    ]
+
+
+@patch("dsc.utilities.aws.sqs.SQSClient.process_result_message")
+def test_base_workflow_process_sqs_queue_exception_logged(
+    mocked_method,
+    caplog,
+    base_workflow_instance,
+    mocked_sqs_output,
+    result_message_attributes,
+    result_message_body,
+    sqs_client,
+):
+    mocked_method.side_effect = [Exception]
+    caplog.set_level("DEBUG")
+    base_workflow_instance.output_queue = "mock-output-queue"
+    sqs_client.send(
+        message_attributes=result_message_attributes,
+        message_body=result_message_body,
+    )
+    items = base_workflow_instance.process_sqs_queue()
+    assert "Error while processing SQS message:" in caplog.text
+    assert "Messages received and deleted from 'mock-output-queue'" in caplog.text
+    assert items == []
+
+
+def test_base_workflow_workflow_specific_processing_success(
+    caplog,
+    base_workflow_instance,
+    mocked_ses,
+):
+    base_workflow_instance.workflow_specific_processing([""])
+    assert "No extra processing for 1 items based on workflow: 'test'" in caplog.text
+
+
+def test_base_workflow_report_results_success(
+    caplog,
+    base_workflow_instance,
+    mocked_ses,
+):
+    caplog.set_level("DEBUG")
+    base_workflow_instance.report_data = [
+        "10.1002/term.3131: {'ResultType': 'success', 'ItemHandle': '1721.1/131022', "
+        "'lastModified': 'Thu Sep 09 17:56:39 UTC 2021', 'Bitstreams': "
+        "[{'BitstreamName': '10.1002-term.3131.pdf', 'BitstreamUUID': 'a1b2c3d4e5', "
+        "'BitstreamChecksum': {'value': 'a4e0f4930dfaff904fa3c6c85b0b8ecc', "
+        "'checkSumAlgorithm': 'MD5'}}]}",
+        "1111/2222: {'ResultType': 'success', 'ItemHandle': '1721.1/131023', "
+        "'lastModified': 'Thu Sep 09 17:56:39 UTC 2021', 'Bitstreams': "
+        "[{'BitstreamName': '1111/2222.pdf', 'BitstreamUUID': 'a1b2c3d4e5', "
+        "'BitstreamChecksum': {'value': 'a4e0f4930dfaff904fa3c6c85b0b8ecc', "
+        "'checkSumAlgorithm': 'MD5'}}]}",
+    ]
+    base_workflow_instance.report_results()
+    assert "Logs sent to ['test@test.test']" in caplog.text
+    assert (
+        "10.1002/term.3131: {'ResultType': 'success', 'ItemHandle': '1721.1/131022'"
+        in caplog.text
+    )
+    assert (
+        "1111/2222: {'ResultType': 'success', 'ItemHandle': '1721.1/131023'"
+        in caplog.text
+    )

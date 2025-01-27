@@ -8,7 +8,7 @@ from boto3 import client
 
 from dsc.exceptions import InvalidSQSMessageError
 
-if TYPE_CHECKING:
+if TYPE_CHECKING:  # pragma: no cover
     from collections.abc import Iterator, Mapping
 
     from mypy_boto3_sqs.type_defs import (
@@ -118,21 +118,22 @@ class SQSClient:
 
         return response
 
-    def process_result_message(self, sqs_message: MessageTypeDef) -> tuple[str, str]:
+    def process_result_message(self, sqs_message: MessageTypeDef) -> tuple[str, dict]:
         """Validate, extract data, and delete an SQS result message.
 
         Args:
             sqs_message: An SQS result message to be processed.
         """
         self.validate_result_message(sqs_message)
-        identifier = sqs_message["MessageAttributes"]["PackageID"]["StringValue"]
-        message_body = json.loads(str(sqs_message["Body"]))
+        item_identifier = sqs_message["MessageAttributes"]["PackageID"]["StringValue"]
+        message_body = json.loads(sqs_message["Body"])
+        logger.info(f"Item identifier: '{item_identifier}', Result: {message_body}")
         self.delete(sqs_message["ReceiptHandle"])
-        return identifier, message_body
+        return item_identifier, message_body
 
     def receive(self) -> Iterator[MessageTypeDef]:
         """Receive messages from SQS queue."""
-        logger.debug(f"Receiving messages from SQS queue: {self.queue_name}")
+        logger.debug(f"Receiving messages from SQS queue: '{self.queue_name}'")
         while True:
             response = self.client.receive_message(
                 QueueUrl=self.queue_url,
@@ -142,11 +143,11 @@ class SQSClient:
             if "Messages" in response:
                 for message in response["Messages"]:
                     logger.debug(
-                        f"Message retrieved from SQS queue {self.queue_name}: {message}"
+                        f"Message retrieved from SQS queue '{self.queue_name}': {message}"
                     )
                     yield message
             else:
-                logger.debug(f"No more messages from SQS queue: {self.queue_name}")
+                logger.debug(f"No more messages from SQS queue: '{self.queue_name}'")
                 break
 
     def send(

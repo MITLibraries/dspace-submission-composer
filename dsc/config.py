@@ -1,7 +1,6 @@
 import logging
 import os
 from collections.abc import Iterable
-from io import StringIO
 
 import sentry_sdk
 
@@ -12,16 +11,37 @@ class Config:
         "SENTRY_DSN",
         "AWS_REGION_NAME",
         "DSS_INPUT_QUEUE",
+        "DSC_SOURCE_EMAIL",
     ]
 
     OPTIONAL_ENV_VARS: Iterable[str] = ["LOG_LEVEL"]
 
-    def __getattr__(self, name: str) -> str | None:
-        """Provide dot notation access to configurations and env vars on this class."""
-        if name in self.REQUIRED_ENV_VARS or name in self.OPTIONAL_ENV_VARS:
-            return os.getenv(name)
-        message = f"'{name}' not a valid configuration variable"
-        raise AttributeError(message)
+    @property
+    def workspace(self) -> str:
+        return os.getenv("WORKSPACE", "us-east-1")
+
+    @property
+    def sentry_dsn(self) -> str:
+        return os.getenv("SENTRY_DSN", "None")
+
+    @property
+    def aws_region_name(self) -> str:
+        return os.getenv("AWS_REGION_NAME", "us-east-1")
+
+    @property
+    def dss_input_queue(self) -> str:
+        value = os.getenv("DSS_INPUT_QUEUE")
+        if not value:
+            raise OSError("Env var 'DSS_INPUT_QUEUE' must be defined")
+        return value
+
+    @property
+    def dsc_source_email(self) -> str:
+
+        value = os.getenv("DSC_SOURCE_EMAIL")
+        if not value:
+            raise OSError("Env var 'DSC_SOURCE_EMAIL' must be defined")
+        return value
 
     def check_required_env_vars(self) -> None:
         """Method to raise exception if required env vars not set."""
@@ -30,12 +50,8 @@ class Config:
             message = f"Missing required environment variables: {', '.join(missing_vars)}"
             raise OSError(message)
 
-    def configure_logger(
-        self, logger: logging.Logger, stream: StringIO, *, verbose: bool
-    ) -> str:
+    def configure_logger(self, logger: logging.Logger, *, verbose: bool) -> str:
         logging_format_base = "%(asctime)s %(levelname)s %(name)s.%(funcName)s()"
-        logger.addHandler(logging.StreamHandler(stream))
-
         if verbose:
             log_method, log_level = logger.debug, logging.DEBUG
             template = logging_format_base + " line %(lineno)d: %(message)s"
@@ -47,7 +63,6 @@ class Config:
 
         logger.setLevel(log_level)
         logging.basicConfig(format=template)
-        logger.addHandler(logging.StreamHandler(stream))
         log_method(f"{logging.getLevelName(logger.getEffectiveLevel())}")
 
         return (
@@ -56,8 +71,8 @@ class Config:
         )
 
     def configure_sentry(self) -> str:
-        env = self.WORKSPACE
-        sentry_dsn = self.SENTRY_DSN
+        env = self.workspace
+        sentry_dsn = self.sentry_dsn
         if sentry_dsn and sentry_dsn.lower() != "none":
             sentry_sdk.init(sentry_dsn, environment=env)
             return f"Sentry DSN found, exceptions will be sent to Sentry with env={env}"
