@@ -26,22 +26,28 @@ INSTRUCTORS = [
 def test_workflow_ocw_reconcile_bitstreams_and_metadata_success(
     mock_s3_client_files_iter,
     mock_opencourseware_extract_metadata_from_zip_file,
+    caplog,
     opencourseware_source_metadata,
     opencourseware_workflow_instance,
 ):
+    expected_file_not_found_error_message = (
+        "The required file 'data.json' file was not found in the zip file: "
+        "s3://dsc/opencourseware/batch-01/ghi789.zip"
+    )
+    opencourseware_source_metadata["instructors"] = "Edelman, Alan|Johnson, Steven G."
     mock_s3_client_files_iter.return_value = [
         "s3://dsc/opencourseware/batch-aaa/123.zip",
         "s3://dsc/opencourseware/batch-aaa/124.zip",
     ]
-    opencourseware_source_metadata["instructors"] = "Edelman, Alan|Johnson, Steven G."
     mock_opencourseware_extract_metadata_from_zip_file.side_effect = [
         opencourseware_source_metadata,
-        FileNotFoundError,
+        FileNotFoundError(expected_file_not_found_error_message),
     ]
     assert opencourseware_workflow_instance.reconcile_bitstreams_and_metadata() == (
         set(),
         {"124"},
     )
+    assert expected_file_not_found_error_message in caplog.text
 
 
 def test_workflow_ocw_build_bitstream_dict_success(

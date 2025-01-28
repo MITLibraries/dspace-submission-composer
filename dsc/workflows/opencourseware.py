@@ -16,26 +16,26 @@ logger = logging.getLogger(__name__)
 class OpenCourseWare(Workflow):
     """Workflow for OpenCourseWare (OCW) deposits.
 
-    The deposits managed by this workflow are requested by X
-    and are for submission to DSpace@MIT.
+    The deposits managed by this workflow are requested by the
+    Scholarly Communications and Collections Strategy (SCCS) department
+    and were previously deposited into DSpace@MIT by Technical services staff.
     """
 
     workflow_name: str = "opencourseware"
     metadata_mapping_path: str = "dsc/workflows/metadata_mapping/opencourseware.json"
 
     def reconcile_bitstreams_and_metadata(self) -> tuple[set[str], set[str]]:
-        """Reconcile bitstreams against metadata.
+        """Reconcile bitstreams against item metadata.
 
-        Generate a list of bitstreams without item identifiers and item identifiers
-        without bitstreams. Any discrepancies will be addressed by the engineer and
-        stakeholders as necessary.
+        Generate a list of bitstreams without item metadata.
 
         For OpenCourseWare deposits, the zip files are the bitstreams to be deposited
-        into DSpace, but they also must contain a 'data.json' file, which is the metadata.
-        As such, the 'reconcile' method only determines whether there are any
-        bitstreams without metadata (any zip files without a 'data.json').
-        Metadata without bitstreams are basically impossible because the metadata
-        ('data.json') is inside the bitstream (zip file), hence an empty set is returned.
+        into DSpace, but they also must contain a 'data.json' file, which is the item
+        metadata. As such, the 'reconcile' method only determines whether there are any
+        bitstreams without item metadata (any zip files without a 'data.json').
+        Item metadata without bitstreams are basically impossible because the item
+        metadata ('data.json') is inside the bitstream (zip file),
+        hence an empty set is returned.
         """
         bitstream_dict = self._build_bitstream_dict()
 
@@ -67,7 +67,7 @@ class OpenCourseWare(Workflow):
         bitstream_dict: dict[str, list[str]] = defaultdict(list)
         for bitstream in bitstreams:
             file_name = bitstream.split("/")[-1]
-            item_identifier = file_name.replace(".zip", "")
+            item_identifier = file_name.removesuffix(".zip")
             bitstream_dict[item_identifier].append(bitstream)
         return bitstream_dict
 
@@ -97,7 +97,7 @@ class OpenCourseWare(Workflow):
             bucket=self.s3_bucket, prefix=self.batch_path, file_type=".zip"
         ):
             zip_file = f"s3://{self.s3_bucket}/{file}"
-            item_identifier = file.split("/")[-1].replace(".zip", "")
+            item_identifier = file.split("/")[-1].removesuffix(".zip")
             yield {
                 "item_identifier": item_identifier,
                 **self._extract_metadata_from_zip_file(zip_file, item_identifier),
