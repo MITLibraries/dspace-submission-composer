@@ -22,6 +22,11 @@ class TestWorkflow(Workflow):
     submission_system: str = "Test@MIT"
     metadata_mapping_path: str = "tests/fixtures/test_metadata_mapping.json"
 
+    def reconcile_bitstreams_and_metadata(self):
+        raise TypeError(
+            f"Method {self.reconcile_bitstreams_and_metadata.__name__} not used by workflow."  # noqa: E501
+        )
+
     def item_metadata_iter(self):
         yield from [
             {

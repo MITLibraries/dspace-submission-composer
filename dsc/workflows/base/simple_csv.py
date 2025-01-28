@@ -1,10 +1,12 @@
 import csv
+import json
 import logging
 from collections.abc import Iterator
 from typing import Any
 
 import smart_open
 
+from dsc.exceptions import ReconcileError
 from dsc.utilities.aws import S3Client
 from dsc.workflows.base import Workflow
 
@@ -19,6 +21,84 @@ class SimpleCSV(Workflow):
     """
 
     workflow_name: str = "simple_csv"
+
+    def reconcile_bitstreams_and_metadata(
+        self, metadata_file: str = "metadata.csv"
+    ) -> None:
+        """Summary.
+
+        Args:
+            metadata_file (str, optional): _description_. Defaults to "metadata.csv".
+        """
+        # get item identifiers from bitstreams and metadata file
+        bitstream_item_identifiers = self._get_item_identifiers_from_bitstreams(
+            metadata_file
+        )
+        metadata_item_identifiers = self._get_item_identifiers_from_metadata(
+            metadata_file
+        )
+
+        # get matching item identifiers (IDs for items with both bitstreams and metadata)
+        matching_item_identifiers = bitstream_item_identifiers & metadata_item_identifiers
+
+        bitstreams_without_metadata = list(
+            bitstream_item_identifiers - matching_item_identifiers
+        )
+        metadata_without_bitstreams = list(
+            metadata_item_identifiers - matching_item_identifiers
+        )
+
+        if any((bitstreams_without_metadata, metadata_without_bitstreams)):
+            reconcile_error_message = (
+                "Failed to reconcile bitstreams and metadata. "
+                f"Bitstreams without metadata (n={len(bitstreams_without_metadata)}): "
+                f"{json.dumps(bitstreams_without_metadata)}. "
+                f"Metadata without bitstreams (n={len(metadata_without_bitstreams)}): "
+                f"{json.dumps(metadata_without_bitstreams)}."
+            )
+            logger.error(reconcile_error_message)
+            raise ReconcileError(reconcile_error_message)
+
+        logger.info(
+            "Successfully reconciled bitstreams and metadata for all "
+            f"items (n={len(matching_item_identifiers)})."
+        )
+
+    def _get_item_identifiers_from_bitstreams(
+        self, metadata_file: str = "metadata.csv"
+    ) -> set[str]:
+        """Get set of item identifiers from bitstreams.
+
+        Item identifiers are extracted from the bitstream filenames.
+        """
+        item_identifiers = set()
+        s3_client = S3Client()
+        bitstreams = list(
+            s3_client.files_iter(
+                bucket=self.s3_bucket,
+                prefix=self.batch_path,
+                exclude_prefixes=["archived", metadata_file],
+            )
+        )
+        for bitstream in bitstreams:
+            file_name = bitstream.split("/")[-1]
+            item_identifiers.add(
+                file_name.split("_")[0] if "_" in file_name else file_name
+            )
+        return item_identifiers
+
+    def _get_item_identifiers_from_metadata(
+        self, metadata_file: str = "metadata.csv"
+    ) -> set[str]:
+        """Get set of item identifiers from metadata file."""
+        item_identifiers = set()
+        item_identifiers.update(
+            [
+                self.get_item_identifier(item_metadata)
+                for item_metadata in self.item_metadata_iter(metadata_file)
+            ]
+        )
+        return item_identifiers
 
     def item_metadata_iter(
         self, metadata_file: str = "metadata.csv"

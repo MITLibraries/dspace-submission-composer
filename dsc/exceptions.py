@@ -12,3 +12,7 @@ class InvalidWorkflowNameError(Exception):
 
 class ItemMetadatMissingRequiredFieldError(Exception):
     pass
+
+
+class ReconcileError(Exception):
+    pass
