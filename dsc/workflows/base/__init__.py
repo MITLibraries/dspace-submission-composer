@@ -96,15 +96,10 @@ class Workflow(ABC):
         """Reconcile bitstreams against metadata.
 
         Items in DSpace represent a "work" and combine metadata and files,
-        known as "bitstreams". For any given workflow, the purpose of this
-        method is to determine whether sufficient data has been provided
-        for a batch of items to be submitted into DSpace, but how this
-        method accomplishes this varies based on the data provided
-        to execute the workflow.
-
-        This method ensures the existence of both bitstreams and metadata
-        for each item in the batch, verifying that all provided bitstreams
-        can be linked to a metadata record and vice versa.
+        known as "bitstreams". For any given workflow, this method ensures
+        the existence of both bitstreams and metadata for each item in the
+        batch, verifying that all provided bitstreams can be linked to a
+        metadata record and vice versa.
 
         While this method is not needed for every workflow,
         it MUST be overridden by all workflow subclasses.
@@ -112,9 +107,10 @@ class Workflow(ABC):
         raise the following exception:
 
         TypeError(
-            f"Method {self.reconcile_bitstreams_and_metadata.__name__} not used by workflow."
+            f"Method '{self.reconcile_bitstreams_and_metadata.__name__}' "
+            f"not used by workflow '{self.__class__.__name__}'."
         )
-        """  # noqa: E501, W505
+        """
 
     @final
     def submit_items(self) -> dict:

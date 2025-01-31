@@ -24,7 +24,8 @@ class TestWorkflow(Workflow):
 
     def reconcile_bitstreams_and_metadata(self):
         raise TypeError(
-            f"Method {self.reconcile_bitstreams_and_metadata.__name__} not used by workflow."  # noqa: E501
+            f"Method '{self.reconcile_bitstreams_and_metadata.__name__}' "
+            f"not used by workflow '{self.__class__.__name__}'"
         )
 
     def item_metadata_iter(self):

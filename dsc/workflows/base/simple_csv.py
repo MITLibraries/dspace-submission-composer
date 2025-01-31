@@ -25,10 +25,12 @@ class SimpleCSV(Workflow):
     def reconcile_bitstreams_and_metadata(
         self, metadata_file: str = "metadata.csv"
     ) -> None:
-        """Summary.
+        """Reconcile item metadata from metadata CSV file with bitstreams.
 
-        Args:
-            metadata_file (str, optional): _description_. Defaults to "metadata.csv".
+        For SimpleCSV workflows, bitstreams (files) and a metadata CSV file
+        are uploaded to a designated batch folder on S3. The reconcile method
+        ensures that every bitstream on S3 has metadata--a row in the metadata
+        CSV file--associated with it and vice versa.
         """
         # get item identifiers from bitstreams and metadata file
         bitstream_item_identifiers = self._get_item_identifiers_from_bitstreams(
@@ -49,15 +51,19 @@ class SimpleCSV(Workflow):
         )
 
         if any((bitstreams_without_metadata, metadata_without_bitstreams)):
-            reconcile_error_message = (
-                "Failed to reconcile bitstreams and metadata. "
-                f"Bitstreams without metadata (n={len(bitstreams_without_metadata)}): "
-                f"{json.dumps(bitstreams_without_metadata)}. "
-                f"Metadata without bitstreams (n={len(metadata_without_bitstreams)}): "
-                f"{json.dumps(metadata_without_bitstreams)}."
-            )
-            logger.error(reconcile_error_message)
-            raise ReconcileError(reconcile_error_message)
+            reconcile_error_message = {
+                "note": "Failed to reconcile bitstreams and metadata.",
+                "bitstreams_without_metadata": {
+                    "count": len(bitstreams_without_metadata),
+                    "identifiers": bitstreams_without_metadata,
+                },
+                "metadata_without_bitstreams": {
+                    "count": len(metadata_without_bitstreams),
+                    "identifiers": metadata_without_bitstreams,
+                },
+            }
+            logger.error(json.dumps(reconcile_error_message))
+            raise ReconcileError(json.dumps(reconcile_error_message))
 
         logger.info(
             "Successfully reconciled bitstreams and metadata for all "

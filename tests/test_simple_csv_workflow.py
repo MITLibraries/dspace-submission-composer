@@ -1,4 +1,5 @@
 # ruff: noqa: SLF001
+import json
 from unittest.mock import patch
 
 import pytest
@@ -35,14 +36,21 @@ def test_simple_csv_workflow_reconcile_bitstreams_and_metadata_if_no_metadata_ra
         "s3://dsc/simple_csv/batch-aaa/123_002.pdf",
         "s3://dsc/simple_csv/batch-aaa/124_001.pdf",
     ]
+    expected_reconcile_error_message = {
+        "note": "Failed to reconcile bitstreams and metadata.",
+        "bitstreams_without_metadata": {
+            "count": 1,
+            "identifiers": ["124"],
+        },
+        "metadata_without_bitstreams": {
+            "count": 0,
+            "identifiers": [],
+        },
+    }
     with pytest.raises(ReconcileError):
         simple_csv_workflow_instance.reconcile_bitstreams_and_metadata()
 
-    assert (
-        "Failed to reconcile bitstreams and metadata. "
-        'Bitstreams without metadata (n=1): ["124"]. '
-        "Metadata without bitstreams (n=0): []."
-    ) in caplog.text
+    assert json.dumps(expected_reconcile_error_message) in caplog.text
 
 
 @patch("dsc.utilities.aws.s3.S3Client.files_iter")

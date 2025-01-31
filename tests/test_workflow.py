@@ -68,7 +68,12 @@ def test_base_workflow_get_workflow_invalid_workflow_name_raises_error(
 def test_base_workflow_reconcile_bitstreams_and_metadata_if_non_reconcile_raises_error(
     base_workflow_instance,
 ):
-    with pytest.raises(TypeError):
+    with pytest.raises(
+        TypeError,
+        match=(
+            "Method 'reconcile_bitstreams_and_metadata' not used by workflow 'TestWorkflow'"  # noqa: E501
+        ),
+    ):
         base_workflow_instance.reconcile_bitstreams_and_metadata()
 
 
