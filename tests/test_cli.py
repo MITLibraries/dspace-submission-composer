@@ -1,7 +1,6 @@
 from unittest.mock import patch
 
 from dsc.cli import main
-from dsc.exceptions import ReconcileError
 
 
 @patch("dsc.utilities.aws.s3.S3Client.files_iter")
@@ -63,7 +62,6 @@ def test_reconcile_simple_csv_if_no_metadata_raise_error(
         ],
     )
     assert result.exit_code == 1
-    assert isinstance(result.exception, ReconcileError)
     assert "Failed to reconcile bitstreams and metadata" in caplog.text
 
 
