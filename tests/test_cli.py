@@ -1,10 +1,73 @@
+from unittest.mock import patch
+
 from dsc.cli import main
 
 
-def test_reconcile_success(caplog, runner, mocked_s3, base_workflow_instance, s3_client):
-    s3_client.put_file(file_content="", bucket="dsc", key="test/batch-aaa/123_01.pdf")
-    s3_client.put_file(file_content="", bucket="dsc", key="test/batch-aaa/123_02.jpg")
-    s3_client.put_file(file_content="", bucket="dsc", key="test/batch-aaa/789_01.pdf")
+@patch("dsc.utilities.aws.s3.S3Client.files_iter")
+def test_reconcile_simple_csv_success(
+    mock_s3_client_files_iter,
+    caplog,
+    runner,
+    simple_csv_workflow_instance,
+    mocked_s3_simple_csv,
+):
+    mock_s3_client_files_iter.return_value = [
+        "s3://dsc/simple_csv/batch-aaa/123_001.pdf",
+        "s3://dsc/simple_csv/batch-aaa/123_002.pdf",
+    ]
+    result = runner.invoke(
+        main,
+        [
+            "--workflow-name",
+            "simple_csv",
+            "--collection-handle",
+            "123.4/5678",
+            "--batch-id",
+            "batch-aaa",
+            "--email-recipients",
+            "test@test.test",
+            "reconcile",
+        ],
+    )
+    assert result.exit_code == 0
+    assert "Successfully reconciled bitstreams and metadata for all items" in caplog.text
+    assert "Total time elapsed" in caplog.text
+
+
+@patch("dsc.utilities.aws.s3.S3Client.files_iter")
+def test_reconcile_simple_csv_if_no_metadata_raise_error(
+    mock_s3_client_files_iter,
+    caplog,
+    runner,
+    simple_csv_workflow_instance,
+    mocked_s3_simple_csv,
+):
+    mock_s3_client_files_iter.return_value = [
+        "s3://dsc/simple_csv/batch-aaa/123_001.pdf",
+        "s3://dsc/simple_csv/batch-aaa/123_002.pdf",
+        "s3://dsc/simple_csv/batch-aaa/124_001.pdf",
+    ]
+    result = runner.invoke(
+        main,
+        [
+            "--workflow-name",
+            "simple_csv",
+            "--collection-handle",
+            "123.4/5678",
+            "--batch-id",
+            "batch-aaa",
+            "--email-recipients",
+            "test@test.test",
+            "reconcile",
+        ],
+    )
+    assert result.exit_code == 1
+    assert "Failed to reconcile bitstreams and metadata" in caplog.text
+
+
+def test_reconcile_if_non_reconcile_workflow_raise_error(
+    caplog, runner, base_workflow_instance
+):
     result = runner.invoke(
         main,
         [
@@ -19,43 +82,8 @@ def test_reconcile_success(caplog, runner, mocked_s3, base_workflow_instance, s3
             "reconcile",
         ],
     )
-    assert result.exit_code == 0
-    assert (
-        "Item identifiers from batch metadata with matching bitstreams: ['123', '789']"
-        in caplog.text
-    )
-    assert "All item identifiers and bitstreams successfully matched" in caplog.text
-    assert "Total time elapsed" in caplog.text
-
-
-def test_reconcile_discrepancies_logged(
-    caplog, runner, mocked_s3, base_workflow_instance, s3_client
-):
-    s3_client.put_file(file_content="", bucket="dsc", key="test/batch-aaa/123_01.pdf")
-    s3_client.put_file(file_content="", bucket="dsc", key="test/batch-aaa/123_02.jpg")
-    s3_client.put_file(file_content="", bucket="dsc", key="test/batch-aaa/456_01.pdf")
-    result = runner.invoke(
-        main,
-        [
-            "--workflow-name",
-            "test",
-            "--collection-handle",
-            "123.4/5678",
-            "--batch-id",
-            "batch-aaa",
-            "--email-recipients",
-            "test@test.edu",
-            "reconcile",
-        ],
-    )
-    assert result.exit_code == 0
-    assert (
-        "Item identifiers from batch metadata with matching bitstreams: ['123']"
-        in caplog.text
-    )
-    assert "No bitstreams found for these item identifiers: {'789'}" in caplog.text
-    assert "No item identifiers found for these bitstreams: {'456'}" in caplog.text
-    assert "Total time elapsed" in caplog.text
+    assert result.exit_code == 1
+    assert isinstance(result.exception, TypeError)
 
 
 def test_submit_success(

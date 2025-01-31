@@ -5,6 +5,7 @@ from time import perf_counter
 import click
 
 from dsc.config import Config
+from dsc.exceptions import ReconcileError
 from dsc.workflows.base import Workflow
 
 logger = logging.getLogger(__name__)
@@ -105,16 +106,11 @@ def post_main_group_subcommand(
 def reconcile(ctx: click.Context) -> None:
     """Reconcile bitstreams with item identifiers from the metadata."""
     workflow = ctx.obj["workflow"]
-    no_bitstreams, no_item_identifiers = workflow.reconcile_bitstreams_and_metadata()
-
-    if no_bitstreams:
-        logger.error(f"No bitstreams found for these item identifiers: {no_bitstreams}")
-    if no_item_identifiers:
-        logger.error(
-            f"No item identifiers found for these bitstreams: {no_item_identifiers}"
-        )
-    else:
-        logger.info("All item identifiers and bitstreams successfully matched")
+    try:
+        workflow.reconcile_bitstreams_and_metadata()
+    except ReconcileError:
+        logger.info("Reconcile failed.")
+        ctx.exit(1)
 
 
 @main.command()
