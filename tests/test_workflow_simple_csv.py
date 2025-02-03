@@ -8,7 +8,7 @@ from dsc.exceptions import ReconcileError
 
 
 @patch("dsc.utilities.aws.s3.S3Client.files_iter")
-def test_simple_csv_workflow_reconcile_bitstreams_and_metadata_success(
+def test_workflow_simple_csv_reconcile_bitstreams_and_metadata_success(
     mock_s3_client_files_iter,
     caplog,
     simple_csv_workflow_instance,
@@ -25,7 +25,7 @@ def test_simple_csv_workflow_reconcile_bitstreams_and_metadata_success(
 
 
 @patch("dsc.utilities.aws.s3.S3Client.files_iter")
-def test_simple_csv_workflow_reconcile_bitstreams_and_metadata_if_no_metadata_raise_error(
+def test_workflow_simple_csv_reconcile_bitstreams_and_metadata_if_no_metadata_raise_error(
     mock_s3_client_files_iter,
     caplog,
     simple_csv_workflow_instance,
@@ -54,7 +54,7 @@ def test_simple_csv_workflow_reconcile_bitstreams_and_metadata_if_no_metadata_ra
 
 
 @patch("dsc.utilities.aws.s3.S3Client.files_iter")
-def test_simple_csv_workflow_get_item_identifiers_from_bitstreams_success(
+def test_workflow_simple_csv_get_item_identifiers_from_bitstreams_success(
     mock_s3_client_files_iter, simple_csv_workflow_instance
 ):
     mock_s3_client_files_iter.return_value = [
@@ -68,13 +68,13 @@ def test_simple_csv_workflow_get_item_identifiers_from_bitstreams_success(
     }
 
 
-def test_simple_csv_workflow_get_item_identifiers_from_metadata_success(
+def test_workflow_simple_csv_get_item_identifiers_from_metadata_success(
     simple_csv_workflow_instance, mocked_s3_simple_csv
 ):
     assert simple_csv_workflow_instance._get_item_identifiers_from_metadata() == {"123"}
 
 
-def test_simple_csv_workflow_item_metadata_iter_success(
+def test_workflow_simple_csv_item_metadata_iter_success(
     simple_csv_workflow_instance, mocked_s3_simple_csv, item_metadata
 ):
     metadata_iter = simple_csv_workflow_instance.item_metadata_iter(
@@ -83,14 +83,14 @@ def test_simple_csv_workflow_item_metadata_iter_success(
     assert next(metadata_iter) == item_metadata
 
 
-def test_simple_csv_workflow_get_item_identifier_success(
+def test_workflow_simple_csv_get_item_identifier_success(
     simple_csv_workflow_instance, item_metadata
 ):
     assert simple_csv_workflow_instance.get_item_identifier(item_metadata) == "123"
 
 
 @patch("dsc.utilities.aws.s3.S3Client.files_iter")
-def test_simple_csv_get_bitstreams_uris_if_prefix_id_success(
+def test_workflow_simple_csv_get_bitstreams_uris_if_prefix_id_success(
     mock_s3_client_files_iter, simple_csv_workflow_instance
 ):
     mock_s3_client_files_iter.return_value = [
@@ -105,7 +105,7 @@ def test_simple_csv_get_bitstreams_uris_if_prefix_id_success(
 
 
 @patch("dsc.utilities.aws.s3.S3Client.files_iter")
-def test_simple_csv_get_bitstreams_uris_if_filename_id_success(
+def test_workflow_simple_csv_get_bitstreams_uris_if_filename_id_success(
     mock_s3_client_files_iter, simple_csv_workflow_instance
 ):
     mock_s3_client_files_iter.return_value = [
