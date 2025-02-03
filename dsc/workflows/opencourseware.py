@@ -1,12 +1,12 @@
 import json
 import logging
 import zipfile
-from collections import defaultdict
 from collections.abc import Iterator
 from typing import Any
 
 import smart_open
 
+from dsc.exceptions import ReconcileError
 from dsc.utilities.aws.s3 import S3Client
 from dsc.workflows.base import Workflow
 
@@ -24,67 +24,47 @@ class OpenCourseWare(Workflow):
     workflow_name: str = "opencourseware"
     metadata_mapping_path: str = "dsc/workflows/metadata_mapping/opencourseware.json"
 
-    def reconcile_bitstreams_and_metadata(self) -> tuple[set[str], set[str]]:
+    def reconcile_bitstreams_and_metadata(self) -> None:
         """Reconcile bitstreams against item metadata.
 
         Generate a list of bitstreams without item metadata.
 
         For OpenCourseWare deposits, the zip files are the bitstreams to be deposited
-        into DSpace, but they also must contain a 'data.json' file, which is the item
+        into DSpace, but they also must contain a 'data.json' file, representing the
         metadata. As such, the 'reconcile' method only determines whether there are any
-        bitstreams without item metadata (any zip files without a 'data.json').
-        Item metadata without bitstreams are basically impossible because the item
-        metadata ('data.json') is inside the bitstream (zip file),
-        hence an empty set is returned.
+        bitstreams without metadata (any zip files without a 'data.json').
+        Metadata without bitstreams is not calculated as for a 'data.json' file to
+        exist, the zip file must also exist.
         """
-        bitstream_dict = self._build_bitstream_dict()
-
-        # extract item identifiers from bitstream_dict
-        item_identifiers = list(bitstream_dict.keys())
-
-        bitstreams_without_metadata = set(item_identifiers) - set(
-            self._identify_bitstreams_with_metadata(item_identifiers)
-        )
-        item_metadata_without_bitstreams: set[str] = set()
-        return item_metadata_without_bitstreams, bitstreams_without_metadata
-
-    def _build_bitstream_dict(self) -> dict:
-        """Build dictionary of bitstreams.
-
-        This method will look for zip files within the designated 'batch' folder
-        of the S3 bucket (i.e., self.batch_path). In the case of OpenCourseWare
-        deposits, this method expects:
-            * a single (1) zipped file per item identifier
-            * filename of zipped file must correspond to item identifier
-              (i.e., '<item_identifier>'.zip)
-        """
+        item_identifiers = []
+        bitstreams_without_metadata = []
         s3_client = S3Client()
-        bitstreams = list(
-            s3_client.files_iter(
-                bucket=self.s3_bucket, prefix=self.batch_path, file_type=".zip"
-            )
-        )
-        bitstream_dict: dict[str, list[str]] = defaultdict(list)
-        for bitstream in bitstreams:
-            file_name = bitstream.split("/")[-1]
-            item_identifier = file_name.removesuffix(".zip")
-            bitstream_dict[item_identifier].append(bitstream)
-        return bitstream_dict
-
-    def _identify_bitstreams_with_metadata(
-        self, item_identifiers: list[str]
-    ) -> list[str]:
-        bitstreams_with_metadata = []
-        for item_identifier in item_identifiers:
+        for file in s3_client.files_iter(
+            bucket=self.s3_bucket, prefix=self.batch_path, file_type=".zip"
+        ):
+            zip_file = f"s3://{self.s3_bucket}/{file}"
+            item_identifier = file.split("/")[-1].removesuffix(".zip")
+            item_identifiers.append(item_identifier)
             try:
-                zip_file = (
-                    f"s3://{self.s3_bucket}/{self.batch_path}/{item_identifier}.zip"
-                )
                 self._extract_metadata_from_zip_file(zip_file, item_identifier)
-                bitstreams_with_metadata.append(item_identifier)
-            except FileNotFoundError as exception:
-                logger.error(exception)  # noqa: TRY400
-        return bitstreams_with_metadata
+            except FileNotFoundError:
+                bitstreams_without_metadata.append(item_identifier)
+
+        if any(bitstreams_without_metadata):
+            reconcile_error_message = {
+                "note": "Failed to reconcile bitstreams and metadata.",
+                "bitstreams_without_metadata": {
+                    "count": len(bitstreams_without_metadata),
+                    "identifiers": bitstreams_without_metadata,
+                },
+            }
+            logger.error(json.dumps(reconcile_error_message))
+            raise ReconcileError(json.dumps(reconcile_error_message))
+
+        logger.info(
+            "Successfully reconciled bitstreams and metadata for all "
+            f"items (n={len(item_identifiers)})."
+        )
 
     def item_metadata_iter(self) -> Iterator[dict[str, Any]]:
         """Yield source metadata from metadata JSON file in the zip file.

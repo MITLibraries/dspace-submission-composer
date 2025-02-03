@@ -1,7 +1,10 @@
 # ruff: noqa: B015, SLF001
-from unittest.mock import MagicMock, patch
+import json
+from unittest.mock import patch
 
 import pytest
+
+from dsc.exceptions import ReconcileError
 
 INSTRUCTORS = [
     {
@@ -30,10 +33,25 @@ def test_workflow_ocw_reconcile_bitstreams_and_metadata_success(
     opencourseware_source_metadata,
     opencourseware_workflow_instance,
 ):
-    expected_file_not_found_error_message = (
-        "The required file 'data.json' file was not found in the zip file: "
-        "s3://dsc/opencourseware/batch-01/ghi789.zip"
+    mock_s3_client_files_iter.return_value = ["s3://dsc/simple_csv/batch-aaa/123.zip"]
+    mock_opencourseware_extract_metadata_from_zip_file.return_value = (
+        opencourseware_source_metadata
     )
+    opencourseware_workflow_instance.reconcile_bitstreams_and_metadata()
+    assert (
+        "Successfully reconciled bitstreams and metadata for all items (n=1)"
+    ) in caplog.text
+
+
+@patch("dsc.workflows.opencourseware.OpenCourseWare._extract_metadata_from_zip_file")
+@patch("dsc.utilities.aws.s3.S3Client.files_iter")
+def test_workflow_ocw_reconcile_bitstreams_and_metadata_if_no_metadata_raise_error(
+    mock_s3_client_files_iter,
+    mock_opencourseware_extract_metadata_from_zip_file,
+    caplog,
+    opencourseware_source_metadata,
+    opencourseware_workflow_instance,
+):
     opencourseware_source_metadata["instructors"] = "Edelman, Alan|Johnson, Steven G."
     mock_s3_client_files_iter.return_value = [
         "s3://dsc/opencourseware/batch-aaa/123.zip",
@@ -41,100 +59,51 @@ def test_workflow_ocw_reconcile_bitstreams_and_metadata_success(
     ]
     mock_opencourseware_extract_metadata_from_zip_file.side_effect = [
         opencourseware_source_metadata,
-        FileNotFoundError(expected_file_not_found_error_message),
+        FileNotFoundError,
     ]
-    assert opencourseware_workflow_instance.reconcile_bitstreams_and_metadata() == (
-        set(),
-        {"124"},
-    )
-    assert expected_file_not_found_error_message in caplog.text
+    expected_reconcile_error_message = {
+        "note": "Failed to reconcile bitstreams and metadata.",
+        "bitstreams_without_metadata": {
+            "count": 1,
+            "identifiers": ["124"],
+        },
+    }
+    with pytest.raises(ReconcileError):
+        opencourseware_workflow_instance.reconcile_bitstreams_and_metadata()
+
+    assert json.dumps(expected_reconcile_error_message) in caplog.text
 
 
-def test_workflow_ocw_build_bitstream_dict_success(
-    mocked_s3, opencourseware_workflow_instance, s3_client
+def test_workflow_ocw_extract_metadata_from_zip_file_success(
+    opencourseware_workflow_instance,
 ):
-    s3_client.put_file(
-        file_content="",
-        bucket="dsc",
-        key="opencourseware/batch-aaa/123.zip",
-    )
-    s3_client.put_file(
-        file_content="",
-        bucket="dsc",
-        key="opencourseware/batch-aaa/124.zip",
-    )
-    s3_client.put_file(
-        file_content="",
-        bucket="dsc",
-        key="opencourseware/batch-aaa/ignore_me.txt",
-    )
-    assert opencourseware_workflow_instance._build_bitstream_dict() == {
-        "123": ["opencourseware/batch-aaa/123.zip"],
-        "124": ["opencourseware/batch-aaa/124.zip"],
+    """Performs metadata extraction from test zip file.
+
+    The zip file (opencourseware/123.zip) represents a bitstream
+    with metadata (includes a 'data.json' file).
+    """
+    assert opencourseware_workflow_instance._extract_metadata_from_zip_file(
+        "tests/fixtures/opencourseware/123.zip", "123"
+    ) == {
+        "course_description": "Investigating the paranormal, one burger at a time.",
+        "course_title": "Burgers and Beyond",
+        "instructors": "Burger, Cheese E.",
+        "site_uid": "2318fd9f-1b5c-4a48-8a04-9c56d902a1f8",
     }
 
 
-@patch("dsc.workflows.opencourseware.OpenCourseWare._extract_metadata_from_zip_file")
-def test_workflow_ocw_identify_bitstreams_with_metadata_success(
-    mock_opencourseware_extract_metadata_from_zip_file,
-    opencourseware_source_metadata,
-    opencourseware_workflow_instance,
-):
-    opencourseware_source_metadata["instructors"] = "Edelman, Alan|Johnson, Steven G."
-    mock_opencourseware_extract_metadata_from_zip_file.side_effect = [
-        opencourseware_source_metadata,
-        FileNotFoundError,
-    ]
-
-    assert opencourseware_workflow_instance._identify_bitstreams_with_metadata(
-        item_identifiers=["123", "124"]
-    ) == ["123"]
-
-
-@patch("dsc.workflows.opencourseware.OpenCourseWare._read_metadata_json_file")
-@patch("zipfile.ZipFile")
-@patch("smart_open.open")
-def test_workflow_ocw_extract_metadata_from_zip_file_success(
-    mock_smart_open,
-    mock_zipfile,
-    mock_opencourseware_read_metadata_json_file,
-    opencourseware_source_metadata,
-    opencourseware_workflow_instance,
-):
-    mock_file = MagicMock()
-    mock_smart_open.return_value.__enter__.return_value = mock_file
-
-    # create a mock for the infolist method to return a list of mock ZipInfo objects
-    mock_zip = MagicMock()
-    mock_zipfile.return_value.__enter__.return_value = mock_zip
-    mock_zip.namelist.return_value = ["123/data.json", "123/file.txt"]
-
-    opencourseware_source_metadata["instructors"] = "Edelman, Alan|Johnson, Steven G."
-    mock_opencourseware_read_metadata_json_file.return_value = (
-        opencourseware_source_metadata
-    )
-
-    assert opencourseware_workflow_instance._extract_metadata_from_zip_file(
-        mock_file, "123"
-    )
-
-
-@patch("zipfile.ZipFile")
-@patch("smart_open.open")
 def test_workflow_ocw_extract_metadata_from_zip_file_without_metadata_raise_error(
-    mock_smart_open, mock_zipfile, opencourseware_workflow_instance
+    opencourseware_workflow_instance,
 ):
+    """Performs metadata extraction from test zip file.
 
-    mock_file = MagicMock()
-    mock_smart_open.return_value.__enter__.return_value = mock_file
-
-    # create a mock for the infolist method to return a list of mock ZipInfo objects
-    mock_zip = MagicMock()
-    mock_zipfile.return_value.__enter__.return_value = mock_zip
-    mock_zip.namelist.return_value = ["123/not_data.json", "123/file.txt"]
-
+    The zip file (opencourseware/124.zip) represents a bitstream
+    with metadata (includes a 'data.json' file).
+    """
     with pytest.raises(FileNotFoundError):
-        opencourseware_workflow_instance._extract_metadata_from_zip_file(mock_file, "123")
+        opencourseware_workflow_instance._extract_metadata_from_zip_file(
+            "tests/fixtures/opencourseware/124.zip", "124"
+        )
 
 
 def test_workflow_ocw_get_instructors_delimited_string_if_single_success(
