@@ -42,11 +42,10 @@ class OpenCourseWare(Workflow):
         for file in s3_client.files_iter(
             bucket=self.s3_bucket, prefix=self.batch_path, file_type=".zip"
         ):
-            zip_file = f"s3://{self.s3_bucket}/{file}"
-            item_identifier = file.split("/")[-1].removesuffix(".zip")
+            item_identifier = self.parse_item_identifier(file)
             item_identifiers.append(item_identifier)
             try:
-                self._extract_metadata_from_zip_file(zip_file, item_identifier)
+                self._extract_metadata_from_zip_file(file, item_identifier)
             except FileNotFoundError:
                 bitstreams_without_metadata.append(item_identifier)
 
@@ -76,11 +75,10 @@ class OpenCourseWare(Workflow):
         for file in s3_client.files_iter(
             bucket=self.s3_bucket, prefix=self.batch_path, file_type=".zip"
         ):
-            zip_file = f"s3://{self.s3_bucket}/{file}"
-            item_identifier = file.split("/")[-1].removesuffix(".zip")
+            item_identifier = self.parse_item_identifier(file)
             yield {
-                "item_identifier": item_identifier,
-                **self._extract_metadata_from_zip_file(zip_file, item_identifier),
+                "item_identifier": self.parse_item_identifier(file),
+                **self._extract_metadata_from_zip_file(file, item_identifier),
             }
 
     def _extract_metadata_from_zip_file(
@@ -90,8 +88,18 @@ class OpenCourseWare(Workflow):
 
         This method expects a JSON file called "data.json" at the root
         level of the the zip file.
+
+        Args:
+            file: Object prefix for bitstream zip file, formatted as the
+                path from the S3 bucket to the file.
+                Given an S3 URI "s3://dsc/opencourseware/batch-00/123.zip",
+                then file = "opencourseware/batch-00/123.zip".
+
+            item_identifier: Item identifier, used to find and read the metadata
+                JSON file for the associated bitstream zip file.
         """
-        with smart_open.open(file, "rb") as file_input, zipfile.ZipFile(
+        zip_file_uri = f"s3://{self.s3_bucket}/{file}"
+        with smart_open.open(zip_file_uri, "rb") as file_input, zipfile.ZipFile(
             file_input
         ) as zip_file:
             for filename in zip_file.namelist():
@@ -165,6 +173,10 @@ class OpenCourseWare(Workflow):
     def get_item_identifier(self, item_metadata: dict[str, Any]) -> str:
         """Get 'item_identifier' from item metadata entry."""
         return item_metadata["item_identifier"]
+
+    def parse_item_identifier(self, file: str) -> str:
+        """Parse item identifier from bitstream zip file."""
+        return file.split("/")[-1].removesuffix(".zip")
 
     def get_bitstream_s3_uris(self, item_identifier: str) -> list[str]:
         s3_client = S3Client()

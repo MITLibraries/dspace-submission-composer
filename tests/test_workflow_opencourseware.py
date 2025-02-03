@@ -75,6 +75,7 @@ def test_workflow_ocw_reconcile_bitstreams_and_metadata_if_no_metadata_raise_err
 
 
 def test_workflow_ocw_extract_metadata_from_zip_file_success(
+    mocked_s3,
     opencourseware_workflow_instance,
 ):
     """Performs metadata extraction from test zip file.
@@ -82,8 +83,15 @@ def test_workflow_ocw_extract_metadata_from_zip_file_success(
     The zip file (opencourseware/123.zip) represents a bitstream
     with metadata (includes a 'data.json' file).
     """
+    with open("tests/fixtures/opencourseware/123.zip", "rb") as zip_file:
+        mocked_s3.put_object(
+            Bucket="dsc",
+            Key="opencourseware/batch-aaa/123.zip",
+            Body=zip_file,
+        )
+
     assert opencourseware_workflow_instance._extract_metadata_from_zip_file(
-        "tests/fixtures/opencourseware/123.zip", "123"
+        "opencourseware/batch-aaa/123.zip", "123"
     ) == {
         "course_description": "Investigating the paranormal, one burger at a time.",
         "course_title": "Burgers and Beyond",
@@ -93,6 +101,7 @@ def test_workflow_ocw_extract_metadata_from_zip_file_success(
 
 
 def test_workflow_ocw_extract_metadata_from_zip_file_without_metadata_raise_error(
+    mocked_s3,
     opencourseware_workflow_instance,
 ):
     """Performs metadata extraction from test zip file.
@@ -100,9 +109,16 @@ def test_workflow_ocw_extract_metadata_from_zip_file_without_metadata_raise_erro
     The zip file (opencourseware/124.zip) represents a bitstream
     with metadata (includes a 'data.json' file).
     """
+    with open("tests/fixtures/opencourseware/124.zip", "rb") as zip_file:
+        mocked_s3.put_object(
+            Bucket="dsc",
+            Key="opencourseware/batch-aaa/124.zip",
+            Body=zip_file,
+        )
+
     with pytest.raises(FileNotFoundError):
         opencourseware_workflow_instance._extract_metadata_from_zip_file(
-            "tests/fixtures/opencourseware/124.zip", "124"
+            "opencourseware/batch-aaa/124.zip", "124"
         )
 
 
