@@ -6,6 +6,7 @@ import click
 
 from dsc.config import Config
 from dsc.exceptions import ReconcileError
+from dsc.report import FinalizeReport
 from dsc.workflows.base import Workflow
 
 logger = logging.getLogger(__name__)
@@ -28,12 +29,24 @@ CONFIG = Config()
     required=True,
 )
 @click.option(
+    "-r",
+    "--create-and-send-report",
+    is_flag=True,
+    help=(
+        "Pass to create and send summary report to recipients. "
+        "Reports generated for 'reconcile' and 'submit' steps must only be sent to "
+        "DSC admins."
+    ),
+    default=False,
+)
+@click.option(
     "-v", "--verbose", is_flag=True, help="Pass to log at debug level instead of info"
 )
 def main(
     ctx: click.Context,
     workflow_name: str,
     batch_id: str,
+    create_and_send_report: bool,  # noqa: FBT001
     verbose: bool,  # noqa: FBT001
 ) -> None:
     ctx.ensure_object(dict)
@@ -41,6 +54,7 @@ def main(
     workflow_class = Workflow.get_workflow(workflow_name)
     workflow = workflow_class(batch_id=batch_id)
     ctx.obj["workflow"] = workflow
+    ctx.obj["create_and_send_report"] = create_and_send_report
 
     root_logger = logging.getLogger()
     logger.info(CONFIG.configure_logger(root_logger, verbose=verbose))
@@ -117,4 +131,8 @@ def finalize(ctx: click.Context, email_recipients: str) -> None:
     """Process the result messages from the DSS output queue according the workflow."""
     workflow = ctx.obj["workflow"]
     workflow.process_results()
-    workflow.report_results(email_recipients.split(","))
+
+    if ctx.obj["create_and_send_report"]:
+        workflow.send_report(
+            report_class=FinalizeReport, email_recipients=email_recipients.split(",")
+        )

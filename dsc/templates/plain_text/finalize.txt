@@ -1,0 +1,4 @@
+{% extends "base.txt" %}
+
+Successfully deposited {{ processed_items|length }} items.
+Encountered {{ errors|length }} errors.

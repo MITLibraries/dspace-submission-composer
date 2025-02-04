@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-import datetime
 import json
 import logging
 from abc import ABC, abstractmethod
+from dataclasses import dataclass, field
 from http import HTTPStatus
 from typing import TYPE_CHECKING, Any, final
 
@@ -19,8 +19,27 @@ from dsc.utilities.aws import SESClient, SQSClient
 if TYPE_CHECKING:  # pragma: no cover
     from collections.abc import Iterator
 
+    from dsc.report import Report
+
 logger = logging.getLogger(__name__)
 CONFIG = Config()
+
+
+@dataclass
+class WorkflowEvents:
+    """Record of events during the execution of Workflow methods.
+
+    This dataclass is designed to hold useful data used in reporting.
+    It is comprised of three lists, which contain details
+    about reconciled, submitted, and processed items -- aligning with
+    the DSC CLI commands (reconcile, submit, and finalize). Error
+    messages are also tracked in a list.
+    """
+
+    reconciled_items: list[str] = field(default_factory=list)
+    submitted_items: list[str] = field(default_factory=list)
+    processed_items: list[dict] = field(default_factory=list)
+    errors: list[str] = field(default_factory=list)
 
 
 class Workflow(ABC):
@@ -42,7 +61,7 @@ class Workflow(ABC):
                 and metadata files.
         """
         self.batch_id = batch_id
-        self.report_data: list[str] = []
+        self.workflow_events = WorkflowEvents()
 
     @property
     @abstractmethod
@@ -284,7 +303,7 @@ class Workflow(ABC):
         items = self.process_sqs_queue()
         self.workflow_specific_processing(items)
 
-    def process_sqs_queue(self) -> list[tuple[str, dict]]:
+    def process_sqs_queue(self) -> list[dict]:
         """Process messages in DSS ouput queue to extract necessary data.
 
         May be overridden by workflow subclasses.
@@ -300,33 +319,42 @@ class Workflow(ABC):
                 item_identifier, message_body = sqs_client.process_result_message(
                     sqs_message
                 )
-                items.append((item_identifier, message_body))
-                logger.debug(item_identifier, message_body)
-                self.report_data.append(f"{item_identifier}: {message_body}")
+                items.append(
+                    {"item_identifier": item_identifier, "message_body": message_body}
+                )
+                self.workflow_events.processed_items.append(
+                    {
+                        "item_identifier": item_identifier,
+                        "doi": message_body["ItemHandle"],
+                    }
+                )
             except Exception:
                 error_message = f"Error while processing SQS message: {sqs_message}"
                 logger.exception(error_message)
-                self.report_data.append(error_message)
+                self.workflow_events.errors.append(error_message)
                 continue
+
         logger.debug(f"Messages received and deleted from '{self.output_queue}'")
         return items
 
-    def workflow_specific_processing(self, items: list[tuple]) -> None:
+    def workflow_specific_processing(self, items: list[dict]) -> None:
         logger.info(
             f"No extra processing for {len(items)} items based on workflow: "
             f"'{self.workflow_name}' "
         )
 
-    def report_results(self, email_recipients: list[str]) -> None:
-        """Send report to stakeholders as an email via SES."""
-        date = datetime.datetime.now(tz=datetime.UTC).strftime("%Y-%m-%d %H:%M:%S")
-        report = "\n".join(self.report_data)
-        logger.info(report)
+    def send_report(
+        self, report_class: type[Report], email_recipients: list[str]
+    ) -> None:
+        """Send report as an email via SES."""
+        report = report_class.from_workflow(self)
+
         ses_client = SESClient(region=CONFIG.aws_region_name)
         ses_client.create_and_send_email(
-            subject=f"DSS results - {self.workflow_name} {date}",
-            attachment_content=report,
-            attachment_name=f"DSS results - {self.workflow_name} {date}.txt",
+            subject=report.subject,
             source_email_address=CONFIG.dsc_source_email,
             recipient_email_addresses=email_recipients,
+            message_body_plaintext=report.to_plain_text(),
+            message_body_html=report.to_rich_text(),
+            attachments=report.create_attachments(),
         )

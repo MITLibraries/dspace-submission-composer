@@ -12,7 +12,7 @@ from dsc.item_submission import ItemSubmission
 from dsc.utilities.aws.s3 import S3Client
 from dsc.utilities.aws.ses import SESClient
 from dsc.utilities.aws.sqs import SQSClient
-from dsc.workflows.base import Workflow
+from dsc.workflows.base import Workflow, WorkflowEvents
 from dsc.workflows.base.simple_csv import SimpleCSV
 
 
@@ -296,4 +296,11 @@ def submission_message_body():
                 }
             ],
         }
+    )
+
+
+@pytest.fixture
+def workflow_events_finalize():
+    return WorkflowEvents(
+        processed_items=[{"item_identifier": "123", "doi": "10.5555/12345678"}]
     )
