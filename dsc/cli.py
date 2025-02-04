@@ -21,35 +21,10 @@ CONFIG = Config()
     required=True,
 )
 @click.option(
-    "-c",
-    "--collection-handle",
-    help="The handle of the DSpace collection to which the batch will be submitted",
-    required=True,
-)
-@click.option(
     "-b",
     "--batch-id",
     help="The S3 prefix for the batch of DSpace submission files",
     required=True,
-)
-@click.option(
-    "-e",
-    "--email-recipients",
-    help="The recipients of the submission results email as a comma-delimited string, "
-    "this will override the workflow class's default value for this attribute",
-    required=True,
-)
-@click.option(
-    "-s",
-    "--s3-bucket",
-    help="The S3 bucket containing the DSpace submission files, "
-    "this will override the workflow class's default value for this attribute",
-)
-@click.option(
-    "-o",
-    "--output-queue",
-    help="The SQS output queue for the DSS result messages, "
-    "this will override the workflow class's default value for this attribute",
 )
 @click.option(
     "-v", "--verbose", is_flag=True, help="Pass to log at debug level instead of info"
@@ -57,23 +32,13 @@ CONFIG = Config()
 def main(
     ctx: click.Context,
     workflow_name: str,
-    collection_handle: str,
     batch_id: str,
-    email_recipients: str,
-    s3_bucket: str | None,
-    output_queue: str | None,
     verbose: bool,  # noqa: FBT001
 ) -> None:
     ctx.ensure_object(dict)
     ctx.obj["start_time"] = perf_counter()
     workflow_class = Workflow.get_workflow(workflow_name)
-    workflow = workflow_class(
-        collection_handle=collection_handle,
-        batch_id=batch_id,
-        email_recipients=email_recipients.split(","),
-        s3_bucket=s3_bucket,
-        output_queue=output_queue,
-    )
+    workflow = workflow_class(batch_id=batch_id)
     ctx.obj["workflow"] = workflow
 
     root_logger = logging.getLogger()
@@ -115,17 +80,42 @@ def reconcile(ctx: click.Context) -> None:
 
 @main.command()
 @click.pass_context
-def submit(ctx: click.Context) -> None:
+@click.option(
+    "-c",
+    "--collection-handle",
+    help="The handle of the DSpace collection to which the batch will be submitted",
+    required=True,
+)
+@click.option(
+    "-e",
+    "--email-recipients",
+    help="The recipients of the submission results email as a comma-delimited string, "
+    "this will override the workflow class's default value for this attribute",
+    required=True,
+)
+def submit(
+    ctx: click.Context,
+    collection_handle: str,
+    email_recipients: str,  # noqa: ARG001
+) -> None:
     """Send a batch of item submissions to the DSpace Submission Service (DSS)."""
     workflow = ctx.obj["workflow"]
     logger.debug(f"Beginning submission of batch ID: {workflow.batch_id}")
-    workflow.submit_items()
+    workflow.submit_items(collection_handle)
+    # TODO(): workflow.report_results(email_recipients.split(",")) #noqa:FIX002, TD003
 
 
 @main.command()
 @click.pass_context
-def finalize(ctx: click.Context) -> None:
+@click.option(
+    "-e",
+    "--email-recipients",
+    help="The recipients of the submission results email as a comma-delimited string, "
+    "this will override the workflow class's default value for this attribute",
+    required=True,
+)
+def finalize(ctx: click.Context, email_recipients: str) -> None:
     """Process the result messages from the DSS output queue according the workflow."""
     workflow = ctx.obj["workflow"]
     workflow.process_results()
-    workflow.report_results()
+    workflow.report_results(email_recipients.split(","))

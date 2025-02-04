@@ -20,12 +20,8 @@ def test_reconcile_simple_csv_success(
         [
             "--workflow-name",
             "simple_csv",
-            "--collection-handle",
-            "123.4/5678",
             "--batch-id",
             "batch-aaa",
-            "--email-recipients",
-            "test@test.test",
             "reconcile",
         ],
     )
@@ -52,12 +48,8 @@ def test_reconcile_simple_csv_if_no_metadata_raise_error(
         [
             "--workflow-name",
             "simple_csv",
-            "--collection-handle",
-            "123.4/5678",
             "--batch-id",
             "batch-aaa",
-            "--email-recipients",
-            "test@test.test",
             "reconcile",
         ],
     )
@@ -73,12 +65,8 @@ def test_reconcile_if_non_reconcile_workflow_raise_error(
         [
             "--workflow-name",
             "test",
-            "--collection-handle",
-            "123.4/5678",
             "--batch-id",
             "batch-aaa",
-            "--email-recipients",
-            "test@test.test",
             "reconcile",
         ],
     )
@@ -99,13 +87,13 @@ def test_submit_success(
             "--verbose",
             "--workflow-name",
             "test",
-            "--collection-handle",
-            "123.4/5678",
             "--batch-id",
             "batch-aaa",
+            "submit",
+            "--collection-handle",
+            "123.4/5678",
             "--email-recipients",
             "test@test.edu",
-            "submit",
         ],
     )
     assert result.exit_code == 0
@@ -145,15 +133,11 @@ def test_finalize_success(
             "--verbose",
             "--workflow-name",
             "test",
-            "--collection-handle",
-            "123.4/5678",
             "--batch-id",
             "batch-aaa",
-            "--output-queue",
-            "mock-output-queue",
+            "finalize",
             "--email-recipients",
             "test@test.test,test2@test.test",
-            "finalize",
         ],
     )
     assert result.exit_code == 0
