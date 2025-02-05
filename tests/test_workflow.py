@@ -13,44 +13,16 @@ from dsc.workflows.base import Workflow
 
 def test_base_workflow_init_with_defaults_success():
     workflow_class = Workflow.get_workflow(workflow_name="test")
-    workflow_instance = workflow_class(
-        collection_handle="123.4/5678",
-        batch_id="batch-aaa",
-        email_recipients=("test@test.test",),
-    )
+    workflow_instance = workflow_class(batch_id="batch-aaa")
     assert workflow_instance.workflow_name == "test"
     assert workflow_instance.submission_system == "Test@MIT"
     assert (
         workflow_instance.metadata_mapping_path
         == "tests/fixtures/test_metadata_mapping.json"
     )
+    assert workflow_instance.batch_id == "batch-aaa"
     assert workflow_instance.s3_bucket == "dsc"
-    assert workflow_instance.output_queue == "dsc-unhandled"
-    assert workflow_instance.collection_handle == "123.4/5678"
-    assert workflow_instance.batch_id == "batch-aaa"
-    assert workflow_instance.email_recipients == ("test@test.test",)
-
-
-def test_base_workflow_init_with_optional_params_success():
-    workflow_class = Workflow.get_workflow(workflow_name="test")
-    workflow_instance = workflow_class(
-        collection_handle="123.4/5678",
-        batch_id="batch-aaa",
-        email_recipients=("test@test.test",),
-        s3_bucket="updated-bucket",
-        output_queue="mock-output-queue",
-    )
-    assert workflow_instance.workflow_name == "test"
-    assert workflow_instance.submission_system == "Test@MIT"
-    assert (
-        workflow_instance.metadata_mapping_path
-        == "tests/fixtures/test_metadata_mapping.json"
-    )
-    assert workflow_instance.s3_bucket == "updated-bucket"
     assert workflow_instance.output_queue == "mock-output-queue"
-    assert workflow_instance.collection_handle == "123.4/5678"
-    assert workflow_instance.batch_id == "batch-aaa"
-    assert workflow_instance.email_recipients == ("test@test.test",)
 
 
 def test_base_workflow_get_workflow_success():
@@ -81,7 +53,7 @@ def test_base_workflow_submit_items_success(
     caplog, base_workflow_instance, mocked_s3, mocked_sqs_input, mocked_sqs_output
 ):
     caplog.set_level("DEBUG")
-    submission_results = base_workflow_instance.submit_items()
+    submission_results = base_workflow_instance.submit_items("123.4/5678")
     assert "Processing submission for '123'" in caplog.text
     assert (
         "Metadata uploaded to S3: s3://dsc/test/batch-aaa/123_metadata.json"
@@ -107,7 +79,7 @@ def test_base_workflow_submit_items_exceptions_handled(
         Exception,
     ]
     mocked_method.side_effect = side_effect
-    submission_results = base_workflow_instance.submit_items()
+    submission_results = base_workflow_instance.submit_items("123.4/5678")
     assert submission_results["success"] is False
     assert submission_results["items_count"] == 2  # noqa: PLR2004
     assert submission_results["items"]["succeeded"] == {"123": "abcd"}
@@ -128,7 +100,7 @@ def test_base_workflow_submit_items_invalid_status_codes_handled(
         {"ResponseMetadata": {"HTTPStatusCode": 400}},
     ]
     mocked_method.side_effect = side_effect
-    submission_results = base_workflow_instance.submit_items()
+    submission_results = base_workflow_instance.submit_items("123.4/5678")
     assert submission_results["success"] is False
     assert submission_results["items_count"] == 2  # noqa: PLR2004
     assert submission_results["items"]["succeeded"] == {"123": "abcd"}
@@ -197,7 +169,6 @@ def test_base_workflow_process_sqs_queue_success(
     sqs_client,
 ):
     caplog.set_level("DEBUG")
-    base_workflow_instance.output_queue = "mock-output-queue"
     sqs_client.send(
         message_attributes=result_message_attributes,
         message_body=result_message_body,
@@ -245,7 +216,6 @@ def test_base_workflow_process_sqs_queue_exception_logged(
 ):
     mocked_method.side_effect = [Exception]
     caplog.set_level("DEBUG")
-    base_workflow_instance.output_queue = "mock-output-queue"
     sqs_client.send(
         message_attributes=result_message_attributes,
         message_body=result_message_body,
@@ -283,7 +253,7 @@ def test_base_workflow_report_results_success(
         "'BitstreamChecksum': {'value': 'a4e0f4930dfaff904fa3c6c85b0b8ecc', "
         "'checkSumAlgorithm': 'MD5'}}]}",
     ]
-    base_workflow_instance.report_results()
+    base_workflow_instance.report_results(["test@test.test"])
     assert "Logs sent to ['test@test.test']" in caplog.text
     assert (
         "10.1002/term.3131: {'ResultType': 'success', 'ItemHandle': '1721.1/131022'"

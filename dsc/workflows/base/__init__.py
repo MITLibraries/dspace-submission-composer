@@ -28,48 +28,45 @@ class Workflow(ABC):
 
     workflow_name: str = "base"
     submission_system: str = "DSpace@MIT"
-    metadata_mapping_path: str = ""
-    s3_bucket: str = "dsc"
-    output_queue: str = "dsc-unhandled"
 
     def __init__(
         self,
-        collection_handle: str,
         batch_id: str,
-        email_recipients: list[str],
-        s3_bucket: str | None = None,
-        output_queue: str | None = None,
     ) -> None:
         """Initialize base instance.
 
         Args:
-            collection_handle: The handle of the DSpace collection to which
-                submissions will be uploaded.
             batch_id: Unique identifier for a 'batch' deposit that corresponds
                 to the name of a subfolder in the workflow directory of the S3 bucket.
                 This subfolder is where the S3 client will search for bitstream
                 and metadata files.
-            email_recipients: The recipients of the submission results email.
-            s3_bucket: The S3 bucket containing the DSpace submission files.
-            output_queue: The SQS output queue for the DSS result messages.
         """
-        self.collection_handle = collection_handle
         self.batch_id = batch_id
-        self.email_recipients = email_recipients
-        if s3_bucket:
-            self.s3_bucket = s3_bucket
-        if output_queue:
-            self.output_queue = output_queue
         self.report_data: list[str] = []
 
     @property
-    def batch_path(self) -> str:
-        return f"{self.workflow_name}/{self.batch_id}"
+    @abstractmethod
+    def metadata_mapping_path(self) -> str:
+        """Path to the JSON metadata mapping file for the workflow."""
 
     @property
     def metadata_mapping(self) -> dict:
         with open(self.metadata_mapping_path) as mapping_file:
             return json.load(mapping_file)
+
+    @property
+    @abstractmethod
+    def s3_bucket(self) -> str:
+        """The S3 bucket containing the DSpace submission files."""
+
+    @property
+    @abstractmethod
+    def output_queue(self) -> str:
+        """The SQS output queue for the DSS result messages."""
+
+    @property
+    def batch_path(self) -> str:
+        return f"{self.workflow_name}/{self.batch_id}"
 
     @final
     @classmethod
@@ -113,8 +110,12 @@ class Workflow(ABC):
         """
 
     @final
-    def submit_items(self) -> dict:
+    def submit_items(self, collection_handle: str) -> dict:
         """Submit items to the DSpace Submission Service according to the workflow class.
+
+        Args:
+            collection_handle: The handle of the DSpace collection to which the batch will
+              be submitted.
 
         Returns a dict with the submission results organized into succeeded and failed
         items.
@@ -128,10 +129,10 @@ class Workflow(ABC):
                     self.workflow_name,
                     self.output_queue,
                     self.submission_system,
-                    self.collection_handle,
+                    collection_handle,
                 )
             except Exception as exception:
-                logger.exception(f"Error processing submission: {item_id}")
+                logger.exception(f"Error processing submission: '{item_id}'")
                 items["failed"][item_id] = exception
                 continue
             status_code = response["ResponseMetadata"]["HTTPStatusCode"]
@@ -316,7 +317,7 @@ class Workflow(ABC):
             f"'{self.workflow_name}' "
         )
 
-    def report_results(self) -> None:
+    def report_results(self, email_recipients: list[str]) -> None:
         """Send report to stakeholders as an email via SES."""
         date = datetime.datetime.now(tz=datetime.UTC).strftime("%Y-%m-%d %H:%M:%S")
         report = "\n".join(self.report_data)
@@ -327,5 +328,5 @@ class Workflow(ABC):
             attachment_content=report,
             attachment_name=f"DSS results - {self.workflow_name} {date}.txt",
             source_email_address=CONFIG.dsc_source_email,
-            recipient_email_addresses=list(self.email_recipients),
+            recipient_email_addresses=email_recipients,
         )

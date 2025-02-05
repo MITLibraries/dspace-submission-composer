@@ -20,7 +20,18 @@ class TestWorkflow(Workflow):
 
     workflow_name: str = "test"
     submission_system: str = "Test@MIT"
-    metadata_mapping_path: str = "tests/fixtures/test_metadata_mapping.json"
+
+    @property
+    def metadata_mapping_path(self) -> str:
+        return "tests/fixtures/test_metadata_mapping.json"
+
+    @property
+    def s3_bucket(self) -> str:
+        return "dsc"
+
+    @property
+    def output_queue(self) -> str:
+        return "mock-output-queue"
 
     def reconcile_bitstreams_and_metadata(self):
         raise TypeError(
@@ -58,7 +69,18 @@ class TestSimpleCSV(SimpleCSV):
 
     workflow_name = "simple_csv"
     submission_system: str = "Test@MIT"
-    metadata_mapping_path: str = "tests/fixtures/test_metadata_mapping.json"
+
+    @property
+    def metadata_mapping_path(self) -> str:
+        return "tests/fixtures/test_metadata_mapping.json"
+
+    @property
+    def s3_bucket(self) -> str:
+        return "dsc"
+
+    @property
+    def output_queue(self) -> str:
+        return "mock-output-queue"
 
 
 @pytest.fixture(autouse=True)
@@ -75,22 +97,12 @@ def _test_env(monkeypatch):
 
 @pytest.fixture
 def base_workflow_instance(item_metadata, metadata_mapping, mocked_s3):
-    return TestWorkflow(
-        collection_handle="123.4/5678",
-        batch_id="batch-aaa",
-        email_recipients=["test@test.test"],
-        output_queue="mock-output_queue",
-    )
+    return TestWorkflow(batch_id="batch-aaa")
 
 
 @pytest.fixture
 def simple_csv_workflow_instance(metadata_mapping):
-    return TestSimpleCSV(
-        collection_handle="123.4/5678",
-        batch_id="batch-aaa",
-        email_recipients=["test@test.test"],
-        output_queue="mock-output_queue",
-    )
+    return TestSimpleCSV(batch_id="batch-aaa")
 
 
 @pytest.fixture
