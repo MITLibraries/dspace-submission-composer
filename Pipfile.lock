@@ -31,11 +31,12 @@
                 "ses"
             ],
             "hashes": [
-                "sha256:8bc69a3e32b9e487d5c4d0eb15c839a485b3824564b05260ff2b5cd0d21844a3",
-                "sha256:915b72140fff5f1da9ceb1096e02537279d80940e7c2f9bcd4498c683d69bf31"
+                "sha256:9eccdee8091b095a8ce5119b825dccba73555d88a813636b95c3ea2e57186e4f",
+                "sha256:dcde60b21a4026719b82b7f4679ecd9af9372b3d0c9a7f45f1cf2c496bcf19b4"
             ],
+            "index": "pypi",
             "markers": "python_version >= '3.8'",
-            "version": "==1.36.13"
+            "version": "==1.36.14"
         },
         "botocore": {
             "hashes": [
@@ -47,11 +48,11 @@
         },
         "botocore-stubs": {
             "hashes": [
-                "sha256:31d17381def93fa41d009e11ccfb0a846a878dcf84f97c229bfb7ceffad7a56a",
-                "sha256:c1e7eac810e42de49b47cb23c118db206c0e719130e468ddedcb0eb82c21904c"
+                "sha256:54c7b6fe68d6e2a1eac827b1c0525554509a3481ed6ad5a0f4f2c487e00768d2",
+                "sha256:58f8e6eb37427b7bb81aa24984b10c90d124526b2ba741ebbe7d6e5690454ad0"
             ],
             "markers": "python_version >= '3.8'",
-            "version": "==1.36.12"
+            "version": "==1.36.14"
         },
         "certifi": {
             "hashes": [
