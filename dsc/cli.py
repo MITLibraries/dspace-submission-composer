@@ -23,7 +23,8 @@ CONFIG = Config()
 @click.option(
     "-b",
     "--batch-id",
-    help="The S3 prefix for the batch of DSpace submission files",
+    help="A unique identifier for the workflow run, also used as an S3 prefix for "
+    "workflow run files",
     required=True,
 )
 @click.option(
@@ -89,8 +90,7 @@ def reconcile(ctx: click.Context) -> None:
 @click.option(
     "-e",
     "--email-recipients",
-    help="The recipients of the submission results email as a comma-delimited string, "
-    "this will override the workflow class's default value for this attribute",
+    help="The recipients of the submission results email as a comma-delimited string",
     required=True,
 )
 def submit(
@@ -110,8 +110,7 @@ def submit(
 @click.option(
     "-e",
     "--email-recipients",
-    help="The recipients of the submission results email as a comma-delimited string, "
-    "this will override the workflow class's default value for this attribute",
+    help="The recipients of the submission results email as a comma-delimited string",
     required=True,
 )
 def finalize(ctx: click.Context, email_recipients: str) -> None:
