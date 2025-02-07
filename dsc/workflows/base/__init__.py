@@ -355,6 +355,6 @@ class Workflow(ABC):
             source_email_address=CONFIG.dsc_source_email,
             recipient_email_addresses=email_recipients,
             message_body_plaintext=report.to_plain_text(),
-            message_body_html=report.to_rich_text(),
+            message_body_html=report.to_html(),
             attachments=report.create_attachments(),
         )

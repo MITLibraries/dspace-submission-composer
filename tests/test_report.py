@@ -12,7 +12,7 @@ def test_finalize_report_init_success(workflow_events_finalize):
         workflow_name="test", batch_id="aaa", events=workflow_events_finalize
     )
 
-    assert finalize_report.workflow_name == "TEST"
+    assert finalize_report.workflow_name == "test"
     assert finalize_report.batch_id == "aaa"
     assert finalize_report.report_date == "2025-01-01 09:00:00"
     assert finalize_report.events == workflow_events_finalize
@@ -24,7 +24,7 @@ def test_finalize_report_init_from_workflow_success(
 ):
     finalize_report = FinalizeReport.from_workflow(base_workflow_instance)
 
-    assert finalize_report.workflow_name == base_workflow_instance.workflow_name.upper()
+    assert finalize_report.workflow_name == base_workflow_instance.workflow_name
     assert finalize_report.batch_id == base_workflow_instance.batch_id
     assert finalize_report.report_date == "2025-01-01 09:00:00"
     assert isinstance(finalize_report.events, WorkflowEvents)
@@ -34,7 +34,7 @@ def test_finalize_report_subject_success(workflow_events_finalize):
     finalize_report = FinalizeReport(
         workflow_name="test", batch_id="aaa", events=workflow_events_finalize
     )
-    assert finalize_report.subject == "DSpace Submission Results - TEST, batch='aaa'"
+    assert finalize_report.subject == "DSpace Submission Results - test, batch='aaa'"
 
 
 def test_finalize_report_status_returns_success(workflow_events_finalize):

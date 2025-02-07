@@ -20,7 +20,7 @@ class Report(ABC):
     def __init__(
         self, workflow_name: str, batch_id: str, events: workflows.WorkflowEvents
     ):
-        self.workflow_name = workflow_name.upper()
+        self.workflow_name = workflow_name
         self.batch_id = batch_id
         self.report_date = datetime.datetime.now(tz=datetime.UTC).strftime(
             "%Y-%m-%d %H:%M:%S"
@@ -28,7 +28,7 @@ class Report(ABC):
         self.events = events
 
         # configure environment for loading jinja templates
-        self.env = Environment(
+        self.jinja_env = Environment(
             loader=FileSystemLoader(["dsc/templates/html", "dsc/templates/plain_text"]),
             autoescape=select_autoescape(),
         )
@@ -42,7 +42,7 @@ class Report(ABC):
     def from_workflow(cls, workflow: workflows.Workflow) -> Report:
         """Create instance of Report using dsc.workflows.Workflow."""
         return cls(
-            workflow_name=workflow.workflow_name.upper(),
+            workflow_name=workflow.workflow_name,
             batch_id=workflow.batch_id,
             events=workflow.workflow_events,
         )
@@ -57,7 +57,7 @@ class Report(ABC):
         """Create attachments to include in report email."""
 
     def to_plain_text(self) -> str:
-        template = self.env.get_template(f"{self.template_name}.txt")
+        template = self.jinja_env.get_template(f"{self.template_name}.txt")
         return template.render(
             workflow_name=self.workflow_name,
             batch_id=self.batch_id,
@@ -65,8 +65,8 @@ class Report(ABC):
             status=self.status,
         )
 
-    def to_rich_text(self) -> str:
-        template = self.env.get_template(f"{self.template_name}.html")
+    def to_html(self) -> str:
+        template = self.jinja_env.get_template(f"{self.template_name}.html")
         return template.render(
             workflow_name=self.workflow_name,
             batch_id=self.batch_id,
@@ -115,7 +115,7 @@ class FinalizeReport(Report):
     def create_attachments(self) -> list[tuple]:
         """Create file attachments for 'finalize' email.
 
-        This method will create a CSV file of successfully depposited
+        This method will create a CSV file of successfully deposited
         items and optionally create a text file of error messages.
         """
         attachments = []
@@ -168,7 +168,7 @@ class FinalizeReport(Report):
         return text_buffer
 
     def to_plain_text(self) -> str:
-        template = self.env.get_template(f"{self.template_name}.txt")
+        template = self.jinja_env.get_template(f"{self.template_name}.txt")
         return template.render(
             workflow_name=self.workflow_name,
             batch_id=self.batch_id,
@@ -178,8 +178,8 @@ class FinalizeReport(Report):
             errors=self.events.errors,
         )
 
-    def to_rich_text(self) -> str:
-        template = self.env.get_template(f"{self.template_name}.html")
+    def to_html(self) -> str:
+        template = self.jinja_env.get_template(f"{self.template_name}.html")
         return template.render(
             workflow_name=self.workflow_name,
             batch_id=self.batch_id,

@@ -32,11 +32,7 @@ CONFIG = Config()
     "-r",
     "--create-and-send-report",
     is_flag=True,
-    help=(
-        "Pass to create and send summary report to recipients. "
-        "Reports generated for 'reconcile' and 'submit' steps must only be sent to "
-        "DSC admins."
-    ),
+    help=("Pass to create and send summary report to recipients."),
     default=False,
 )
 @click.option(
