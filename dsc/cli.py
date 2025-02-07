@@ -6,7 +6,7 @@ import click
 
 from dsc.config import Config
 from dsc.exceptions import ReconcileError
-from dsc.report import FinalizeReport
+from dsc.reports import FinalizeReport
 from dsc.workflows.base import Workflow
 
 logger = logging.getLogger(__name__)
