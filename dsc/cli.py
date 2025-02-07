@@ -29,20 +29,12 @@ CONFIG = Config()
     required=True,
 )
 @click.option(
-    "-r",
-    "--create-and-send-report",
-    is_flag=True,
-    help=("Pass to create and send summary report to recipients."),
-    default=False,
-)
-@click.option(
     "-v", "--verbose", is_flag=True, help="Pass to log at debug level instead of info"
 )
 def main(
     ctx: click.Context,
     workflow_name: str,
     batch_id: str,
-    create_and_send_report: bool,  # noqa: FBT001
     verbose: bool,  # noqa: FBT001
 ) -> None:
     ctx.ensure_object(dict)
@@ -50,7 +42,6 @@ def main(
     workflow_class = Workflow.get_workflow(workflow_name)
     workflow = workflow_class(batch_id=batch_id)
     ctx.obj["workflow"] = workflow
-    ctx.obj["create_and_send_report"] = create_and_send_report
 
     root_logger = logging.getLogger()
     logger.info(CONFIG.configure_logger(root_logger, verbose=verbose))
@@ -84,8 +75,10 @@ def reconcile(ctx: click.Context) -> None:
     workflow = ctx.obj["workflow"]
     try:
         workflow.reconcile_bitstreams_and_metadata()
+        # TODO(): workflow.send_report(email_recipients.split(",")) #noqa:FIX002, TD003
     except ReconcileError:
         logger.info("Reconcile failed.")
+        # TODO(): workflow.send_report(email_recipients.split(",")) #noqa:FIX002, TD003
         ctx.exit(1)
 
 
@@ -112,7 +105,7 @@ def submit(
     workflow = ctx.obj["workflow"]
     logger.debug(f"Beginning submission of batch ID: {workflow.batch_id}")
     workflow.submit_items(collection_handle)
-    # TODO(): workflow.report_results(email_recipients.split(",")) #noqa:FIX002, TD003
+    # TODO(): workflow.send_report(email_recipients.split(",")) #noqa:FIX002, TD003
 
 
 @main.command()
@@ -127,8 +120,6 @@ def finalize(ctx: click.Context, email_recipients: str) -> None:
     """Process the result messages from the DSS output queue according the workflow."""
     workflow = ctx.obj["workflow"]
     workflow.process_results()
-
-    if ctx.obj["create_and_send_report"]:
-        workflow.send_report(
-            report_class=FinalizeReport, email_recipients=email_recipients.split(",")
-        )
+    workflow.send_report(
+        report_class=FinalizeReport, email_recipients=email_recipients.split(",")
+    )

@@ -2,7 +2,7 @@ from unittest.mock import patch
 
 from freezegun import freeze_time
 
-from dsc.report import FinalizeReport
+from dsc.reports import FinalizeReport
 from dsc.workflows.base import WorkflowEvents
 
 
@@ -37,34 +37,8 @@ def test_finalize_report_subject_success(workflow_events_finalize):
     assert finalize_report.subject == "DSpace Submission Results - test, batch='aaa'"
 
 
-def test_finalize_report_status_returns_success(workflow_events_finalize):
-    finalize_report = FinalizeReport(
-        workflow_name="test", batch_id="aaa", events=workflow_events_finalize
-    )
-    assert finalize_report.status == "success"
-
-
-def test_finalize_report_status_returns_incomplete(workflow_events_finalize):
-    workflow_events_finalize.errors = ["This is an error"]
-
-    finalize_report = FinalizeReport(
-        workflow_name="test", batch_id="aaa", events=workflow_events_finalize
-    )
-    assert finalize_report.status == "incomplete"
-
-
-def test_finalize_report_status_returns_error(workflow_events_finalize):
-    workflow_events_finalize.processed_items = []
-    workflow_events_finalize.errors = ["This is an error"]
-
-    finalize_report = FinalizeReport(
-        workflow_name="test", batch_id="aaa", events=workflow_events_finalize
-    )
-    assert finalize_report.status == "error"
-
-
-@patch("dsc.report.FinalizeReport._write_errors_text_file")
-@patch("dsc.report.FinalizeReport._write_processed_items_csv")
+@patch("dsc.reports.FinalizeReport._write_errors_text_file")
+@patch("dsc.reports.FinalizeReport._write_ingested_items_csv")
 def test_finalize_report_create_attachments_success(
     mock_finalize_report_processed_items_csv,
     mock_finalize_report_errors_txt,

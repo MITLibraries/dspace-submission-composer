@@ -3,10 +3,10 @@
 {% block content %}
  
 <p><b>Results summary for {{workflow_name}} deposit for batch='{{batch_id}}'</b></p>
-<p>Status: {{status}}</p>
-<p>Ran on: {{report_date}}</p>
+<p>Run date: {{report_date}}</p>
+<p>Results:</p>
 
-<p>Successfully deposited {{ processed_items|length }} items.</p>
-<p>Encountered {{ errors|length }} errors.</p>
+<p>Ingested: {{ processed_items|length }}</p>
+<p>Errors: {{ errors|length }}</p>
 
 {% endblock %}

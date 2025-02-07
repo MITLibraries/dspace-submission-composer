@@ -61,27 +61,14 @@ class Report(ABC):
             events=workflow.workflow_events,
         )
 
-    @property
-    @abstractmethod
-    def status(self) -> str:
-        """Determine the status of an executed DSC command."""
-
     @abstractmethod
     def create_attachments(self) -> list[tuple]:
         """Create attachments to include in report email."""
 
+    @abstractmethod
     def to_plain_text(self) -> str:
-        return self.jinja_template_plain_text.render(
-            workflow_name=self.workflow_name,
-            batch_id=self.batch_id,
-            report_date=self.report_date,
-            status=self.status,
-        )
+        """Render plain-text template."""
 
+    @abstractmethod
     def to_html(self) -> str:
-        return self.jinja_template_html.render(
-            workflow_name=self.workflow_name,
-            batch_id=self.batch_id,
-            report_date=self.report_date,
-            status=self.status,
-        )
+        """Render HTML template."""

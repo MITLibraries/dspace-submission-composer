@@ -130,7 +130,6 @@ def test_finalize_success(
     result = runner.invoke(
         main,
         [
-            "--create-and-send-report",
             "--verbose",
             "--workflow-name",
             "test",

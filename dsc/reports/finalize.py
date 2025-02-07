@@ -18,9 +18,9 @@ class FinalizeReport(Report):
        and the number of encountered errors.
 
     2. A CSV file included as an attachment describing successfully deposited items,
-       which consists of the columns: 'item_identifier' and 'doi' (i.e., the 'ItemHandle'
-       from the DSS result message). Created only if any WorkflowEvents.processed_items
-       exist.
+       which consists of the columns: 'item_identifier' and 'dspace_handle' (i.e.,
+       the 'ItemHandle' from the DSS result message). Created only if
+       any items in Workflow.processed_items have ingested="success".
 
     3. A text file included as an attachment logging all errors encountered when
        'finalize' methods were executed. Created only if any WorkflowEvents.errors exist.
@@ -42,14 +42,6 @@ class FinalizeReport(Report):
             f"DSpace Submission Results - {self.workflow_name}, batch='{self.batch_id}'"
         )
 
-    @property
-    def status(self) -> str:
-        if self.events.processed_items and not self.events.errors:
-            return "success"
-        if self.events.processed_items and self.events.errors:
-            return "incomplete"
-        return "error"
-
     def create_attachments(self) -> list[tuple]:
         """Create file attachments for 'finalize' email.
 
@@ -58,11 +50,12 @@ class FinalizeReport(Report):
         """
         attachments = []
 
-        if self.events.processed_items:
+        ingested_items = self.get_ingested_items()
+        if ingested_items:
             attachments.append(
                 (
                     "ingested_items.csv",
-                    self._write_processed_items_csv(),
+                    self._write_ingested_items_csv(ingested_items),
                 )
             )
 
@@ -75,19 +68,27 @@ class FinalizeReport(Report):
             )
         return attachments
 
-    def _write_processed_items_csv(self) -> StringIO:
-        """Write processed items to string buffer.
+    def get_ingested_items(self) -> list[dict]:
+        return [
+            {
+                "item_identifier": item["item_identifier"],
+                "dspace_handle": item["result_message"]["ItemHandle"],
+            }
+            for item in self.events.processed_items
+            if item["ingested"] == "success"
+        ]
+
+    def _write_ingested_items_csv(self, ingested_items: list[dict]) -> StringIO:
+        """Write ingested items to string buffer.
 
         This method creates a string buffer with the contents of a CSV
-        file describing successfully deposited items.
+        file describing successfully ingested items.
         """
-        processed_items = self.events.processed_items
-
         csv_buffer = StringIO()
-        fieldnames = processed_items[0].keys()
+        fieldnames = ingested_items[0].keys()
         writer = csv.DictWriter(csv_buffer, fieldnames=fieldnames)
         writer.writeheader()
-        writer.writerows(processed_items)
+        writer.writerows(ingested_items)
         csv_buffer.seek(0)
         return csv_buffer
 
@@ -97,10 +98,8 @@ class FinalizeReport(Report):
         This method creates a string buffer with the error messages
         encountered when 'finalize' methods were executed.
         """
-        errors = self.events.errors
-
         text_buffer = StringIO()
-        for error in errors:
+        for error in self.events.errors:
             text_buffer.write(error + "\n")
         text_buffer.seek(0)
         return text_buffer
@@ -110,7 +109,6 @@ class FinalizeReport(Report):
             workflow_name=self.workflow_name,
             batch_id=self.batch_id,
             report_date=self.report_date,
-            status=self.status,
             processed_items=self.events.processed_items,
             errors=self.events.errors,
         )
@@ -120,7 +118,6 @@ class FinalizeReport(Report):
             workflow_name=self.workflow_name,
             batch_id=self.batch_id,
             report_date=self.report_date,
-            status=self.status,
             processed_items=self.events.processed_items,
             errors=self.events.errors,
         )

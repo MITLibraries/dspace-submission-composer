@@ -19,7 +19,7 @@ from dsc.utilities.aws import SESClient, SQSClient
 if TYPE_CHECKING:  # pragma: no cover
     from collections.abc import Iterator
 
-    from dsc.report import Report
+    from dsc.reports import Report
 
 logger = logging.getLogger(__name__)
 CONFIG = Config()
@@ -313,26 +313,34 @@ class Workflow(ABC):
         sqs_client = SQSClient(
             region=CONFIG.aws_region_name, queue_name=self.output_queue
         )
+
         items = []
         for sqs_message in sqs_client.receive():
             try:
-                item_identifier, message_body = sqs_client.process_result_message(
+                item_identifier, result_message = sqs_client.process_result_message(
                     sqs_message
-                )
-                items.append(
-                    {"item_identifier": item_identifier, "message_body": message_body}
-                )
-                self.workflow_events.processed_items.append(
-                    {
-                        "item_identifier": item_identifier,
-                        "doi": message_body["ItemHandle"],
-                    }
                 )
             except Exception:
                 error_message = f"Error while processing SQS message: {sqs_message}"
                 logger.exception(error_message)
                 self.workflow_events.errors.append(error_message)
                 continue
+
+            # capture all processed items, whether ingested or not
+            item_data = {
+                "item_identifier": item_identifier,
+                "result_message": result_message,
+                "ingested": result_message["ResultType"] == "success",
+            }
+            self.workflow_events.processed_items.append(item_data)
+            items.append(item_data)
+
+            if not item_data["ingested"]:
+                message = (
+                    f"Item '{item_identifier}' did not ingest successfully: {sqs_message}"
+                )
+                logger.info(message)
+                self.workflow_events.errors.append(message)
 
         logger.debug(f"Messages received and deleted from '{self.output_queue}'")
         return items
@@ -354,7 +362,7 @@ class Workflow(ABC):
             subject=report.subject,
             source_email_address=CONFIG.dsc_source_email,
             recipient_email_addresses=email_recipients,
-            message_body_plaintext=report.to_plain_text(),
+            message_body_plain_text=report.to_plain_text(),
             message_body_html=report.to_html(),
             attachments=report.create_attachments(),
         )

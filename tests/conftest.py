@@ -300,7 +300,13 @@ def submission_message_body():
 
 
 @pytest.fixture
-def workflow_events_finalize():
+def workflow_events_finalize(result_message_body):
     return WorkflowEvents(
-        processed_items=[{"item_identifier": "123", "doi": "10.5555/12345678"}]
+        processed_items=[
+            {
+                "item_identifier": "123",
+                "result_message": json.loads(result_message_body),
+                "ingested": "success",
+            }
+        ]
     )
