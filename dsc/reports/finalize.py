@@ -72,7 +72,7 @@ class FinalizeReport(Report):
         return [
             {
                 "item_identifier": item["item_identifier"],
-                "dspace_handle": item["result_message"]["ItemHandle"],
+                "dspace_handle": item["result_message_body"]["ItemHandle"],
             }
             for item in self.events.processed_items
             if item["ingested"] == "success"

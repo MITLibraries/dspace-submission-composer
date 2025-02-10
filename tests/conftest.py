@@ -305,7 +305,7 @@ def workflow_events_finalize(result_message_body):
         processed_items=[
             {
                 "item_identifier": "123",
-                "result_message": json.loads(result_message_body),
+                "result_message_body": json.loads(result_message_body),
                 "ingested": "success",
             }
         ]

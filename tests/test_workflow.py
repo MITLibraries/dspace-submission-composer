@@ -190,7 +190,7 @@ def test_base_workflow_process_sqs_queue_success(
     assert items == [
         {
             "item_identifier": "10.1002/term.3131",
-            "result_message": {
+            "result_message_body": {
                 "Bitstreams": [
                     {
                         "BitstreamChecksum": {
@@ -266,7 +266,7 @@ def test_base_workflow_process_sqs_queue_if_not_ingested_capture_event_and_log(
     assert items == [
         {
             "item_identifier": "123",
-            "result_message": result_message_body,
+            "result_message_body": result_message_body,
             "ingested": False,
         }
     ]

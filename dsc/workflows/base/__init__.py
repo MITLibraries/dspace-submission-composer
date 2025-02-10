@@ -317,7 +317,7 @@ class Workflow(ABC):
         items = []
         for sqs_message in sqs_client.receive():
             try:
-                item_identifier, result_message = sqs_client.process_result_message(
+                item_identifier, result_message_body = sqs_client.process_result_message(
                     sqs_message
                 )
             except Exception:
@@ -329,8 +329,8 @@ class Workflow(ABC):
             # capture all processed items, whether ingested or not
             item_data = {
                 "item_identifier": item_identifier,
-                "result_message": result_message,
-                "ingested": result_message["ResultType"] == "success",
+                "result_message_body": result_message_body,
+                "ingested": result_message_body["ResultType"] == "success",
             }
             self.workflow_events.processed_items.append(item_data)
             items.append(item_data)
