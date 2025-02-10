@@ -1,3 +1,4 @@
+import json
 from unittest.mock import patch
 
 import pytest
@@ -8,6 +9,7 @@ from dsc.exceptions import (
     ItemMetadatMissingRequiredFieldError,
 )
 from dsc.item_submission import ItemSubmission
+from dsc.reports import FinalizeReport
 from dsc.workflows.base import Workflow
 
 
@@ -173,7 +175,10 @@ def test_base_workflow_process_sqs_queue_success(
         message_attributes=result_message_attributes,
         message_body=result_message_body,
     )
-    results = base_workflow_instance.process_sqs_queue()
+
+    items = base_workflow_instance.process_sqs_queue()
+
+    assert base_workflow_instance.workflow_events.processed_items[0]["ingested"]
     assert "Messages received and deleted from 'mock-output-queue'" in caplog.text
     assert (
         "Item identifier: '10.1002/term.3131', Result: {'ResultType': 'success', "
@@ -182,10 +187,10 @@ def test_base_workflow_process_sqs_queue_success(
         "'a1b2c3d4e5', 'BitstreamChecksum': {'value': 'a4e0f4930dfaff904fa3c6c85b0b8ecc',"
         " 'checkSumAlgorithm': 'MD5'}}]}" in caplog.text
     )
-    assert results == [
-        (
-            "10.1002/term.3131",
-            {
+    assert items == [
+        {
+            "item_identifier": "10.1002/term.3131",
+            "result_message_body": {
                 "Bitstreams": [
                     {
                         "BitstreamChecksum": {
@@ -200,13 +205,14 @@ def test_base_workflow_process_sqs_queue_success(
                 "ResultType": "success",
                 "lastModified": "Thu Sep 09 17:56:39 UTC 2021",
             },
-        )
+            "ingested": True,
+        }
     ]
 
 
 @patch("dsc.utilities.aws.sqs.SQSClient.process_result_message")
-def test_base_workflow_process_sqs_queue_exception_logged(
-    mocked_method,
+def test_base_workflow_process_sqs_queue_if_exception_capture_event_and_log(
+    mocked_workflow_process_result_message,
     caplog,
     base_workflow_instance,
     mocked_sqs_output,
@@ -214,16 +220,56 @@ def test_base_workflow_process_sqs_queue_exception_logged(
     result_message_body,
     sqs_client,
 ):
-    mocked_method.side_effect = [Exception]
+    mocked_workflow_process_result_message.side_effect = [Exception]
     caplog.set_level("DEBUG")
     sqs_client.send(
         message_attributes=result_message_attributes,
         message_body=result_message_body,
     )
     items = base_workflow_instance.process_sqs_queue()
+
+    assert (
+        "Error while processing SQS message"
+        in base_workflow_instance.workflow_events.errors[0]
+    )
     assert "Error while processing SQS message:" in caplog.text
     assert "Messages received and deleted from 'mock-output-queue'" in caplog.text
     assert items == []
+
+
+@patch("dsc.utilities.aws.sqs.SQSClient.process_result_message")
+def test_base_workflow_process_sqs_queue_if_not_ingested_capture_event_and_log(
+    mocked_workflow_process_result_message,
+    caplog,
+    base_workflow_instance,
+    mocked_sqs_output,
+    result_message_attributes,
+    sqs_client,
+):
+    result_message_body = {"ResultType": "error"}
+    mocked_workflow_process_result_message.return_value = ("123", result_message_body)
+    caplog.set_level("DEBUG")
+    sqs_client.send(
+        message_attributes=result_message_attributes,
+        message_body=json.dumps(result_message_body),
+    )
+
+    items = base_workflow_instance.process_sqs_queue()
+
+    assert not base_workflow_instance.workflow_events.processed_items[0]["ingested"]
+    assert (
+        "Item '123' did not ingest successfully"
+        in base_workflow_instance.workflow_events.errors[0]
+    )
+    assert "Item '123' did not ingest successfully" in caplog.text
+    assert "Messages received and deleted from 'mock-output-queue'" in caplog.text
+    assert items == [
+        {
+            "item_identifier": "123",
+            "result_message_body": result_message_body,
+            "ingested": False,
+        }
+    ]
 
 
 def test_base_workflow_workflow_specific_processing_success(
@@ -235,31 +281,13 @@ def test_base_workflow_workflow_specific_processing_success(
     assert "No extra processing for 1 items based on workflow: 'test'" in caplog.text
 
 
-def test_base_workflow_report_results_success(
+def test_base_workflow_send_report_success(
     caplog,
     base_workflow_instance,
     mocked_ses,
 ):
     caplog.set_level("DEBUG")
-    base_workflow_instance.report_data = [
-        "10.1002/term.3131: {'ResultType': 'success', 'ItemHandle': '1721.1/131022', "
-        "'lastModified': 'Thu Sep 09 17:56:39 UTC 2021', 'Bitstreams': "
-        "[{'BitstreamName': '10.1002-term.3131.pdf', 'BitstreamUUID': 'a1b2c3d4e5', "
-        "'BitstreamChecksum': {'value': 'a4e0f4930dfaff904fa3c6c85b0b8ecc', "
-        "'checkSumAlgorithm': 'MD5'}}]}",
-        "1111/2222: {'ResultType': 'success', 'ItemHandle': '1721.1/131023', "
-        "'lastModified': 'Thu Sep 09 17:56:39 UTC 2021', 'Bitstreams': "
-        "[{'BitstreamName': '1111/2222.pdf', 'BitstreamUUID': 'a1b2c3d4e5', "
-        "'BitstreamChecksum': {'value': 'a4e0f4930dfaff904fa3c6c85b0b8ecc', "
-        "'checkSumAlgorithm': 'MD5'}}]}",
-    ]
-    base_workflow_instance.report_results(["test@test.test"])
+    base_workflow_instance.send_report(
+        report_class=FinalizeReport, email_recipients=["test@test.test"]
+    )
     assert "Logs sent to ['test@test.test']" in caplog.text
-    assert (
-        "10.1002/term.3131: {'ResultType': 'success', 'ItemHandle': '1721.1/131022'"
-        in caplog.text
-    )
-    assert (
-        "1111/2222: {'ResultType': 'success', 'ItemHandle': '1721.1/131023'"
-        in caplog.text
-    )

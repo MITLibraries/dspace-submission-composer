@@ -140,6 +140,7 @@ def test_finalize_success(
             "test@test.test,test2@test.test",
         ],
     )
+
     assert result.exit_code == 0
     assert "Processing result messages in 'mock-output-queue'" in caplog.text
     assert "Receiving messages from SQS queue: 'mock-output-queue'" in caplog.text

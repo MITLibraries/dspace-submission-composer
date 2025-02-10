@@ -3,11 +3,14 @@ from __future__ import annotations
 import logging
 from email.mime.application import MIMEApplication
 from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
 from typing import TYPE_CHECKING
 
 from boto3 import client
 
 if TYPE_CHECKING:  # pragma: no cover
+    from io import StringIO
+
     from mypy_boto3_ses.type_defs import SendRawEmailResponseTypeDef
 
 logger = logging.getLogger(__name__)
@@ -22,45 +25,54 @@ class SESClient:
     def create_and_send_email(
         self,
         subject: str,
-        attachment_content: str,
-        attachment_name: str,
         source_email_address: str,
         recipient_email_addresses: list[str],
+        message_body_plain_text: str,
+        message_body_html: str | None = None,
+        attachments: list[tuple] | None = None,
     ) -> None:
         """Create an email message and send it via SES.
 
         Args:
-           subject: The subject of the email.
-           attachment_content: The content of the email attachment.
-           attachment_name: The name of the email attachment.
-           source_email_address: The email address of the sender.
-           recipient_email_addresses: The email address of the receipient.
+            subject: The subject of the email.
+            source_email_address: The email address of the sender.
+            recipient_email_addresses: The email address of the receipient.
+            message_body_plain_text: Message body rendered in plain-text.
+            message_body_html: Message body rendered in HTML.
+            attachments: Attachments to include in an email, represented as
+                a list of tuples containing: filename, content type, content.
         """
-        message = self._create_email(subject, attachment_content, attachment_name)
+        message = self._create_email(
+            subject, message_body_plain_text, message_body_html, attachments
+        )
         self._send_email(source_email_address, recipient_email_addresses, message)
         logger.debug(f"Logs sent to {recipient_email_addresses}")
 
     def _create_email(
         self,
         subject: str,
-        attachment_content: str,
-        attachment_name: str,
+        message_body_plain_text: str,
+        message_body_html: str | None = None,
+        attachments: list | None = None,
     ) -> MIMEMultipart:
-        """Create an email.
-
-        Args:
-            subject: The subject of the email.
-            attachment_content: The content of the email attachment.
-            attachment_name: The name of the email attachment.
-        """
         message = MIMEMultipart()
         message["Subject"] = subject
-        attachment_object = MIMEApplication(attachment_content)
-        attachment_object.add_header(
-            "Content-Disposition", "attachment", filename=attachment_name
-        )
-        message.attach(attachment_object)
+
+        message.attach(MIMEText(message_body_plain_text, "plain"))
+
+        if message_body_html:
+            message.attach(MIMEText(message_body_html, "html"))
+
+        if attachments:
+            for filename, content in attachments:
+                attachment = self._create_attachment(filename, content)
+                message.attach(attachment)
         return message
+
+    def _create_attachment(self, filename: str, content: StringIO) -> MIMEApplication:
+        attachment = MIMEApplication(content.read())
+        attachment.add_header("Content-Disposition", "attachment", filename=filename)
+        return attachment
 
     def _send_email(
         self,

@@ -1,0 +1,8 @@
+{% extends "base.txt" %}
+
+Results summary for {{workflow_name}} deposit for batch='{{batch_id}}'
+Run date: {{report_date}}
+Results:
+
+Ingested: {{ processed_items|length }}
+Errors: {{ errors|length }}

@@ -6,6 +6,7 @@ import click
 
 from dsc.config import Config
 from dsc.exceptions import ReconcileError
+from dsc.reports import FinalizeReport
 from dsc.workflows.base import Workflow
 
 logger = logging.getLogger(__name__)
@@ -74,8 +75,10 @@ def reconcile(ctx: click.Context) -> None:
     workflow = ctx.obj["workflow"]
     try:
         workflow.reconcile_bitstreams_and_metadata()
+        # TODO(): workflow.send_report(email_recipients.split(",")) #noqa:FIX002, TD003
     except ReconcileError:
         logger.info("Reconcile failed.")
+        # TODO(): workflow.send_report(email_recipients.split(",")) #noqa:FIX002, TD003
         ctx.exit(1)
 
 
@@ -102,7 +105,7 @@ def submit(
     workflow = ctx.obj["workflow"]
     logger.debug(f"Beginning submission of batch ID: {workflow.batch_id}")
     workflow.submit_items(collection_handle)
-    # TODO(): workflow.report_results(email_recipients.split(",")) #noqa:FIX002, TD003
+    # TODO(): workflow.send_report(email_recipients.split(",")) #noqa:FIX002, TD003
 
 
 @main.command()
@@ -117,4 +120,6 @@ def finalize(ctx: click.Context, email_recipients: str) -> None:
     """Process the result messages from the DSS output queue according the workflow."""
     workflow = ctx.obj["workflow"]
     workflow.process_results()
-    workflow.report_results(email_recipients.split(","))
+    workflow.send_report(
+        report_class=FinalizeReport, email_recipients=email_recipients.split(",")
+    )
