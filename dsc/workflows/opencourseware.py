@@ -56,7 +56,7 @@ class OpenCourseWare(Workflow):
             item_identifier = self.parse_item_identifier(file)
             item_identifiers.append(item_identifier)
             try:
-                self._extract_metadata_from_zip_file(file, item_identifier)
+                self._extract_metadata_from_zip_file(file)
             except FileNotFoundError:
                 bitstreams_without_metadata.append(item_identifier)
 
@@ -86,15 +86,12 @@ class OpenCourseWare(Workflow):
         for file in s3_client.files_iter(
             bucket=self.s3_bucket, prefix=self.batch_path, file_type=".zip"
         ):
-            item_identifier = self.parse_item_identifier(file)
             yield {
                 "item_identifier": self.parse_item_identifier(file),
-                **self._extract_metadata_from_zip_file(file, item_identifier),
+                **self._extract_metadata_from_zip_file(file),
             }
 
-    def _extract_metadata_from_zip_file(
-        self, file: str, item_identifier: str
-    ) -> dict[str, str]:
+    def _extract_metadata_from_zip_file(self, file: str) -> dict[str, str]:
         """Yield source metadata from metadata JSON file in zip archive.
 
         This method expects a JSON file called "data.json" at the root
@@ -114,19 +111,16 @@ class OpenCourseWare(Workflow):
             file_input
         ) as zip_file:
             for filename in zip_file.namelist():
-                metadata_json = f"{item_identifier}/data.json"
-                if filename == metadata_json:
-                    return self._read_metadata_json_file(zip_file, metadata_json)
+                if filename == "data.json":
+                    return self._read_metadata_json_file(zip_file)
             raise FileNotFoundError(
                 "The required file 'data.json' file was not found in the zip file: "
                 f"{file}"
             )
 
-    def _read_metadata_json_file(
-        self, zip_file: zipfile.ZipFile, metadata_json: str
-    ) -> dict[str, str]:
+    def _read_metadata_json_file(self, zip_file: zipfile.ZipFile) -> dict[str, str]:
         """Read source metadata JSON file."""
-        with zip_file.open(metadata_json) as file:
+        with zip_file.open("data.json") as file:
             source_metadata = json.load(file)
             source_metadata["instructors"] = self._get_instructors_delimited_string(
                 source_metadata["instructors"]
@@ -200,7 +194,3 @@ class OpenCourseWare(Workflow):
                 exclude_prefixes=["archived"],
             )
         )
-
-    def process_deposit_results(self) -> list[str]:
-        """TODO: Stub method."""
-        return [""]
