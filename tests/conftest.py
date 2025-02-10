@@ -84,6 +84,17 @@ class TestSimpleCSV(SimpleCSV):
         return "mock-output-queue"
 
 
+class TestOpenCourseWare(OpenCourseWare):
+
+    @property
+    def s3_bucket(self) -> str:
+        return "dsc"
+
+    @property
+    def output_queue(self) -> str:
+        return "mock-output-queue"
+
+
 @pytest.fixture(autouse=True)
 def _test_env(monkeypatch):
     monkeypatch.setenv("SENTRY_DSN", "None")
@@ -108,12 +119,7 @@ def simple_csv_workflow_instance(metadata_mapping):
 
 @pytest.fixture
 def opencourseware_workflow_instance():
-    return OpenCourseWare(
-        collection_handle="123.4/5678",
-        batch_id="batch-aaa",
-        email_recipients=["test@test.test"],
-        output_queue="mock-output_queue",
-    )
+    return TestOpenCourseWare(batch_id="batch-aaa")
 
 
 @pytest.fixture

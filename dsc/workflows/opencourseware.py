@@ -22,7 +22,18 @@ class OpenCourseWare(Workflow):
     """
 
     workflow_name: str = "opencourseware"
-    metadata_mapping_path: str = "dsc/workflows/metadata_mapping/opencourseware.json"
+
+    @property
+    def metadata_mapping_path(self) -> str:
+        return "dsc/workflows/metadata_mapping/opencourseware.json"
+
+    @property
+    def s3_bucket(self) -> str:
+        return "awaiting AWS infrastructure"
+
+    @property
+    def output_queue(self) -> str:
+        return "awaiting AWS infrastructure"
 
     def reconcile_bitstreams_and_metadata(self) -> None:
         """Reconcile bitstreams against item metadata.
