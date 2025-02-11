@@ -12,6 +12,7 @@ from dsc.item_submission import ItemSubmission
 from dsc.utilities.aws.s3 import S3Client
 from dsc.utilities.aws.ses import SESClient
 from dsc.utilities.aws.sqs import SQSClient
+from dsc.workflows import OpenCourseWare
 from dsc.workflows.base import Workflow, WorkflowEvents
 from dsc.workflows.base.simple_csv import SimpleCSV
 
@@ -83,6 +84,17 @@ class TestSimpleCSV(SimpleCSV):
         return "mock-output-queue"
 
 
+class TestOpenCourseWare(OpenCourseWare):
+
+    @property
+    def s3_bucket(self) -> str:
+        return "dsc"
+
+    @property
+    def output_queue(self) -> str:
+        return "mock-output-queue"
+
+
 @pytest.fixture(autouse=True)
 def _test_env(monkeypatch):
     monkeypatch.setenv("SENTRY_DSN", "None")
@@ -103,6 +115,36 @@ def base_workflow_instance(item_metadata, metadata_mapping, mocked_s3):
 @pytest.fixture
 def simple_csv_workflow_instance(metadata_mapping):
     return TestSimpleCSV(batch_id="batch-aaa")
+
+
+@pytest.fixture
+def opencourseware_workflow_instance():
+    return TestOpenCourseWare(batch_id="batch-aaa")
+
+
+@pytest.fixture
+def opencourseware_source_metadata():
+    return {
+        "course_title": "Matrix Calculus for Machine Learning and Beyond",
+        "course_description": "We all know that calculus courses.",
+        "site_uid": "2318fd9f-1b5c-4a48-8a04-9c56d902a1f8",
+        "instructors": [
+            {
+                "first_name": "Alan",
+                "last_name": "Edelman",
+                "middle_initial": "",
+                "salutation": "Prof.",
+                "title": "Prof. Alan Edelman",
+            },
+            {
+                "first_name": "Steven",
+                "last_name": "Johnson",
+                "middle_initial": "G.",
+                "salutation": "Prof.",
+                "title": "Prof. Steven G. Johnson",
+            },
+        ],
+    }
 
 
 @pytest.fixture
