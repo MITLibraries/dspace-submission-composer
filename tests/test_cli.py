@@ -142,11 +142,14 @@ def test_finalize_success(
     )
 
     assert result.exit_code == 0
-    assert "Processing result messages in 'mock-output-queue'" in caplog.text
-    assert "Receiving messages from SQS queue: 'mock-output-queue'" in caplog.text
-    assert "Message retrieved from SQS queue 'mock-output-queue':" in caplog.text
-    assert "No more messages from SQS queue: 'mock-output-queue'" in caplog.text
-    assert "Messages received and deleted from 'mock-output-queue'" in caplog.text
+    assert (
+        "Processing DSS result messages from the output queue 'mock-output-queue'"
+        in caplog.text
+    )
+    assert "Receiving messages from the queue 'mock-output-queue'" in caplog.text
+    assert "Retrieved message" in caplog.text
+    assert "Parsed message" in caplog.text
+    assert "No messages remain in the queue 'mock-output-queue'" in caplog.text
     assert "Logs sent to ['test@test.test', 'test2@test.test']" in caplog.text
     assert "Application exiting" in caplog.text
     assert "Total time elapsed" in caplog.text

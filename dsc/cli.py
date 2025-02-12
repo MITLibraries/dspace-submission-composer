@@ -103,7 +103,7 @@ def submit(
 ) -> None:
     """Send a batch of item submissions to the DSpace Submission Service (DSS)."""
     workflow = ctx.obj["workflow"]
-    logger.debug(f"Beginning submission of batch ID: {workflow.batch_id}")
+    logger.info(f"Beginning submission of batch ID: {workflow.batch_id}")
     workflow.submit_items(collection_handle)
     # TODO(): workflow.send_report(email_recipients.split(",")) #noqa:FIX002, TD003
 

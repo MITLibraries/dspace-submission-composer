@@ -176,17 +176,12 @@ def test_base_workflow_process_sqs_queue_success(
         message_body=result_message_body,
     )
 
+    expected_processing_summary = {"total": 1, "ingested": 1, "errors": 0}
     items = base_workflow_instance.process_sqs_queue()
 
     assert base_workflow_instance.workflow_events.processed_items[0]["ingested"]
-    assert "Messages received and deleted from 'mock-output-queue'" in caplog.text
-    assert (
-        "Item identifier: '10.1002/term.3131', Result: {'ResultType': 'success', "
-        "'ItemHandle': '1721.1/131022', 'lastModified': 'Thu Sep 09 17:56:39 UTC 2021', "
-        "'Bitstreams': [{'BitstreamName': '10.1002-term.3131.pdf', 'BitstreamUUID': "
-        "'a1b2c3d4e5', 'BitstreamChecksum': {'value': 'a4e0f4930dfaff904fa3c6c85b0b8ecc',"
-        " 'checkSumAlgorithm': 'MD5'}}]}" in caplog.text
-    )
+    assert "Item was successfully ingested: 10.1002/term.3131" in caplog.text
+    assert json.dumps(expected_processing_summary) in caplog.text
     assert items == [
         {
             "item_identifier": "10.1002/term.3131",
@@ -210,7 +205,7 @@ def test_base_workflow_process_sqs_queue_success(
     ]
 
 
-@patch("dsc.utilities.aws.sqs.SQSClient.process_result_message")
+@patch("dsc.utilities.aws.sqs.SQSClient.parse_dss_result_message")
 def test_base_workflow_process_sqs_queue_if_exception_capture_event_and_log(
     mocked_workflow_process_result_message,
     caplog,
@@ -220,24 +215,27 @@ def test_base_workflow_process_sqs_queue_if_exception_capture_event_and_log(
     result_message_body,
     sqs_client,
 ):
-    mocked_workflow_process_result_message.side_effect = [Exception]
+    mocked_workflow_process_result_message.side_effect = [Exception("An error occurred")]
     caplog.set_level("DEBUG")
     sqs_client.send(
         message_attributes=result_message_attributes,
         message_body=result_message_body,
     )
+
+    expected_processing_summary = {
+        "total": 1,
+        "ingested": 0,
+        "errors": 1,
+    }
     items = base_workflow_instance.process_sqs_queue()
 
-    assert (
-        "Error while processing SQS message"
-        in base_workflow_instance.workflow_events.errors[0]
-    )
-    assert "Error while processing SQS message:" in caplog.text
-    assert "Messages received and deleted from 'mock-output-queue'" in caplog.text
+    assert base_workflow_instance.workflow_events.errors[0] == "An error occurred"
+    assert "An error occurred" in caplog.text
+    assert json.dumps(expected_processing_summary) in caplog.text
     assert items == []
 
 
-@patch("dsc.utilities.aws.sqs.SQSClient.process_result_message")
+@patch("dsc.utilities.aws.sqs.SQSClient.parse_dss_result_message")
 def test_base_workflow_process_sqs_queue_if_not_ingested_capture_event_and_log(
     mocked_workflow_process_result_message,
     caplog,
@@ -254,15 +252,19 @@ def test_base_workflow_process_sqs_queue_if_not_ingested_capture_event_and_log(
         message_body=json.dumps(result_message_body),
     )
 
+    expected_processing_summary = {
+        "total": 1,
+        "ingested": 0,
+        "errors": 1,
+    }
     items = base_workflow_instance.process_sqs_queue()
 
     assert not base_workflow_instance.workflow_events.processed_items[0]["ingested"]
     assert (
-        "Item '123' did not ingest successfully"
-        in base_workflow_instance.workflow_events.errors[0]
+        "Item was not ingested: 123" in base_workflow_instance.workflow_events.errors[0]
     )
-    assert "Item '123' did not ingest successfully" in caplog.text
-    assert "Messages received and deleted from 'mock-output-queue'" in caplog.text
+    assert "Item was not ingested: 123" in caplog.text
+    assert json.dumps(expected_processing_summary) in caplog.text
     assert items == [
         {
             "item_identifier": "123",
@@ -277,7 +279,7 @@ def test_base_workflow_workflow_specific_processing_success(
     base_workflow_instance,
     mocked_ses,
 ):
-    base_workflow_instance.workflow_specific_processing([""])
+    base_workflow_instance.workflow_specific_processing([{}])
     assert "No extra processing for 1 items based on workflow: 'test'" in caplog.text
 
 

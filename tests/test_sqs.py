@@ -25,11 +25,6 @@ def test_sqs_create_dss_message_body(sqs_client, submission_message_body):
     assert dss_message_body == submission_message_body
 
 
-def test_sqs_delete_nonexistent_message_raises_error(mocked_sqs_output, sqs_client):
-    with pytest.raises(ClientError):
-        sqs_client.delete(receipt_handle="12345678")
-
-
 def test_sqs_delete_success(
     mocked_sqs_output,
     sqs_client,
@@ -40,60 +35,51 @@ def test_sqs_delete_success(
         message_attributes=result_message_attributes,
         message_body=result_message_body,
     )
-    messages = sqs_client.receive()
-    receipt_handle = next(messages)["ReceiptHandle"]
-    response = sqs_client.delete(receipt_handle=receipt_handle)
+    message = next(sqs_client.receive())
+    response = sqs_client.delete(
+        receipt_handle=message["ReceiptHandle"], message_id=message["MessageId"]
+    )
     assert response["ResponseMetadata"]["HTTPStatusCode"] == HTTPStatus.OK
 
 
-def test_sqs_process_result_message(
-    mocked_sqs_output,
-    sqs_client,
-    result_message_attributes,
-    result_message_body,
-):
-    sqs_client.send(
-        message_attributes=result_message_attributes,
-        message_body=result_message_body,
-    )
-    messages = sqs_client.receive()
-    identifier, message_body = sqs_client.process_result_message(
-        sqs_message=next(messages)
-    )
-    assert identifier == "10.1002/term.3131"
-    assert message_body == {
-        "Bitstreams": [
-            {
-                "BitstreamChecksum": {
-                    "checkSumAlgorithm": "MD5",
-                    "value": "a4e0f4930dfaff904fa3c6c85b0b8ecc",
-                },
-                "BitstreamName": "10.1002-term.3131.pdf",
-                "BitstreamUUID": "a1b2c3d4e5",
-            }
-        ],
-        "ItemHandle": "1721.1/131022",
-        "ResultType": "success",
-        "lastModified": "Thu Sep 09 17:56:39 UTC 2021",
-    }
-
-
-def test_sqs_process_result_message_raises_invalid_sqs_exception(
-    mocked_sqs_output,
-    sqs_client,
-):
-    sqs_client.send(message_attributes={}, message_body={})
-    messages = sqs_client.receive()
-    with pytest.raises(InvalidSQSMessageError):
-        sqs_client.process_result_message(
-            sqs_message=next(messages),
+def test_sqs_delete_invalid_receipt_handle_raises_error(mocked_sqs_output, sqs_client):
+    with pytest.raises(ClientError) as exception_info:
+        sqs_client.delete(
+            receipt_handle="abc",
+            message_id="def",
         )
 
+    assert str(exception_info.value) == (
+        "An error occurred (ReceiptHandleIsInvalid) when calling "
+        "the DeleteMessage operation: The input receipt handle is invalid."
+    )
 
-def test_sqs_receive_raises_error_for_incorrect_queue(mocked_sqs_output, sqs_client):
-    sqs_client.queue_name = "non-existent"
-    with pytest.raises(ClientError):
-        next(sqs_client.receive())
+
+def test_sqs_send_success(
+    mocked_sqs_input, sqs_client, submission_message_attributes, submission_message_body
+):
+    sqs_client.queue_name = "mock-input-queue"
+    response = sqs_client.send(
+        message_attributes=submission_message_attributes,
+        message_body=submission_message_body,
+    )
+    assert response["ResponseMetadata"]["HTTPStatusCode"] == HTTPStatus.OK
+
+
+def test_sqs_send_nonexistent_queue_raises_error(
+    mocked_sqs_input, sqs_client, submission_message_attributes, submission_message_body
+):
+    sqs_client.queue_name = "nonexistent"
+    with pytest.raises(ClientError) as exception_info:
+        sqs_client.send(
+            message_attributes=submission_message_attributes,
+            message_body=submission_message_body,
+        )
+
+    assert str(exception_info.value) == (
+        "An error occurred (AWS.SimpleQueueService.NonExistentQueue) when "
+        "calling the GetQueueUrl operation: The specified queue does not exist."
+    )
 
 
 def test_sqs_receive_success(
@@ -112,58 +98,83 @@ def test_sqs_receive_success(
         assert message["MessageAttributes"] == result_message_attributes
 
 
-def test_sqs_send_raises_error_for_incorrect_queue(
-    mocked_sqs_input, sqs_client, submission_message_attributes, submission_message_body
+def test_sqs_receive_nonexistent_queue_raises_error(mocked_sqs_output, sqs_client):
+    sqs_client.queue_name = "nonexistent"
+
+    with pytest.raises(ClientError) as exception_info:
+        next(sqs_client.receive())
+
+    assert str(exception_info.value) == (
+        "An error occurred (AWS.SimpleQueueService.NonExistentQueue) when calling "
+        "the GetQueueUrl operation: The specified queue does not exist."
+    )
+
+
+def test_sqs_parse_dss_result_message_success(
+    mocked_sqs_output, sqs_client, result_message_attributes, result_message_body
 ):
-    sqs_client.queue_name = "non-existent"
-    with pytest.raises(ClientError):
-        sqs_client.send(
-            message_attributes=submission_message_attributes,
-            message_body=submission_message_body,
+    sqs_client.send(
+        message_attributes=result_message_attributes,
+        message_body=result_message_body,
+    )
+    messages = sqs_client.receive()
+    identifier, message_body = sqs_client.parse_dss_result_message(
+        sqs_message=next(messages)
+    )
+    assert identifier == "10.1002/term.3131"
+    assert message_body["ItemHandle"] == "1721.1/131022"
+
+
+def test_sqs_parse_dss_result_message_invalid_message_raises_exception(
+    mocked_sqs_output,
+    sqs_client,
+):
+    sqs_client.send(message_attributes={}, message_body={})
+    messages = sqs_client.receive()
+    with pytest.raises(InvalidSQSMessageError):
+        sqs_client.parse_dss_result_message(
+            sqs_message=next(messages),
         )
 
 
-def test_sqs_send_success(
-    mocked_sqs_input, sqs_client, submission_message_attributes, submission_message_body
+def test_sqs_validate_dss_result_message_success(sqs_client, result_message_valid):
+    try:
+        sqs_client.validate_dss_result_message(sqs_message=result_message_valid)
+    except Exception:  # noqa: BLE001
+        pytest.fail("An exception was raised.")
+
+
+def test_sqs_validate_dss_result_message_no_receipt_handle_raises_error(
+    mocked_sqs_input, result_message_valid, sqs_client
 ):
-    sqs_client.queue_name = "mock-input-queue"
-    response = sqs_client.send(
-        message_attributes=submission_message_attributes,
-        message_body=submission_message_body,
-    )
-    assert response["ResponseMetadata"]["HTTPStatusCode"] == HTTPStatus.OK
+    # message without 'ReceiptHandle' is invalid
+    result_message_invalid = dict(result_message_valid)
+    result_message_invalid["ReceiptHandle"] = None
+
+    with pytest.raises(
+        InvalidSQSMessageError, match="Failed to retrieve 'ReceiptHandle' from message"
+    ):
+        sqs_client.validate_dss_result_message(sqs_message=result_message_invalid)
 
 
-def test_sqs_validate_result_message_no_receipthandle_invalid(
-    mocked_sqs_input, sqs_client, result_message_valid
+def test_sqs_validate_message_attributes_invalid_raises_error(
+    mocked_sqs_input, result_message_valid, sqs_client
 ):
-    with pytest.raises(InvalidSQSMessageError):
-        sqs_client.validate_result_message(sqs_message={})
+    # message without 'MessageAttributes' is invalid
+    result_message_invalid = dict(result_message_valid)
+    result_message_invalid["MessageAttributes"] = {}
+
+    with pytest.raises(
+        InvalidSQSMessageError, match="Failed to parse message attributes"
+    ):
+        sqs_client.validate_message_attributes(sqs_message=result_message_invalid)
 
 
-def test_sqs_validate_result_message_valid(
-    mocked_sqs_input, sqs_client, result_message_valid
+def test_sqs_validate_message_body_invalid_raises_error(
+    mocked_sqs_input, result_message_valid, sqs_client
 ):
-    assert not sqs_client.validate_result_message(sqs_message=result_message_valid)
+    result_message_invalid = dict(result_message_valid)
+    result_message_invalid["Body"] = "{}"
 
-
-def test_sqs_validate_result_message_attributes_invalid(mocked_sqs_input, sqs_client):
-    with pytest.raises(InvalidSQSMessageError):
-        sqs_client.validate_message_attributes(sqs_message={})
-
-
-def test_sqs_validate_result_message_attributes_valid(
-    mocked_sqs_input, sqs_client, result_message_valid
-):
-    assert not sqs_client.validate_message_attributes(sqs_message=result_message_valid)
-
-
-def test_sqs_validate_result_message_body_invalid(caplog, mocked_sqs_input, sqs_client):
-    with pytest.raises(InvalidSQSMessageError):
-        sqs_client.validate_message_body(sqs_message={})
-
-
-def test_sqs_validate_result_message_body_valid(
-    mocked_sqs_input, sqs_client, result_message_valid
-):
-    assert not sqs_client.validate_message_body(sqs_message=result_message_valid)
+    with pytest.raises(InvalidSQSMessageError, match="Failed to parse message body"):
+        sqs_client.validate_message_body(sqs_message=result_message_invalid)

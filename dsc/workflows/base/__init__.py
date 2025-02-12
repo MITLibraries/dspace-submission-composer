@@ -1,3 +1,4 @@
+# ruff: noqa: BLE001, TRY400
 from __future__ import annotations
 
 import json
@@ -308,7 +309,14 @@ class Workflow(ABC):
 
         May be overridden by workflow subclasses.
         """
-        logger.debug(f"Processing result messages in '{self.output_queue}'")
+        logger.info(
+            f"Processing DSS result messages from the output queue '{self.output_queue}'"
+        )
+        processing_summary = {
+            "total": 0,
+            "ingested": 0,
+            "errors": 0,
+        }
 
         sqs_client = SQSClient(
             region=CONFIG.aws_region_name, queue_name=self.output_queue
@@ -316,33 +324,44 @@ class Workflow(ABC):
 
         items = []
         for sqs_message in sqs_client.receive():
+            processing_summary["total"] += 1
             try:
-                item_identifier, result_message_body = sqs_client.process_result_message(
-                    sqs_message
+                item_identifier, result_message_body = (
+                    sqs_client.parse_dss_result_message(sqs_message)
                 )
-            except Exception:
-                error_message = f"Error while processing SQS message: {sqs_message}"
-                logger.exception(error_message)
-                self.workflow_events.errors.append(error_message)
+            except Exception as exception:
+                logger.error(exception)
+                processing_summary["errors"] += 1
+                self.workflow_events.errors.append(str(exception))
                 continue
 
-            # capture all processed items, whether ingested or not
+            sqs_client.delete(
+                receipt_handle=sqs_message["ReceiptHandle"],
+                message_id=sqs_message["MessageId"],
+            )
+
+            # capture all parsed items, whether ingested or not
             item_data = {
                 "item_identifier": item_identifier,
                 "result_message_body": result_message_body,
                 "ingested": result_message_body["ResultType"] == "success",
             }
-            self.workflow_events.processed_items.append(item_data)
             items.append(item_data)
+            self.workflow_events.processed_items.append(item_data)
 
-            if not item_data["ingested"]:
-                message = (
-                    f"Item '{item_identifier}' did not ingest successfully: {sqs_message}"
-                )
+            if item_data["ingested"]:
+                processing_summary["ingested"] += 1
+                logger.info(f"Item was successfully ingested: {item_identifier}")
+            else:
+                message = f"Item was not ingested: {item_identifier}"
                 logger.info(message)
+                processing_summary["errors"] += 1
                 self.workflow_events.errors.append(message)
 
-        logger.debug(f"Messages received and deleted from '{self.output_queue}'")
+        logger.info(
+            f"Processed DSS result messages from the output queue '{self.output_queue}': "
+            f"{json.dumps(processing_summary)}"
+        )
         return items
 
     def workflow_specific_processing(self, items: list[dict]) -> None:
