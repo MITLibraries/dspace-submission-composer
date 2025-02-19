@@ -4,8 +4,9 @@ import json
 import logging
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from http import HTTPStatus
 from typing import TYPE_CHECKING, Any, final
+
+from botocore.exceptions import ClientError
 
 from dsc.config import Config
 from dsc.exceptions import (
@@ -37,7 +38,7 @@ class WorkflowEvents:
     """
 
     reconciled_items: list[str] = field(default_factory=list)
-    submitted_items: list[str] = field(default_factory=list)
+    submitted_items: list[dict] = field(default_factory=list)
     processed_items: list[dict] = field(default_factory=list)
     errors: list[str] = field(default_factory=list)
 
@@ -129,7 +130,7 @@ class Workflow(ABC):
         """
 
     @final
-    def submit_items(self, collection_handle: str) -> dict:
+    def submit_items(self, collection_handle: str) -> list:
         """Submit items to the DSpace Submission Service according to the workflow class.
 
         Args:
@@ -139,34 +140,70 @@ class Workflow(ABC):
         Returns a dict with the submission results organized into succeeded and failed
         items.
         """
-        items: dict[str, Any] = {"succeeded": {}, "failed": {}}
+        logger.info(
+            f"Submitting messages to the DSS input queue '{CONFIG.dss_input_queue}' "
+            f"for batch '{self.batch_id}'"
+        )
+        submission_summary = {
+            "total": 0,
+            "submitted": 0,
+            "errors": 0,
+        }
+
+        items = []
         for item_submission in self.item_submissions_iter():
-            item_id = item_submission.item_identifier
+            submission_summary["total"] += 1
+            item_identifier = item_submission.item_identifier
+
             try:
                 item_submission.upload_dspace_metadata(self.s3_bucket, self.batch_path)
+            except Exception as exception:  # noqa: BLE001
+                logger.error(  # noqa: TRY400
+                    f"Failed to upload DSpace metadata for item. {exception}"
+                )
+                self.workflow_events.errors.append(str(exception))
+                submission_summary["errors"] += 1
+                continue
+
+            try:
                 response = item_submission.send_submission_message(
                     self.workflow_name,
                     self.output_queue,
                     self.submission_system,
                     collection_handle,
                 )
-            except Exception as exception:
-                logger.exception(f"Error processing submission: '{item_id}'")
-                items["failed"][item_id] = exception
+            except ClientError as exception:
+                logger.error(  # noqa: TRY400
+                    f"Failed to send submission message for item: {item_identifier}. "
+                    f"{exception}"
+                )
+                self.workflow_events.errors.append(str(exception))
+                submission_summary["errors"] += 1
                 continue
-            status_code = response["ResponseMetadata"]["HTTPStatusCode"]
-            if status_code != HTTPStatus.OK:
-                items["failed"][item_id] = RuntimeError("Non OK HTTPStatus")
+            except Exception as exception:  # noqa: BLE001
+                logger.error(  # noqa: TRY400
+                    f"Unexpected error occurred while sending submission message "
+                    f"for item: {item_identifier}. {exception}"
+                )
+                self.workflow_events.errors.append(str(exception))
+                submission_summary["errors"] += 1
                 continue
-            items["succeeded"][item_id] = response["MessageId"]
 
-        results = {
-            "success": not items["failed"],
-            "items_count": len(items["succeeded"]) + len(items["failed"]),
-            "items": items,
-        }
-        logger.info(results)
-        return results
+            item_data = {
+                "item_identifier": item_identifier,
+                "message_id": response["MessageId"],
+            }
+            items.append(item_data)
+            self.workflow_events.submitted_items.append(item_data)
+            submission_summary["submitted"] += 1
+
+            logger.info(f"Sent item submission message: {item_data["message_id"]}")
+
+        logger.info(
+            f"Submitted messages to the DSS input queue '{CONFIG.dss_input_queue}' "
+            f"for batch '{self.batch_id}': {json.dumps(submission_summary)}"
+        )
+        return items
 
     @final
     def item_submissions_iter(self) -> Iterator[ItemSubmission]:
@@ -176,7 +213,7 @@ class Workflow(ABC):
         """
         for item_metadata in self.item_metadata_iter():
             item_identifier = self.get_item_identifier(item_metadata)
-            logger.info(f"Processing submission for '{item_identifier}'")
+            logger.info(f"Preparing submission for item: {item_identifier}")
             dspace_metadata = self.create_dspace_metadata(item_metadata)
             self.validate_dspace_metadata(dspace_metadata)
             item_submission = ItemSubmission(
@@ -295,7 +332,7 @@ class Workflow(ABC):
         """
 
     @final
-    def process_results(self) -> None:
+    def process_ingest_results(self) -> None:
         """Process DSS results from the workflow's output queue.
 
         Must NOT be overridden by workflow subclasses.
@@ -308,7 +345,14 @@ class Workflow(ABC):
 
         May be overridden by workflow subclasses.
         """
-        logger.debug(f"Processing result messages in '{self.output_queue}'")
+        logger.info(
+            f"Processing DSS result messages from the output queue '{self.output_queue}'"
+        )
+        processing_summary = {
+            "total": 0,
+            "ingested": 0,
+            "errors": 0,
+        }
 
         sqs_client = SQSClient(
             region=CONFIG.aws_region_name, queue_name=self.output_queue
@@ -316,33 +360,44 @@ class Workflow(ABC):
 
         items = []
         for sqs_message in sqs_client.receive():
+            processing_summary["total"] += 1
             try:
-                item_identifier, result_message_body = sqs_client.process_result_message(
-                    sqs_message
+                item_identifier, result_message_body = (
+                    sqs_client.parse_dss_result_message(sqs_message)
                 )
-            except Exception:
-                error_message = f"Error while processing SQS message: {sqs_message}"
-                logger.exception(error_message)
-                self.workflow_events.errors.append(error_message)
+            except Exception as exception:  # noqa: BLE001
+                logger.error(exception)  # noqa: TRY400
+                processing_summary["errors"] += 1
+                self.workflow_events.errors.append(str(exception))
                 continue
 
-            # capture all processed items, whether ingested or not
+            sqs_client.delete(
+                receipt_handle=sqs_message["ReceiptHandle"],
+                message_id=sqs_message["MessageId"],
+            )
+
+            # capture all parsed items, whether ingested or not
             item_data = {
                 "item_identifier": item_identifier,
                 "result_message_body": result_message_body,
                 "ingested": result_message_body["ResultType"] == "success",
             }
-            self.workflow_events.processed_items.append(item_data)
             items.append(item_data)
+            self.workflow_events.processed_items.append(item_data)
 
-            if not item_data["ingested"]:
-                message = (
-                    f"Item '{item_identifier}' did not ingest successfully: {sqs_message}"
-                )
+            if item_data["ingested"]:
+                processing_summary["ingested"] += 1
+                logger.info(f"Item was successfully ingested: {item_identifier}")
+            else:
+                message = f"Item was not ingested: {item_identifier}"
                 logger.info(message)
+                processing_summary["errors"] += 1
                 self.workflow_events.errors.append(message)
 
-        logger.debug(f"Messages received and deleted from '{self.output_queue}'")
+        logger.info(
+            f"Processed DSS result messages from the output queue '{self.output_queue}': "
+            f"{json.dumps(processing_summary)}"
+        )
         return items
 
     def workflow_specific_processing(self, items: list[dict]) -> None:

@@ -103,52 +103,16 @@ class SQSClient:
             }
         )
 
-    def delete(self, receipt_handle: str) -> EmptyResponseMetadataTypeDef:
-        """Delete message from SQS queue.
-
-        Args:
-            receipt_handle: The receipt handle of the message to be deleted.
-        """
-        logger.debug("Deleting '{receipt_handle}' from SQS queue: {self.queue_name}")
+    def delete(
+        self, receipt_handle: str, message_id: str
+    ) -> EmptyResponseMetadataTypeDef:
+        """Delete message from SQS queue."""
         response = self.client.delete_message(
             QueueUrl=self.queue_url,
             ReceiptHandle=receipt_handle,
         )
-        logger.debug(f"Message deleted from SQS queue: {response}")
-
+        logger.debug(f"Deleted message: {message_id}")
         return response
-
-    def process_result_message(self, sqs_message: MessageTypeDef) -> tuple[str, dict]:
-        """Validate, extract data, and delete an SQS result message.
-
-        Args:
-            sqs_message: An SQS result message to be processed.
-        """
-        self.validate_result_message(sqs_message)
-        item_identifier = sqs_message["MessageAttributes"]["PackageID"]["StringValue"]
-        message_body = json.loads(sqs_message["Body"])
-        logger.info(f"Item identifier: '{item_identifier}', Result: {message_body}")
-        self.delete(sqs_message["ReceiptHandle"])
-        return item_identifier, message_body
-
-    def receive(self) -> Iterator[MessageTypeDef]:
-        """Receive messages from SQS queue."""
-        logger.debug(f"Receiving messages from SQS queue: '{self.queue_name}'")
-        while True:
-            response = self.client.receive_message(
-                QueueUrl=self.queue_url,
-                MaxNumberOfMessages=10,
-                MessageAttributeNames=["All"],
-            )
-            if "Messages" in response:
-                for message in response["Messages"]:
-                    logger.debug(
-                        f"Message retrieved from SQS queue '{self.queue_name}': {message}"
-                    )
-                    yield message
-            else:
-                logger.debug(f"No more messages from SQS queue: '{self.queue_name}'")
-                break
 
     def send(
         self,
@@ -161,25 +125,59 @@ class SQSClient:
             message_attributes: The attributes of the message to send.
             message_body: The body of the message to send.
         """
-        logger.debug(f"Sending message to SQS queue: {self.queue_name}")
         response = self.client.send_message(
             QueueUrl=self.queue_url,
             MessageAttributes=message_attributes,
-            MessageBody=str(message_body),
+            MessageBody=message_body,
         )
-        logger.debug(f"Response from SQS queue: {response}")
+        logger.debug(f"Sent message: {response["MessageId"]}")
         return response
 
-    def validate_result_message(self, sqs_message: MessageTypeDef) -> None:
-        """Validate that an SQS result message is formatted as expected.
+    def receive(self) -> Iterator[MessageTypeDef]:
+        """Receive messages from SQS queue."""
+        message_count = 0
+        logger.debug(f"Receiving messages from the queue '{self.queue_name}'")
+
+        while True:
+            response = self.client.receive_message(
+                QueueUrl=self.queue_url,
+                MaxNumberOfMessages=10,
+                MessageAttributeNames=["All"],
+            )
+            if "Messages" in response:
+                for message in response["Messages"]:
+                    logger.debug(f"Retrieved message: {message["MessageId"]}")
+                    message_count += 1
+                    yield message
+            else:
+                if message_count == 0:
+                    logger.info(f"No messages found in the queue '{self.queue_name}'")
+                else:
+                    logger.info(f"No messages remain in the queue '{self.queue_name}'")
+                break
+
+        logger.info(
+            f"Retrieved {message_count} message(s) from the queue '{self.queue_name}'"
+        )
+
+    def parse_dss_result_message(self, sqs_message: MessageTypeDef) -> tuple[str, dict]:
+        message_id = sqs_message["MessageId"]
+        self.validate_dss_result_message(sqs_message)
+        item_identifier = sqs_message["MessageAttributes"]["PackageID"]["StringValue"]
+        message_body = json.loads(sqs_message["Body"])
+        logger.debug(f"Parsed message: {message_id}")
+        return item_identifier, message_body
+
+    def validate_dss_result_message(self, sqs_message: MessageTypeDef) -> None:
+        """Validate format of DSS result message.
 
         Args:
-            sqs_message:  An SQS message to be evaluated.
-
+            sqs_message: An SQS message to be evaluated.
         """
         if not sqs_message.get("ReceiptHandle"):
             raise InvalidSQSMessageError(
-                f"Failed to retrieve 'ReceiptHandle' from message: {sqs_message}"
+                "Failed to retrieve 'ReceiptHandle' from message: "
+                f"{sqs_message["MessageId"]}"
             )
         self.validate_message_attributes(sqs_message=sqs_message)
         self.validate_message_body(sqs_message=sqs_message)
@@ -197,7 +195,7 @@ class SQSClient:
             or not sqs_message["MessageAttributes"]["PackageID"].get("StringValue")
         ):
             raise InvalidSQSMessageError(
-                f"Failed to parse SQS message attributes: {sqs_message}"
+                f"Failed to parse message attributes: {sqs_message["MessageId"]}"
             )
 
     @staticmethod
@@ -209,5 +207,5 @@ class SQSClient:
         """
         if "Body" not in sqs_message or not json.loads(str(sqs_message["Body"])):
             raise InvalidSQSMessageError(
-                f"Failed to parse SQS message body: {sqs_message}"
+                f"Failed to parse message body: {sqs_message["MessageId"]}"
             )

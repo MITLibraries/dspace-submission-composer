@@ -103,7 +103,6 @@ def submit(
 ) -> None:
     """Send a batch of item submissions to the DSpace Submission Service (DSS)."""
     workflow = ctx.obj["workflow"]
-    logger.debug(f"Beginning submission of batch ID: {workflow.batch_id}")
     workflow.submit_items(collection_handle)
     # TODO(): workflow.send_report(email_recipients.split(",")) #noqa:FIX002, TD003
 
@@ -119,7 +118,7 @@ def submit(
 def finalize(ctx: click.Context, email_recipients: str) -> None:
     """Process the result messages from the DSS output queue according the workflow."""
     workflow = ctx.obj["workflow"]
-    workflow.process_results()
+    workflow.process_ingest_results()
     workflow.send_report(
         report_class=FinalizeReport, email_recipients=email_recipients.split(",")
     )

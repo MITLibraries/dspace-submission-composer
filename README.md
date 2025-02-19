@@ -58,12 +58,12 @@ DSC_SOURCE_EMAIL=### The email address from which SES emails are sent.
 ### Optional
 
 ```shell
-LOG_LEVEL=### Logging level. Defaults to 'INFO'.
-MINIO_S3_LOCAL_STORAGE=# full file system path to the directory where MinIO stores its object data on the local disk
-MINIO_S3_URL=# endpoint for MinIO server API; default is "http://localhost:9000/"
-MINIO_S3_CONTAINER_URL=# endpoint for the MinIO server when acccessed from inside a Docker container; default is "http://host.docker.internal:9000/"
-MINIO_ROOT_USER=# username for root user account for MinIO server
-MINIO_ROOT_PASSWORD=# password for root user account MinIO server
+WARNING_ONLY_LOGGERS=# Comma-separated list of logger names to set as WARNING only, e.g. 'botocore,smart_open,urllib3'.
+MINIO_S3_LOCAL_STORAGE=# Full file system path to the directory where MinIO stores its object data on the local disk.
+MINIO_S3_URL=# Endpoint for MinIO server API; default is "http://localhost:9000/".
+MINIO_S3_CONTAINER_URL=# Endpoint for the MinIO server when acccessed from inside a Docker container; default is "http://host.docker.internal:9000/".
+MINIO_ROOT_USER=# Username for root user account for MinIO server.
+MINIO_ROOT_PASSWORD=# Password for root user account MinIO server.
 ```
 
 

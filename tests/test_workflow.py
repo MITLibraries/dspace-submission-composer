@@ -2,6 +2,7 @@ import json
 from unittest.mock import patch
 
 import pytest
+from botocore.exceptions import ClientError
 
 from dsc.exceptions import (
     InvalidDSpaceMetadataError,
@@ -55,16 +56,12 @@ def test_base_workflow_submit_items_success(
     caplog, base_workflow_instance, mocked_s3, mocked_sqs_input, mocked_sqs_output
 ):
     caplog.set_level("DEBUG")
-    submission_results = base_workflow_instance.submit_items("123.4/5678")
-    assert "Processing submission for '123'" in caplog.text
-    assert (
-        "Metadata uploaded to S3: s3://dsc/test/batch-aaa/123_metadata.json"
-        in caplog.text
-    )
-    assert submission_results["success"] is True
-    assert submission_results["items_count"] == 2  # noqa: PLR2004
-    assert len(submission_results["items"]["succeeded"]) == 2  # noqa: PLR2004
-    assert not submission_results["items"]["failed"]
+    items = base_workflow_instance.submit_items("123.4/5678")
+
+    expected_submission_summary = {"total": 2, "submitted": 2, "errors": 0}
+
+    assert len(items) == 2  # noqa: PLR2004
+    assert json.dumps(expected_submission_summary) in caplog.text
 
 
 @patch("dsc.item_submission.ItemSubmission.send_submission_message")
@@ -78,35 +75,16 @@ def test_base_workflow_submit_items_exceptions_handled(
 ):
     side_effect = [
         {"MessageId": "abcd", "ResponseMetadata": {"HTTPStatusCode": 200}},
-        Exception,
+        ClientError,
     ]
     mocked_method.side_effect = side_effect
-    submission_results = base_workflow_instance.submit_items("123.4/5678")
-    assert submission_results["success"] is False
-    assert submission_results["items_count"] == 2  # noqa: PLR2004
-    assert submission_results["items"]["succeeded"] == {"123": "abcd"}
-    assert isinstance(submission_results["items"]["failed"]["789"], Exception)
+    items = base_workflow_instance.submit_items("123.4/5678")
 
+    expected_submission_summary = {"total": 2, "submitted": 1, "errors": 1}
 
-@patch("dsc.item_submission.ItemSubmission.send_submission_message")
-def test_base_workflow_submit_items_invalid_status_codes_handled(
-    mocked_method,
-    caplog,
-    base_workflow_instance,
-    mocked_s3,
-    mocked_sqs_input,
-    mocked_sqs_output,
-):
-    side_effect = [
-        {"MessageId": "abcd", "ResponseMetadata": {"HTTPStatusCode": 200}},
-        {"ResponseMetadata": {"HTTPStatusCode": 400}},
-    ]
-    mocked_method.side_effect = side_effect
-    submission_results = base_workflow_instance.submit_items("123.4/5678")
-    assert submission_results["success"] is False
-    assert submission_results["items_count"] == 2  # noqa: PLR2004
-    assert submission_results["items"]["succeeded"] == {"123": "abcd"}
-    assert isinstance(submission_results["items"]["failed"]["789"], RuntimeError)
+    assert len(items) == 1
+    assert items == [{"item_identifier": "123", "message_id": "abcd"}]
+    assert json.dumps(expected_submission_summary) in caplog.text
 
 
 def test_base_workflow_item_submission_iter_success(base_workflow_instance):
@@ -176,17 +154,12 @@ def test_base_workflow_process_sqs_queue_success(
         message_body=result_message_body,
     )
 
+    expected_processing_summary = {"total": 1, "ingested": 1, "errors": 0}
     items = base_workflow_instance.process_sqs_queue()
 
     assert base_workflow_instance.workflow_events.processed_items[0]["ingested"]
-    assert "Messages received and deleted from 'mock-output-queue'" in caplog.text
-    assert (
-        "Item identifier: '10.1002/term.3131', Result: {'ResultType': 'success', "
-        "'ItemHandle': '1721.1/131022', 'lastModified': 'Thu Sep 09 17:56:39 UTC 2021', "
-        "'Bitstreams': [{'BitstreamName': '10.1002-term.3131.pdf', 'BitstreamUUID': "
-        "'a1b2c3d4e5', 'BitstreamChecksum': {'value': 'a4e0f4930dfaff904fa3c6c85b0b8ecc',"
-        " 'checkSumAlgorithm': 'MD5'}}]}" in caplog.text
-    )
+    assert "Item was successfully ingested: 10.1002/term.3131" in caplog.text
+    assert json.dumps(expected_processing_summary) in caplog.text
     assert items == [
         {
             "item_identifier": "10.1002/term.3131",
@@ -210,7 +183,7 @@ def test_base_workflow_process_sqs_queue_success(
     ]
 
 
-@patch("dsc.utilities.aws.sqs.SQSClient.process_result_message")
+@patch("dsc.utilities.aws.sqs.SQSClient.parse_dss_result_message")
 def test_base_workflow_process_sqs_queue_if_exception_capture_event_and_log(
     mocked_workflow_process_result_message,
     caplog,
@@ -220,24 +193,27 @@ def test_base_workflow_process_sqs_queue_if_exception_capture_event_and_log(
     result_message_body,
     sqs_client,
 ):
-    mocked_workflow_process_result_message.side_effect = [Exception]
+    mocked_workflow_process_result_message.side_effect = [Exception("An error occurred")]
     caplog.set_level("DEBUG")
     sqs_client.send(
         message_attributes=result_message_attributes,
         message_body=result_message_body,
     )
+
+    expected_processing_summary = {
+        "total": 1,
+        "ingested": 0,
+        "errors": 1,
+    }
     items = base_workflow_instance.process_sqs_queue()
 
-    assert (
-        "Error while processing SQS message"
-        in base_workflow_instance.workflow_events.errors[0]
-    )
-    assert "Error while processing SQS message:" in caplog.text
-    assert "Messages received and deleted from 'mock-output-queue'" in caplog.text
+    assert base_workflow_instance.workflow_events.errors[0] == "An error occurred"
+    assert "An error occurred" in caplog.text
+    assert json.dumps(expected_processing_summary) in caplog.text
     assert items == []
 
 
-@patch("dsc.utilities.aws.sqs.SQSClient.process_result_message")
+@patch("dsc.utilities.aws.sqs.SQSClient.parse_dss_result_message")
 def test_base_workflow_process_sqs_queue_if_not_ingested_capture_event_and_log(
     mocked_workflow_process_result_message,
     caplog,
@@ -254,15 +230,19 @@ def test_base_workflow_process_sqs_queue_if_not_ingested_capture_event_and_log(
         message_body=json.dumps(result_message_body),
     )
 
+    expected_processing_summary = {
+        "total": 1,
+        "ingested": 0,
+        "errors": 1,
+    }
     items = base_workflow_instance.process_sqs_queue()
 
     assert not base_workflow_instance.workflow_events.processed_items[0]["ingested"]
     assert (
-        "Item '123' did not ingest successfully"
-        in base_workflow_instance.workflow_events.errors[0]
+        "Item was not ingested: 123" in base_workflow_instance.workflow_events.errors[0]
     )
-    assert "Item '123' did not ingest successfully" in caplog.text
-    assert "Messages received and deleted from 'mock-output-queue'" in caplog.text
+    assert "Item was not ingested: 123" in caplog.text
+    assert json.dumps(expected_processing_summary) in caplog.text
     assert items == [
         {
             "item_identifier": "123",
@@ -277,7 +257,7 @@ def test_base_workflow_workflow_specific_processing_success(
     base_workflow_instance,
     mocked_ses,
 ):
-    base_workflow_instance.workflow_specific_processing([""])
+    base_workflow_instance.workflow_specific_processing([{}])
     assert "No extra processing for 1 items based on workflow: 'test'" in caplog.text
 
 
