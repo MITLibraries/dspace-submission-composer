@@ -129,7 +129,7 @@ def test_sqs_parse_dss_result_message_invalid_message_raises_exception(
     mocked_sqs_output,
     sqs_client,
 ):
-    sqs_client.send(message_attributes={}, message_body={})
+    sqs_client.send(message_attributes={}, message_body="")
     messages = sqs_client.receive()
     with pytest.raises(InvalidSQSMessageError):
         sqs_client.parse_dss_result_message(
