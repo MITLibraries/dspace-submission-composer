@@ -1,4 +1,3 @@
-# ruff: noqa: BLE001, TRY400
 from __future__ import annotations
 
 import json
@@ -158,8 +157,10 @@ class Workflow(ABC):
 
             try:
                 item_submission.upload_dspace_metadata(self.s3_bucket, self.batch_path)
-            except Exception as exception:
-                logger.error(f"Failed to upload DSpace metadata for item. {exception}")
+            except Exception as exception:  # noqa: BLE001
+                logger.error(  # noqa: TRY400
+                    f"Failed to upload DSpace metadata for item. {exception}"
+                )
                 self.workflow_events.errors.append(str(exception))
                 submission_summary["errors"] += 1
                 continue
@@ -172,15 +173,15 @@ class Workflow(ABC):
                     collection_handle,
                 )
             except ClientError as exception:
-                logger.error(
+                logger.error(  # noqa: TRY400
                     f"Failed to send submission message for item: {item_identifier}. "
                     f"{exception}"
                 )
                 self.workflow_events.errors.append(str(exception))
                 submission_summary["errors"] += 1
                 continue
-            except Exception as exception:
-                logger.error(
+            except Exception as exception:  # noqa: BLE001
+                logger.error(  # noqa: TRY400
                     f"Unexpected error occurred while sending submission message "
                     f"for item: {item_identifier}. {exception}"
                 )
@@ -331,7 +332,7 @@ class Workflow(ABC):
         """
 
     @final
-    def process_results(self) -> None:
+    def process_ingest_results(self) -> None:
         """Process DSS results from the workflow's output queue.
 
         Must NOT be overridden by workflow subclasses.
@@ -364,8 +365,8 @@ class Workflow(ABC):
                 item_identifier, result_message_body = (
                     sqs_client.parse_dss_result_message(sqs_message)
                 )
-            except Exception as exception:
-                logger.error(exception)
+            except Exception as exception:  # noqa: BLE001
+                logger.error(exception)  # noqa: TRY400
                 processing_summary["errors"] += 1
                 self.workflow_events.errors.append(str(exception))
                 continue

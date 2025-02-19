@@ -118,7 +118,7 @@ def submit(
 def finalize(ctx: click.Context, email_recipients: str) -> None:
     """Process the result messages from the DSS output queue according the workflow."""
     workflow = ctx.obj["workflow"]
-    workflow.process_results()
+    workflow.process_ingest_results()
     workflow.send_report(
         report_class=FinalizeReport, email_recipients=email_recipients.split(",")
     )
