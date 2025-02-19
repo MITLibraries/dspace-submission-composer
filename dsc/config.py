@@ -14,11 +14,11 @@ class Config:
         "DSC_SOURCE_EMAIL",
     ]
 
-    OPTIONAL_ENV_VARS: Iterable[str] = ["LOG_LEVEL"]
+    OPTIONAL_ENV_VARS: Iterable[str] = ["WARNING_ONLY_LOGGERS"]
 
     @property
     def workspace(self) -> str:
-        return os.getenv("WORKSPACE", "us-east-1")
+        return os.getenv("WORKSPACE", "dev")
 
     @property
     def sentry_dsn(self) -> str:
@@ -36,8 +36,13 @@ class Config:
         return value
 
     @property
-    def dsc_source_email(self) -> str:
+    def warning_only_loggers(self) -> list:
+        if _excluded_loggers := os.getenv("WARNING_ONLY_LOGGERS"):
+            return _excluded_loggers.split(",")
+        return []
 
+    @property
+    def dsc_source_email(self) -> str:
         value = os.getenv("DSC_SOURCE_EMAIL")
         if not value:
             raise OSError("Env var 'DSC_SOURCE_EMAIL' must be defined")
@@ -50,24 +55,39 @@ class Config:
             message = f"Missing required environment variables: {', '.join(missing_vars)}"
             raise OSError(message)
 
-    def configure_logger(self, logger: logging.Logger, *, verbose: bool) -> str:
-        logging_format_base = "%(asctime)s %(levelname)s %(name)s.%(funcName)s()"
-        if verbose:
-            log_method, log_level = logger.debug, logging.DEBUG
-            template = logging_format_base + " line %(lineno)d: %(message)s"
-            for handler in logging.root.handlers:
-                handler.addFilter(logging.Filter("dsc"))
-        else:
-            log_method, log_level = logger.info, logging.INFO
-            template = logging_format_base + ": %(message)s"
+    def configure_logger(
+        self,
+        root_logger: logging.Logger,
+        *,
+        verbose: bool = False,
+    ) -> str:
+        """Configure application via passed application root logger.
 
-        logger.setLevel(log_level)
-        logging.basicConfig(format=template)
-        log_method(f"{logging.getLevelName(logger.getEffectiveLevel())}")
+        If verbose=True, third-party libraries can be quite chatty. For convenience, the
+        loggers for specified libraries can be set to WARNING level by assigning a
+        comma-separated list of logger names to the env var WARNING_ONLY_LOGGERS.
+        """
+        if verbose:
+            root_logger.setLevel(logging.DEBUG)
+            log_format = (
+                "%(asctime)s %(levelname)s %(name)s.%(funcName)s() "
+                "line %(lineno)d: %(message)s"
+            )
+        else:
+            root_logger.setLevel(logging.INFO)
+            log_format = "%(asctime)s %(levelname)s %(name)s.%(funcName)s(): %(message)s"
+
+        if self.warning_only_loggers:
+            for name in self.warning_only_loggers:
+                logging.getLogger(name).setLevel(logging.WARNING)
+
+        handler = logging.StreamHandler()
+        handler.setFormatter(logging.Formatter(log_format))
+        root_logger.addHandler(handler)
 
         return (
-            f"Logger '{logger.name}' configured with level="
-            f"{logging.getLevelName(logger.getEffectiveLevel())}"
+            f"Logger '{root_logger.name}' configured with level="
+            f"{logging.getLevelName(root_logger.getEffectiveLevel())}"
         )
 
     def configure_sentry(self) -> str:

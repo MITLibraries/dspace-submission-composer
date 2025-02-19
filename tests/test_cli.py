@@ -1,3 +1,4 @@
+import json
 from unittest.mock import patch
 
 from dsc.cli import main
@@ -81,6 +82,9 @@ def test_submit_success(
     s3_client.put_file(file_content="", bucket="dsc", key="test/batch-aaa/123_02.jpg")
     s3_client.put_file(file_content="", bucket="dsc", key="test/batch-aaa/456_01.pdf")
     caplog.set_level("DEBUG")
+
+    expected_submission_summary = {"total": 2, "submitted": 2, "errors": 0}
+
     result = runner.invoke(
         main,
         [
@@ -97,17 +101,22 @@ def test_submit_success(
         ],
     )
     assert result.exit_code == 0
-    assert "Beginning submission of batch ID: batch-aaa" in caplog.text
-    assert "Processing submission for '123'" in caplog.text
+    assert (
+        "Submitting messages to the DSS input queue 'mock-input-queue' "
+        "for batch 'batch-aaa'"
+    ) in caplog.text
+    assert "Preparing submission for item: 123" in caplog.text
     assert (
         "Metadata uploaded to S3: s3://dsc/test/batch-aaa/123_metadata.json"
         in caplog.text
     )
-    assert "Processing submission for '789'" in caplog.text
+    assert "Preparing submission for item: 789" in caplog.text
     assert (
         "Metadata uploaded to S3: s3://dsc/test/batch-aaa/789_metadata.json"
         in caplog.text
     )
+    assert json.dumps(expected_submission_summary) in caplog.text
+    assert "Application exiting" in caplog.text
     assert "Total time elapsed" in caplog.text
 
 
@@ -127,6 +136,9 @@ def test_finalize_success(
         message_attributes=result_message_attributes,
         message_body=result_message_body,
     )
+
+    expected_processing_summary = {"total": 1, "ingested": 1, "errors": 0}
+
     result = runner.invoke(
         main,
         [
@@ -142,11 +154,15 @@ def test_finalize_success(
     )
 
     assert result.exit_code == 0
-    assert "Processing result messages in 'mock-output-queue'" in caplog.text
-    assert "Receiving messages from SQS queue: 'mock-output-queue'" in caplog.text
-    assert "Message retrieved from SQS queue 'mock-output-queue':" in caplog.text
-    assert "No more messages from SQS queue: 'mock-output-queue'" in caplog.text
-    assert "Messages received and deleted from 'mock-output-queue'" in caplog.text
+    assert (
+        "Processing DSS result messages from the output queue 'mock-output-queue'"
+        in caplog.text
+    )
+    assert "Receiving messages from the queue 'mock-output-queue'" in caplog.text
+    assert "Retrieved message" in caplog.text
+    assert "Parsed message" in caplog.text
+    assert "No messages remain in the queue 'mock-output-queue'" in caplog.text
+    assert json.dumps(expected_processing_summary) in caplog.text
     assert "Logs sent to ['test@test.test', 'test2@test.test']" in caplog.text
     assert "Application exiting" in caplog.text
     assert "Total time elapsed" in caplog.text

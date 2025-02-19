@@ -1,5 +1,6 @@
 import csv
 import json
+import uuid
 from io import StringIO
 
 import boto3
@@ -240,7 +241,7 @@ def mocked_ses(config_instance):
 @pytest.fixture
 def mocked_sqs_input(config_instance):
     with mock_aws():
-        sqs = boto3.resource("sqs", region_name=config_instance.aws_region_name)
+        sqs = boto3.client("sqs", region_name=config_instance.aws_region_name)
         sqs.create_queue(QueueName="mock-input-queue")
         yield sqs
 
@@ -248,7 +249,7 @@ def mocked_sqs_input(config_instance):
 @pytest.fixture
 def mocked_sqs_output():
     with mock_aws():
-        sqs = boto3.resource("sqs", region_name="us-east-1")
+        sqs = boto3.client("sqs", region_name="us-east-1")
         sqs.create_queue(QueueName="mock-output-queue")
         yield sqs
 
@@ -288,6 +289,7 @@ def result_message_valid(result_message_attributes, result_message_body):
         "ReceiptHandle": "lvpqxcxlmyaowrhbvxadosldaghhidsdralddmejhdrnrfeyfuphzs",
         "Body": result_message_body,
         "MessageAttributes": result_message_attributes,
+        "MessageId": uuid.uuid4(),
     }
 
 
