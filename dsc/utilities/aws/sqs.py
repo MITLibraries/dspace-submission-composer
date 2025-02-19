@@ -128,7 +128,7 @@ class SQSClient:
         response = self.client.send_message(
             QueueUrl=self.queue_url,
             MessageAttributes=message_attributes,
-            MessageBody=str(message_body),
+            MessageBody=message_body,
         )
         logger.debug(f"Sent message: {response["MessageId"]}")
         return response
