@@ -2,6 +2,7 @@ import json
 from unittest.mock import patch
 
 import pytest
+from botocore.exceptions import ClientError
 
 from dsc.exceptions import (
     InvalidDSpaceMetadataError,
@@ -55,16 +56,12 @@ def test_base_workflow_submit_items_success(
     caplog, base_workflow_instance, mocked_s3, mocked_sqs_input, mocked_sqs_output
 ):
     caplog.set_level("DEBUG")
-    submission_results = base_workflow_instance.submit_items("123.4/5678")
-    assert "Processing submission for '123'" in caplog.text
-    assert (
-        "Metadata uploaded to S3: s3://dsc/test/batch-aaa/123_metadata.json"
-        in caplog.text
-    )
-    assert submission_results["success"] is True
-    assert submission_results["items_count"] == 2  # noqa: PLR2004
-    assert len(submission_results["items"]["succeeded"]) == 2  # noqa: PLR2004
-    assert not submission_results["items"]["failed"]
+    items = base_workflow_instance.submit_items("123.4/5678")
+
+    expected_submission_summary = {"total": 2, "submitted": 2, "errors": 0}
+
+    assert len(items) == 2  # noqa: PLR2004
+    assert json.dumps(expected_submission_summary) in caplog.text
 
 
 @patch("dsc.item_submission.ItemSubmission.send_submission_message")
@@ -78,35 +75,16 @@ def test_base_workflow_submit_items_exceptions_handled(
 ):
     side_effect = [
         {"MessageId": "abcd", "ResponseMetadata": {"HTTPStatusCode": 200}},
-        Exception,
+        ClientError,
     ]
     mocked_method.side_effect = side_effect
-    submission_results = base_workflow_instance.submit_items("123.4/5678")
-    assert submission_results["success"] is False
-    assert submission_results["items_count"] == 2  # noqa: PLR2004
-    assert submission_results["items"]["succeeded"] == {"123": "abcd"}
-    assert isinstance(submission_results["items"]["failed"]["789"], Exception)
+    items = base_workflow_instance.submit_items("123.4/5678")
 
+    expected_submission_summary = {"total": 2, "submitted": 1, "errors": 1}
 
-@patch("dsc.item_submission.ItemSubmission.send_submission_message")
-def test_base_workflow_submit_items_invalid_status_codes_handled(
-    mocked_method,
-    caplog,
-    base_workflow_instance,
-    mocked_s3,
-    mocked_sqs_input,
-    mocked_sqs_output,
-):
-    side_effect = [
-        {"MessageId": "abcd", "ResponseMetadata": {"HTTPStatusCode": 200}},
-        {"ResponseMetadata": {"HTTPStatusCode": 400}},
-    ]
-    mocked_method.side_effect = side_effect
-    submission_results = base_workflow_instance.submit_items("123.4/5678")
-    assert submission_results["success"] is False
-    assert submission_results["items_count"] == 2  # noqa: PLR2004
-    assert submission_results["items"]["succeeded"] == {"123": "abcd"}
-    assert isinstance(submission_results["items"]["failed"]["789"], RuntimeError)
+    assert len(items) == 1
+    assert items == [{"item_identifier": "123", "message_id": "abcd"}]
+    assert json.dumps(expected_submission_summary) in caplog.text
 
 
 def test_base_workflow_item_submission_iter_success(base_workflow_instance):

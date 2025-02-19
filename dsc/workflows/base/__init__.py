@@ -5,8 +5,9 @@ import json
 import logging
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from http import HTTPStatus
 from typing import TYPE_CHECKING, Any, final
+
+from botocore.exceptions import ClientError
 
 from dsc.config import Config
 from dsc.exceptions import (
@@ -38,7 +39,7 @@ class WorkflowEvents:
     """
 
     reconciled_items: list[str] = field(default_factory=list)
-    submitted_items: list[str] = field(default_factory=list)
+    submitted_items: list[dict] = field(default_factory=list)
     processed_items: list[dict] = field(default_factory=list)
     errors: list[str] = field(default_factory=list)
 
@@ -130,7 +131,7 @@ class Workflow(ABC):
         """
 
     @final
-    def submit_items(self, collection_handle: str) -> dict:
+    def submit_items(self, collection_handle: str) -> list:
         """Submit items to the DSpace Submission Service according to the workflow class.
 
         Args:
@@ -140,34 +141,68 @@ class Workflow(ABC):
         Returns a dict with the submission results organized into succeeded and failed
         items.
         """
-        items: dict[str, Any] = {"succeeded": {}, "failed": {}}
+        logger.info(
+            f"Submitting messages to the DSS input queue '{CONFIG.dss_input_queue}' "
+            f"for batch '{self.batch_id}'"
+        )
+        submission_summary = {
+            "total": 0,
+            "submitted": 0,
+            "errors": 0,
+        }
+
+        items = []
         for item_submission in self.item_submissions_iter():
-            item_id = item_submission.item_identifier
+            submission_summary["total"] += 1
+            item_identifier = item_submission.item_identifier
+
             try:
                 item_submission.upload_dspace_metadata(self.s3_bucket, self.batch_path)
+            except Exception as exception:
+                logger.error(f"Failed to upload DSpace metadata for item. {exception}")
+                self.workflow_events.errors.append(str(exception))
+                submission_summary["errors"] += 1
+                continue
+
+            try:
                 response = item_submission.send_submission_message(
                     self.workflow_name,
                     self.output_queue,
                     self.submission_system,
                     collection_handle,
                 )
+            except ClientError as exception:
+                logger.error(
+                    f"Failed to send submission message for item: {item_identifier}. "
+                    f"{exception}"
+                )
+                self.workflow_events.errors.append(str(exception))
+                submission_summary["errors"] += 1
+                continue
             except Exception as exception:
-                logger.exception(f"Error processing submission: '{item_id}'")
-                items["failed"][item_id] = exception
+                logger.error(
+                    f"Unexpected error occurred while sending submission message "
+                    f"for item: {item_identifier}. {exception}"
+                )
+                self.workflow_events.errors.append(str(exception))
+                submission_summary["errors"] += 1
                 continue
-            status_code = response["ResponseMetadata"]["HTTPStatusCode"]
-            if status_code != HTTPStatus.OK:
-                items["failed"][item_id] = RuntimeError("Non OK HTTPStatus")
-                continue
-            items["succeeded"][item_id] = response["MessageId"]
 
-        results = {
-            "success": not items["failed"],
-            "items_count": len(items["succeeded"]) + len(items["failed"]),
-            "items": items,
-        }
-        logger.info(results)
-        return results
+            item_data = {
+                "item_identifier": item_identifier,
+                "message_id": response["MessageId"],
+            }
+            items.append(item_data)
+            self.workflow_events.submitted_items.append(item_data)
+            submission_summary["submitted"] += 1
+
+            logger.info(f"Sent item submission message: {item_data["message_id"]}")
+
+        logger.info(
+            f"Submitted messages to the DSS input queue '{CONFIG.dss_input_queue}' "
+            f"for batch '{self.batch_id}': {json.dumps(submission_summary)}"
+        )
+        return items
 
     @final
     def item_submissions_iter(self) -> Iterator[ItemSubmission]:
@@ -177,7 +212,7 @@ class Workflow(ABC):
         """
         for item_metadata in self.item_metadata_iter():
             item_identifier = self.get_item_identifier(item_metadata)
-            logger.info(f"Processing submission for '{item_identifier}'")
+            logger.info(f"Preparing submission for item: {item_identifier}")
             dspace_metadata = self.create_dspace_metadata(item_metadata)
             self.validate_dspace_metadata(dspace_metadata)
             item_submission = ItemSubmission(
