@@ -8,6 +8,7 @@ boto3 = "*"
 boto3-stubs = {extras = ["essential","ses"], version = "*"}
 click = "*"
 jinja2 = "*"
+pandas = "*"
 sentry-sdk = "*"
 smart_open = {extras = ["s3"], version = "*"}
 
@@ -17,6 +18,7 @@ coveralls = "*"
 freezegun = "*"
 moto="*"
 mypy = "*"
+pandas-stubs = "*"
 pre-commit = "*"
 pytest = "*"
 ruff = "*"

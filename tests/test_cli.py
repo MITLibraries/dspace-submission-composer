@@ -27,7 +27,9 @@ def test_reconcile_simple_csv_success(
         ],
     )
     assert result.exit_code == 0
-    assert "Successfully reconciled bitstreams and metadata for all items" in caplog.text
+    assert (
+        "Successfully reconciled bitstreams and metadata for all 1 item(s)" in caplog.text
+    )
     assert "Total time elapsed" in caplog.text
 
 

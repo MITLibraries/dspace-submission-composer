@@ -91,10 +91,7 @@ class S3Client:
             exclude_prefixes = []
 
         for page in page_iterator:
-            if page.get("Contents") is None:
-                return
-
-            for content in page["Contents"]:
+            for content in page.get("Contents", []):
                 if content["Key"] == prefix:
                     # skip base folder
                     continue

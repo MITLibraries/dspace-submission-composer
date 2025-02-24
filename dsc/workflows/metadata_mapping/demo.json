@@ -1,8 +1,4 @@
 {
-    "item_identifier": {
-        "source_field_name": "item_identifier",
-        "required": true
-    },
     "dc.title": {
         "source_field_name": "dc.title",
         "language": "en_US",
