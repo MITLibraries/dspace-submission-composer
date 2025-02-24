@@ -35,7 +35,7 @@ class ItemSubmission:
             the item identifier.
         """
         s3_client = S3Client()
-        metadata_s3_key = f"{prefix}/{self.item_identifier}_metadata.json"
+        metadata_s3_key = f"{prefix}{self.item_identifier}_metadata.json"
         s3_client.put_file(json.dumps(self.dspace_metadata), bucket, metadata_s3_key)
         metadata_s3_uri = f"s3://{bucket}/{metadata_s3_key}"
         logger.info(f"Metadata uploaded to S3: {metadata_s3_uri}")

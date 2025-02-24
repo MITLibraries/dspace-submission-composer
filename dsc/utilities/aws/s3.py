@@ -95,6 +95,10 @@ class S3Client:
                 return
 
             for content in page["Contents"]:
+                if content["Key"] == prefix:
+                    # skip base folder
+                    continue
+
                 if (
                     content["Key"].endswith(file_type)
                     and item_identifier in content["Key"]
@@ -105,4 +109,4 @@ class S3Client:
                     ):
                         continue
 
-                    yield content["Key"]
+                    yield f"s3://{bucket}/{content["Key"]}"

@@ -119,7 +119,7 @@ class SimpleCSV(Workflow):
             Item metadata.
         """
         with smart_open.open(
-            f"s3://{self.s3_bucket}/{self.batch_path}/{metadata_file}"
+            f"s3://{self.s3_bucket}/{self.batch_path}{metadata_file}"
         ) as csvfile:
             yield from csv.DictReader(csvfile)
 

@@ -86,7 +86,7 @@ class Workflow(ABC):
 
     @property
     def batch_path(self) -> str:
-        return f"{self.workflow_name}/{self.batch_id}"
+        return f"{self.workflow_name}/{self.batch_id}/"
 
     @final
     @classmethod
