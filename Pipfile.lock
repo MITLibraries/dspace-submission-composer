@@ -31,11 +31,12 @@
                 "ses"
             ],
             "hashes": [
-                "sha256:4d9cfbe7c6b55dac5d4509a2e44df1263be9a684c7723d297baffb5f579098a1",
-                "sha256:ebeb4537c2cebf591ed003b0004db2ec8400718f404ac19ce070844b009633e5"
+                "sha256:07c4e941a50aa4c34d975e9e29b729c91ff931d8aad544495bb2d06d4ef35a20",
+                "sha256:30599eecca0c11cff406a7de77871967661a349d56610ccec8716e56af89320d"
             ],
+            "index": "pypi",
             "markers": "python_version >= '3.8'",
-            "version": "==1.36.26"
+            "version": "==1.37.0"
         },
         "botocore": {
             "hashes": [
