@@ -1,9 +1,11 @@
-import csv
+import itertools
 import json
 import logging
+from collections import defaultdict
 from collections.abc import Iterator
 from typing import Any
 
+import pandas as pd
 import smart_open
 
 from dsc.exceptions import ReconcileError
@@ -32,66 +34,70 @@ class SimpleCSV(Workflow):
         ensures that every bitstream on S3 has metadata--a row in the metadata
         CSV file--associated with it and vice versa.
         """
-        # get item identifiers from bitstreams and metadata file
-        bitstream_item_identifiers = self._get_item_identifiers_from_bitstreams(
-            metadata_file
-        )
+        logger.info(f"Reconciling bitstreams and metadata for batch '{self.batch_id}'")
+        reconcile_summary = {
+            "reconciled": 0,
+            "bitstreams_without_metadata": {},
+            "metadata_without_bitstreams": {},
+        }
+
+        # get metadata
         metadata_item_identifiers = self._get_item_identifiers_from_metadata(
             metadata_file
         )
 
-        # get matching item identifiers (IDs for items with both bitstreams and metadata)
-        matching_item_identifiers = bitstream_item_identifiers & metadata_item_identifiers
-
-        bitstreams_without_metadata = list(
-            bitstream_item_identifiers - matching_item_identifiers
-        )
-        metadata_without_bitstreams = list(
-            metadata_item_identifiers - matching_item_identifiers
-        )
-
-        if any((bitstreams_without_metadata, metadata_without_bitstreams)):
-            reconcile_error_message = {
-                "note": "Failed to reconcile bitstreams and metadata.",
-                "bitstreams_without_metadata": {
-                    "count": len(bitstreams_without_metadata),
-                    "identifiers": bitstreams_without_metadata,
-                },
-                "metadata_without_bitstreams": {
-                    "count": len(metadata_without_bitstreams),
-                    "identifiers": metadata_without_bitstreams,
-                },
-            }
-            logger.error(json.dumps(reconcile_error_message))
-            raise ReconcileError(json.dumps(reconcile_error_message))
-
-        logger.info(
-            "Successfully reconciled bitstreams and metadata for all "
-            f"items (n={len(matching_item_identifiers)})."
-        )
-
-    def _get_item_identifiers_from_bitstreams(
-        self, metadata_file: str = "metadata.csv"
-    ) -> set[str]:
-        """Get set of item identifiers from bitstreams.
-
-        Item identifiers are extracted from the bitstream filenames.
-        """
-        item_identifiers = set()
+        # get bitstreams
         s3_client = S3Client()
-        bitstreams = list(
+        bitstream_filenames = list(
             s3_client.files_iter(
                 bucket=self.s3_bucket,
                 prefix=self.batch_path,
                 exclude_prefixes=["archived", metadata_file],
             )
         )
-        for bitstream in bitstreams:
-            file_name = bitstream.split("/")[-1]
-            item_identifiers.add(
-                file_name.split("_")[0] if "_" in file_name else file_name
+
+        reconciled_items = self._match_metadata_to_bitstreams(
+            metadata_item_identifiers, bitstream_filenames
+        )
+
+        bitstreams_without_metadata = list(
+            set(bitstream_filenames) - set(itertools.chain(*reconciled_items.values()))
+        )
+        metadata_without_bitstreams = list(
+            metadata_item_identifiers - set(reconciled_items.keys())
+        )
+
+        reconcile_summary["reconciled"] = len(reconciled_items)
+
+        if any((bitstreams_without_metadata, metadata_without_bitstreams)):
+            reconcile_summary["bitstreams_without_metadata"] = {
+                "count": len(bitstreams_without_metadata),
+                "filenames": sorted(bitstreams_without_metadata),
+            }
+            reconcile_summary["metadata_without_bitstreams"] = {
+                "count": len(metadata_without_bitstreams),
+                "item_identifiers": sorted(metadata_without_bitstreams),
+            }
+            logger.error(
+                "Failed to reconcile bitstreams and metadata: "
+                f"{json.dumps(reconcile_summary)}"
             )
-        return item_identifiers
+            raise ReconcileError(json.dumps(reconcile_summary))
+
+        logger.info(
+            "Successfully reconciled bitstreams and metadata for all "
+            f"{len(reconciled_items)} item(s)"
+        )
+
+    def _match_metadata_to_bitstreams(
+        self, item_identifiers: set[str], bitstream_filenames: list[str]
+    ) -> dict:
+        metadata_with_bitstreams = defaultdict(list)
+        for item_identifier in item_identifiers:
+            for bitstream_filename in bitstream_filenames:
+                if item_identifier in bitstream_filename:
+                    metadata_with_bitstreams[item_identifier].append(bitstream_filename)
+        return metadata_with_bitstreams
 
     def _get_item_identifiers_from_metadata(
         self, metadata_file: str = "metadata.csv"
@@ -119,9 +125,13 @@ class SimpleCSV(Workflow):
             Item metadata.
         """
         with smart_open.open(
-            f"s3://{self.s3_bucket}/{self.batch_path}/{metadata_file}"
+            f"s3://{self.s3_bucket}/{self.batch_path}{metadata_file}",
         ) as csvfile:
-            yield from csv.DictReader(csvfile)
+            metadata_df = pd.read_csv(csvfile, dtype="str")
+            metadata_df = metadata_df.dropna(how="all")
+
+            for _, row in metadata_df.iterrows():
+                yield row.to_dict()
 
     def get_bitstream_s3_uris(self, item_identifier: str) -> list[str]:
         """Get S3 URIs for bitstreams for a given item.
@@ -151,6 +161,11 @@ class SimpleCSV(Workflow):
             )
         )
 
-    def get_item_identifier(self, item_metadata: dict[str, Any]) -> str:
-        """Get 'item_identifier' from item metadata entry."""
+    @staticmethod
+    def get_item_identifier(item_metadata: dict[str, Any]) -> str:
+        """Get 'item_identifier' from item metadata entry.
+
+        This method expects a column labeled 'item_identifier' in the
+        source metadata file.
+        """
         return item_metadata["item_identifier"]

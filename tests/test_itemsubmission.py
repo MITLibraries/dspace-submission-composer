@@ -11,7 +11,7 @@ def test_itemsubmission_init_success(item_submission_instance, dspace_metadata):
 
 
 def test_upload_dspace_metadata(mocked_s3, item_submission_instance, s3_client):
-    item_submission_instance.upload_dspace_metadata("dsc", "workflow/folder")
+    item_submission_instance.upload_dspace_metadata("dsc", "workflow/folder/")
     assert (
         item_submission_instance.metadata_s3_uri
         == "s3://dsc/workflow/folder/123_metadata.json"

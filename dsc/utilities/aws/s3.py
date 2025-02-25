@@ -91,10 +91,11 @@ class S3Client:
             exclude_prefixes = []
 
         for page in page_iterator:
-            if page.get("Contents") is None:
-                return
+            for content in page.get("Contents", []):
+                if content["Key"] == prefix:
+                    # skip base folder
+                    continue
 
-            for content in page["Contents"]:
                 if (
                     content["Key"].endswith(file_type)
                     and item_identifier in content["Key"]
@@ -105,4 +106,4 @@ class S3Client:
                     ):
                         continue
 
-                    yield content["Key"]
+                    yield f"s3://{bucket}/{content["Key"]}"
