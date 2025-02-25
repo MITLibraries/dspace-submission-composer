@@ -278,7 +278,19 @@ class Workflow(ABC):
                 if field_value:
                     delimiter = field_mapping.get("delimiter")
                     language = field_mapping.get("language")
-                    if delimiter:
+
+                    if isinstance(field_value, list):
+                        metadata_entries.extend(
+                            [
+                                {
+                                    "key": field_name,
+                                    "value": value,
+                                    "language": language,
+                                }
+                                for value in field_value
+                            ]
+                        )
+                    elif delimiter:
                         metadata_entries.extend(
                             [
                                 {

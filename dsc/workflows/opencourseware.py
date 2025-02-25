@@ -122,12 +122,13 @@ class OpenCourseWare(Workflow):
         """Read source metadata JSON file."""
         with zip_file.open("data.json") as file:
             source_metadata = json.load(file)
-            source_metadata["instructors"] = self._get_instructors_delimited_string(
+            source_metadata["instructors"] = self._get_instructors_list(
                 source_metadata["instructors"]
             )
+            source_metadata["topics"] = self._get_topics_list(source_metadata["topics"])
             return source_metadata
 
-    def _get_instructors_delimited_string(self, instructors: list[dict[str, str]]) -> str:
+    def _get_instructors_list(self, instructors: list[dict[str, str]]) -> list[str]:
         """Get delimited string of 'instructors' from source metadata JSON file.
 
         Source metadata JSON files stored in OCW zip files contain an 'instructors'
@@ -155,16 +156,14 @@ class OpenCourseWare(Workflow):
         string with the following format: "<last_name>, <first_name> <middle_initial>".
 
             Example output:
-                "Oki, Kerry|Bird, Earl E."
+                ["Oki, Kerry", "Bird, Earl E."]
 
         """
-        return "|".join(
-            [
-                instructor_name
-                for instructor in instructors
-                if (instructor_name := self._construct_instructor_name(instructor))
-            ]
-        ).strip()
+        return [
+            instructor_name
+            for instructor in instructors
+            if (instructor_name := self._construct_instructor_name(instructor))
+        ]
 
     @staticmethod
     def _construct_instructor_name(instructor: dict[str, str]) -> str:
@@ -174,6 +173,31 @@ class OpenCourseWare(Workflow):
         ):
             return ""
         return f"{last_name}, {first_name} {instructor.get("middle_initial", "")}".strip()
+
+    def _get_topics_list(self, topics: list[list[str]]) -> list[str]:
+        """Get list of concatenated 'topics' from source metadata JSON file.
+
+        Source metadata JSON files stored in OCW zip files contain a 'topics'
+        property, which contains an array of arrays with string values
+        representing topics:
+
+            [
+                ["Social Science","Economics","International Economics"],
+                ["Social Science","Economics","Macroeconomics"]
+            ]
+
+        Given a list of topic terms (also stored as a list), this method will
+        conctenate each set of topic terms, using a dash to separate each term
+        with the following format: "<topic 1> - <topic 2> - <topic 3>".
+
+            Example output:
+                [
+                    "Social Science - Economics - International Economics",
+                    "Social Science - Economics - Macroeconomics"
+                ]
+        """
+        topics_list = [" - ".join(topic_terms) for topic_terms in topics]
+        return list(filter(None, topics_list))
 
     def get_item_identifier(self, item_metadata: dict[str, Any]) -> str:
         """Get 'item_identifier' from item metadata entry."""
