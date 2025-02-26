@@ -6,7 +6,7 @@ from typing import Any
 
 import smart_open
 
-from dsc.exceptions import ReconcileError
+from dsc.exceptions import ReconcileFoundBitstreamsWithoutMetadataWarning
 from dsc.utilities.aws.s3 import S3Client
 from dsc.workflows.base import Workflow
 
@@ -35,7 +35,7 @@ class OpenCourseWare(Workflow):
     def output_queue(self) -> str:
         return "awaiting AWS infrastructure"
 
-    def reconcile_bitstreams_and_metadata(self) -> None:
+    def reconcile_bitstreams_and_metadata(self) -> bool:
         """Reconcile bitstreams against item metadata.
 
         Generate a list of bitstreams without item metadata.
@@ -47,34 +47,57 @@ class OpenCourseWare(Workflow):
         Metadata without bitstreams is not calculated as for a 'data.json' file to
         exist, the zip file must also exist.
         """
-        item_identifiers = []
+        logger.info(f"Reconciling bitstreams and metadata for batch '{self.batch_id}'")
+        reconciled: bool = False
+        reconcile_summary = {
+            "reconciled": 0,
+            "bitstreams_without_metadata": 0,
+        }
+
+        reconciled_items = {}
         bitstreams_without_metadata = []
         s3_client = S3Client()
+
         for file in s3_client.files_iter(
             bucket=self.s3_bucket, prefix=self.batch_path, file_type=".zip"
         ):
             item_identifier = self.parse_item_identifier(file)
-            item_identifiers.append(item_identifier)
+
             try:
                 self._extract_metadata_from_zip_file(file)
             except FileNotFoundError:
                 bitstreams_without_metadata.append(item_identifier)
+            else:
+                reconciled_items[item_identifier] = file
+
+        self.workflow_events.reconciled_items = reconciled_items
+        reconcile_summary.update(
+            {
+                "reconciled": len(reconciled_items),
+                "bitstreams_without_metadata": len(bitstreams_without_metadata),
+            }
+        )
+
+        logger.info(f"Reconcile results: {json.dumps(reconcile_summary)}")
 
         if any(bitstreams_without_metadata):
-            reconcile_error_message = {
-                "note": "Failed to reconcile bitstreams and metadata.",
-                "bitstreams_without_metadata": {
-                    "count": len(bitstreams_without_metadata),
-                    "identifiers": bitstreams_without_metadata,
-                },
-            }
-            logger.error(json.dumps(reconcile_error_message))
-            raise ReconcileError(json.dumps(reconcile_error_message))
+            logger.warning("Failed to reconcile bitstreams and metadata")
+            logger.warning(
+                ReconcileFoundBitstreamsWithoutMetadataWarning(
+                    bitstreams_without_metadata
+                )
+            )
+            self.workflow_events.reconcile_errors["bitstreams_without_metadata"] = (
+                bitstreams_without_metadata
+            )
+        else:
+            reconciled = True
+            logger.info(
+                "Successfully reconciled bitstreams and metadata for all "
+                f"{len(reconciled_items)} item(s)"
+            )
 
-        logger.info(
-            "Successfully reconciled bitstreams and metadata for all "
-            f"items (n={len(item_identifiers)})."
-        )
+        return reconciled
 
     def item_metadata_iter(self) -> Iterator[dict[str, Any]]:
         """Yield source metadata from metadata JSON file in the zip file.

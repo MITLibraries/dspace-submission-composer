@@ -38,10 +38,10 @@ class ReconcileReport(Report):
             batch_id=self.batch_id,
             report_date=self.report_date,
             processed_items=self.events.processed_items,
-            bitstreams_without_metadata=self.events.errors.get(
+            bitstreams_without_metadata=self.events.reconcile_errors.get(
                 "bitstreams_without_metadata"
             ),
-            metadata_without_bitstreams=self.events.errors.get(
+            metadata_without_bitstreams=self.events.reconcile_errors.get(
                 "metadata_without_bitstreams"
             ),
         )

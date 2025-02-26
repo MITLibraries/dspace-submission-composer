@@ -73,13 +73,12 @@ def post_main_group_subcommand(
 def reconcile(ctx: click.Context) -> None:
     """Reconcile bitstreams with item identifiers from the metadata."""
     workflow = ctx.obj["workflow"]
-    try:
-        workflow.reconcile_bitstreams_and_metadata()
-        # TODO(): workflow.send_report(email_recipients.split(",")) #noqa:FIX002, TD003
-    except ReconcileError:
-        logger.info("Reconcile failed.")
-        # TODO(): workflow.send_report(email_recipients.split(",")) #noqa:FIX002, TD003
-        ctx.exit(1)
+
+    reconciled = workflow.reconcile_bitstreams_and_metadata()
+    # TODO(): workflow.send_report(email_recipients.split(",")) #noqa:FIX002, TD003
+
+    if not reconciled:
+        raise ReconcileError("Failed to reconcile bitstreams and metadata")
 
 
 @main.command()
