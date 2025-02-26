@@ -275,28 +275,25 @@ class Workflow(ABC):
                         "Item metadata missing required field: '"
                         f"{field_mapping["source_field_name"]}'"
                     )
+
                 if field_value:
-                    delimiter = field_mapping.get("delimiter")
-                    language = field_mapping.get("language")
-                    if delimiter:
-                        metadata_entries.extend(
-                            [
-                                {
-                                    "key": field_name,
-                                    "value": value,
-                                    "language": language,
-                                }
-                                for value in field_value.split(delimiter)
-                            ]
-                        )
+                    if isinstance(field_value, list):
+                        field_values = field_value
+                    elif delimiter := field_mapping.get("delimiter"):
+                        field_values = field_value.split(delimiter)
                     else:
-                        metadata_entries.append(
+                        field_values = [field_value]
+
+                    metadata_entries.extend(
+                        [
                             {
                                 "key": field_name,
-                                "value": field_value,
-                                "language": language,
+                                "value": value,
+                                "language": field_mapping.get("language"),
                             }
-                        )
+                            for value in field_values
+                        ]
+                    )
 
         return {"metadata": metadata_entries}
 

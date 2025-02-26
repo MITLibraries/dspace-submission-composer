@@ -95,8 +95,12 @@ def test_workflow_ocw_extract_metadata_from_zip_file_success(
     ) == {
         "course_description": "Investigating the paranormal, one burger at a time.",
         "course_title": "Burgers and Beyond",
-        "instructors": "Burger, Cheese E.",
         "site_uid": "2318fd9f-1b5c-4a48-8a04-9c56d902a1f8",
+        "instructors": ["Burger, Cheese E."],
+        "topics": [
+            "Fast Food - Handhelds - Burgers",
+            "Paranormal - Perishable - Burgers",
+        ],
     }
 
 
@@ -122,33 +126,30 @@ def test_workflow_ocw_extract_metadata_from_zip_file_without_metadata_raise_erro
         )
 
 
-def test_workflow_ocw_get_instructors_delimited_string_if_single_success(
+def test_workflow_ocw_get_instructors_list_if_single_success(
     opencourseware_workflow_instance,
 ):
-    assert (
-        opencourseware_workflow_instance._get_instructors_delimited_string(
-            INSTRUCTORS[:1]
-        )
-        == "Oki, Kerry"
-    )
+    assert opencourseware_workflow_instance._get_instructors_list(INSTRUCTORS[:1]) == [
+        "Oki, Kerry"
+    ]
 
 
-def test_workflow_ocw_get_instructors_delimited_string_if_multiple_success(
+def test_workflow_ocw_get_instructors_list_if_multiple_success(
     opencourseware_workflow_instance,
 ):
-    assert (
-        opencourseware_workflow_instance._get_instructors_delimited_string(INSTRUCTORS)
-        == "Oki, Kerry|Bird, Earl E."
-    )
+    assert opencourseware_workflow_instance._get_instructors_list(INSTRUCTORS) == [
+        "Oki, Kerry",
+        "Bird, Earl E.",
+    ]
 
 
-def test_workflow_ocw_get_instructors_delimited_string_if_any_names_empty_success(
+def test_workflow_ocw_get_instructors_list_if_any_names_empty_success(
     opencourseware_workflow_instance,
 ):
     instructors = INSTRUCTORS.copy()
 
     # the first four entries in the list below result in an empty name ("")
-    # only the last entry is included in the "|"-delimited string
+    # only the last entry is included
     instructors.extend(
         [
             {},  # all fields missing
@@ -158,19 +159,18 @@ def test_workflow_ocw_get_instructors_delimited_string_if_any_names_empty_succes
             {"first_name": "Cheese", "last_name": "Burger", "middle_initial": "E."},
         ]
     )
-    assert (
-        opencourseware_workflow_instance._get_instructors_delimited_string(instructors)
-        == "Oki, Kerry|Bird, Earl E.|Burger, Cheese E."
-    )
+    assert opencourseware_workflow_instance._get_instructors_list(instructors) == [
+        "Oki, Kerry",
+        "Bird, Earl E.",
+        "Burger, Cheese E.",
+    ]
 
 
-def test_workflow_ocw_get_instructors_delimited_string_if_all_names_empty_success(
+def test_workflow_ocw_get_instructors_list_if_all_names_empty_success(
     opencourseware_workflow_instance,
 ):
-    assert (
-        opencourseware_workflow_instance._get_instructors_delimited_string([{}, {}]) == ""
-    )
-    assert opencourseware_workflow_instance._get_instructors_delimited_string([]) == ""
+    assert opencourseware_workflow_instance._get_instructors_list([{}, {}]) == []
+    assert opencourseware_workflow_instance._get_instructors_list([]) == []
 
 
 def test_workflow_ocw_construct_instructor_name_success(
@@ -209,6 +209,32 @@ def test_workflow_ocw_construct_instructor_name_if_required_fields_missing_succe
     opencourseware_workflow_instance._construct_instructor_name(
         {"last_name": "Oki", "middle_initial": ""}
     ) == ""
+
+
+def test_workflow_ocw_get_topics_list_success(opencourseware_workflow_instance):
+    topics = [
+        ["Fast Food", "Handhelds", "Burgers"],
+        ["Paranormal", "Perishable", "Burgers"],
+    ]
+    assert opencourseware_workflow_instance._get_topics_list(topics) == [
+        "Fast Food - Handhelds - Burgers",
+        "Paranormal - Perishable - Burgers",
+    ]
+
+
+def test_workflow_ocw_get_topics_list_if_any_topics_empty_success(
+    opencourseware_workflow_instance,
+):
+    topics = [["Fast Food", "Handhelds", "Burgers"], [""], []]
+    assert opencourseware_workflow_instance._get_topics_list(topics) == [
+        "Fast Food - Handhelds - Burgers"
+    ]
+
+
+def test_workflow_ocw_get_topics_list_if_all_topics_empty_success(
+    opencourseware_workflow_instance,
+):
+    assert opencourseware_workflow_instance._get_topics_list([]) == []
 
 
 def test_workflow_ocw_get_item_identifier_success(

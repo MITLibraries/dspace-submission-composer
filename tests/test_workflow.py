@@ -108,11 +108,25 @@ def test_base_workflow_create_dspace_metadata_success(
     base_workflow_instance,
     item_metadata,
 ):
+    item_metadata["topics"] = [
+        "Topic Header - Topic Subheading - Topic Name",
+        "Topic Header 2 - Topic Subheading 2 - Topic Name 2",
+    ]
     assert base_workflow_instance.create_dspace_metadata(item_metadata) == {
         "metadata": [
             {"key": "dc.title", "language": "en_US", "value": "Title"},
             {"key": "dc.contributor", "language": None, "value": "Author 1"},
             {"key": "dc.contributor", "language": None, "value": "Author 2"},
+            {
+                "key": "dc.subject",
+                "language": None,
+                "value": "Topic Header - Topic Subheading - Topic Name",
+            },
+            {
+                "key": "dc.subject",
+                "language": None,
+                "value": "Topic Header 2 - Topic Subheading 2 - Topic Name 2",
+            },
         ]
     }
 

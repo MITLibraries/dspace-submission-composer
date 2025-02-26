@@ -7,5 +7,8 @@
     "dc.contributor": {
         "source_field_name": "contributor",
         "delimiter": "|"
+    },
+    "dc.subject": {
+        "source_field_name": "topics"
     }
 }
