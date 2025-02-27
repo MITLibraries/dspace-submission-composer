@@ -129,8 +129,7 @@ class OpenCourseWare(Workflow):
             item_identifier: Item identifier, used to find and read the metadata
                 JSON file for the associated bitstream zip file.
         """
-        zip_file_uri = f"s3://{self.s3_bucket}/{file}"
-        with smart_open.open(zip_file_uri, "rb") as file_input, zipfile.ZipFile(
+        with smart_open.open(file, "rb") as file_input, zipfile.ZipFile(
             file_input
         ) as zip_file:
             for filename in zip_file.namelist():

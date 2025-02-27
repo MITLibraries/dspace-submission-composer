@@ -91,7 +91,7 @@ def test_workflow_ocw_extract_metadata_from_zip_file_success(
         )
 
     assert opencourseware_workflow_instance._extract_metadata_from_zip_file(
-        "opencourseware/batch-aaa/123.zip"
+        "s3://dsc/opencourseware/batch-aaa/123.zip"
     ) == {
         "course_description": "Investigating the paranormal, one burger at a time.",
         "course_title": "Burgers and Beyond",

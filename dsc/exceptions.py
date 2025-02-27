@@ -14,10 +14,6 @@ class ItemMetadatMissingRequiredFieldError(Exception):
     pass
 
 
-class ReconcileError(Exception):
-    pass
-
-
 class ReconcileFoundBitstreamsWithoutMetadataWarning(Warning):
     def __init__(self, bitstreams_without_metadata: list[str]):
         self.bitstreams_without_metadata = bitstreams_without_metadata
