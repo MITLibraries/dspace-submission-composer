@@ -1,5 +1,6 @@
-import csv
 from io import StringIO
+
+import pandas as pd
 
 from dsc.reports.base import Report
 
@@ -50,21 +51,17 @@ class FinalizeReport(Report):
         """
         attachments = []
 
-        ingested_items = self.get_ingested_items()
-        if ingested_items:
+        if ingested_items := self.get_ingested_items():
             attachments.append(
                 (
                     "ingested_items.csv",
-                    self._write_ingested_items_csv(ingested_items),
+                    self._write_events_to_csv(ingested_items),
                 )
             )
 
-        if self.events.errors:
+        if errors := self.events.errors:
             attachments.append(
-                (
-                    "errors.txt",
-                    self._write_errors_text_file(),
-                )
+                ("errors.csv", self._write_events_to_csv(errors, columns=["error"]))
             )
         return attachments
 
@@ -78,29 +75,17 @@ class FinalizeReport(Report):
             if item["ingested"] == "success"
         ]
 
-    def _write_ingested_items_csv(self, ingested_items: list[dict]) -> StringIO:
-        """Write ingested items to string buffer.
-
-        This method creates a string buffer with the contents of a CSV
-        file describing successfully ingested items.
-        """
-        csv_buffer = StringIO()
-        fieldnames = ingested_items[0].keys()
-        writer = csv.DictWriter(csv_buffer, fieldnames=fieldnames)
-        writer.writeheader()
-        writer.writerows(ingested_items)
-        csv_buffer.seek(0)
-        return csv_buffer
-
-    def _write_errors_text_file(self) -> StringIO:
-        """Write error messages to string buffer.
-
-        This method creates a string buffer with the error messages
-        encountered when 'finalize' methods were executed.
-        """
+    def _write_events_to_csv(
+        self,
+        events: list[dict] | list,
+        columns: list[str] | None = None,
+    ) -> StringIO:
+        """Write 'finalize' events to string buffer."""
         text_buffer = StringIO()
-        for error in self.events.errors:
-            text_buffer.write(error + "\n")
+
+        events_df = pd.DataFrame(events, columns=columns)
+        events_df.to_csv(text_buffer, index=False)
+
         text_buffer.seek(0)
         return text_buffer
 

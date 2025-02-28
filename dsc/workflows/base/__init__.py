@@ -409,7 +409,7 @@ class Workflow(ABC):
     ) -> None:
         """Send report as an email via SES."""
         report = report_class.from_workflow(self)
-
+        logger.info(f"Sending report to recipients: {email_recipients}")
         ses_client = SESClient(region=CONFIG.aws_region_name)
         ses_client.create_and_send_email(
             subject=report.subject,

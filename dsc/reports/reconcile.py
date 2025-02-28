@@ -1,5 +1,6 @@
 from io import StringIO
-from typing import Literal
+
+import pandas as pd
 
 from dsc.reports.base import Report
 
@@ -42,72 +43,56 @@ class ReconcileReport(Report):
         """
         attachments = []
 
-        if self.events.reconciled_items:
-            attachments.append(
-                ("reconciled_items.txt", self._write_reconciled_items_text())
-            )
-
-        if self.events.reconcile_errors.get("bitstreams_without_metadata"):
+        if reconciled_items := self.events.reconciled_items:
             attachments.append(
                 (
-                    "bitstreams_without_metadata.txt",
-                    self._write_reconcile_errors_text(
-                        error_type="bitstreams_without_metadata",
-                        header="Bitstreams without metadata",
+                    "reconciled_items.csv",
+                    self._write_events_to_csv(
+                        reconciled_items, columns=["item_identifier", "bitstreams"]
                     ),
                 )
             )
 
-        if self.events.reconcile_errors.get("metadata_without_bitstreams"):
+        if bitstreams_without_metadata := self.events.reconcile_errors.get(
+            "bitstreams_without_metadata"
+        ):
             attachments.append(
                 (
-                    "metadata_without_bitstreams.txt",
-                    self._write_reconcile_errors_text(
-                        error_type="metadata_without_bitstreams",
-                        header="Metadata without bitstreams",
+                    "bitstreams_without_metadata.csv",
+                    self._write_events_to_csv(
+                        bitstreams_without_metadata, columns=["bitstream"]
+                    ),
+                )
+            )
+
+        if metadata_without_bitstreams := self.events.reconcile_errors.get(
+            "metadata_without_bitstreams"
+        ):
+            attachments.append(
+                (
+                    "metadata_without_bitstreams.csv",
+                    self._write_events_to_csv(
+                        metadata_without_bitstreams, columns=["item_identifier"]
                     ),
                 )
             )
         return attachments
 
-    def _write_reconciled_items_text(self) -> StringIO:
-        """Write reconciled items to string buffer.
-
-        This method creates a string buffer containing an enumerated list of
-        reconciled items formatted as:
-            "<item_identifier> -> [<bitstream filenames>]'
-        """
-        text_buffer = StringIO()
-        text_buffer.write("Reconciled items (item_identifier -> bitstreams)\n\n")
-
-        for index, (item_identifier, bitstreams) in enumerate(
-            self.events.reconciled_items.items(), start=1
-        ):
-            text_buffer.write(f"{index}. {item_identifier} -> {bitstreams}\n")
-        text_buffer.seek(0)
-
-        return text_buffer
-
-    def _write_reconcile_errors_text(
+    def _write_events_to_csv(
         self,
-        error_type: Literal["bitstreams_without_metadata", "metadata_without_bitstreams"],
-        header: str,
+        events: dict | list,
+        columns: list[str] | None = None,
     ) -> StringIO:
-        """Write reconcile errors to string buffer.
-
-        This method creates a string buffer containing an enumerated list of
-        reconcile errors -- either item identifiers for 'metadata_without_bitstreams'
-        or bitstream filenames for 'bitstreams_without_metadata'.
-        """
+        """Write 'reconcile' events to string buffer."""
         text_buffer = StringIO()
-        text_buffer.write(f"{header}\n\n")
 
-        for index, reconcile_error in enumerate(
-            self.events.reconcile_errors[error_type], start=1
-        ):
-            text_buffer.write(f"{index}. {reconcile_error}\n")
+        if isinstance(events, dict):
+            events_df = pd.DataFrame(list(events.items()), columns=columns)
+        elif isinstance(events, list):
+            events_df = pd.DataFrame(events, columns=columns)
+        events_df.to_csv(text_buffer, index=False)
+
         text_buffer.seek(0)
-
         return text_buffer
 
     def to_plain_text(self) -> str:

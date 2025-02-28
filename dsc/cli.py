@@ -72,7 +72,7 @@ def post_main_group_subcommand(
 @click.option(
     "-e",
     "--email-recipients",
-    help="The recipients of the submission results email as a comma-delimited string",
+    help="The recipients of the reconcile results email as a comma-delimited string",
     default=None,
 )
 def reconcile(ctx: click.Context, email_recipients: str | None = None) -> None:

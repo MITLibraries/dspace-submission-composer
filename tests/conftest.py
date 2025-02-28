@@ -365,5 +365,6 @@ def workflow_events_finalize(result_message_body):
                 "result_message_body": json.loads(result_message_body),
                 "ingested": "success",
             }
-        ]
+        ],
+        errors=["Failed to retrieve 'ReceiptHandle' from message: abc"],
     )
