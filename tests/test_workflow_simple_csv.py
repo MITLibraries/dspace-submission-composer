@@ -2,10 +2,6 @@
 import json
 from unittest.mock import patch
 
-import pytest
-
-from dsc.exceptions import ReconcileError
-
 
 @patch("dsc.utilities.aws.s3.S3Client.files_iter")
 def test_workflow_simple_csv_reconcile_bitstreams_and_metadata_success(
@@ -25,7 +21,7 @@ def test_workflow_simple_csv_reconcile_bitstreams_and_metadata_success(
 
 
 @patch("dsc.utilities.aws.s3.S3Client.files_iter")
-def test_workflow_simple_csv_reconcile_bitstreams_and_metadata_raise_error(
+def test_workflow_simple_csv_reconcile_bitstreams_and_metadata_if_no_metadata_success(
     mock_s3_client_files_iter,
     caplog,
     simple_csv_workflow_instance,
@@ -34,18 +30,21 @@ def test_workflow_simple_csv_reconcile_bitstreams_and_metadata_raise_error(
     mock_s3_client_files_iter.return_value = [
         "s3://dsc/simple_csv/batch-aaa/124_001.pdf",
     ]
-    expected_reconcile_error_message = {
+    expected_reconcile_summary = {
         "reconciled": 0,
-        "bitstreams_without_metadata": {
-            "count": 1,
-            "filenames": ["s3://dsc/simple_csv/batch-aaa/124_001.pdf"],
-        },
-        "metadata_without_bitstreams": {"count": 1, "item_identifiers": ["123"]},
+        "bitstreams_without_metadata": 1,
+        "metadata_without_bitstreams": 1,
     }
-    with pytest.raises(ReconcileError):
-        simple_csv_workflow_instance.reconcile_bitstreams_and_metadata()
 
-    assert json.dumps(expected_reconcile_error_message) in caplog.text
+    reconciled = simple_csv_workflow_instance.reconcile_bitstreams_and_metadata()
+
+    assert not reconciled
+    assert f"Reconcile results: {json.dumps(expected_reconcile_summary)}" in caplog.text
+    assert "Failed to reconcile bitstreams and metadata" in caplog.text
+    assert (
+        "Bitstreams without metadata: ['s3://dsc/simple_csv/batch-aaa/124_001.pdf']"
+    ) in caplog.text
+    assert "Metadata without bitstreams: ['123']" in caplog.text
 
 
 def test_workflow_simple_csv_match_metadata_to_bitstreams(simple_csv_workflow_instance):

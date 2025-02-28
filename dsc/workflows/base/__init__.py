@@ -37,10 +37,11 @@ class WorkflowEvents:
     messages are also tracked in a list.
     """
 
-    reconciled_items: list[str] = field(default_factory=list)
+    reconciled_items: dict = field(default_factory=dict)
     submitted_items: list[dict] = field(default_factory=list)
     processed_items: list[dict] = field(default_factory=list)
     errors: list[str] = field(default_factory=list)
+    reconcile_errors: dict = field(default_factory=dict)
 
 
 class Workflow(ABC):
@@ -109,7 +110,7 @@ class Workflow(ABC):
             yield subclass
 
     @abstractmethod
-    def reconcile_bitstreams_and_metadata(self) -> None:
+    def reconcile_bitstreams_and_metadata(self) -> bool:
         """Reconcile bitstreams against metadata.
 
         Items in DSpace represent a "work" and combine metadata and files,
@@ -408,7 +409,7 @@ class Workflow(ABC):
     ) -> None:
         """Send report as an email via SES."""
         report = report_class.from_workflow(self)
-
+        logger.info(f"Sending report to recipients: {email_recipients}")
         ses_client = SESClient(region=CONFIG.aws_region_name)
         ses_client.create_and_send_email(
             subject=report.subject,

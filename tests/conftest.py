@@ -344,6 +344,19 @@ def submission_message_body():
 
 
 @pytest.fixture
+def workflow_events_reconcile():
+    return WorkflowEvents(
+        reconciled_items={
+            "123": ["123.pdf", "123.tiff"],
+        },
+        reconcile_errors={
+            "bitstreams_without_metadata": ["124.pdf"],
+            "metadata_without_bitstreams": ["125"],
+        },
+    )
+
+
+@pytest.fixture
 def workflow_events_finalize(result_message_body):
     return WorkflowEvents(
         processed_items=[
@@ -352,5 +365,6 @@ def workflow_events_finalize(result_message_body):
                 "result_message_body": json.loads(result_message_body),
                 "ingested": "success",
             }
-        ]
+        ],
+        errors=["Failed to retrieve 'ReceiptHandle' from message: abc"],
     )

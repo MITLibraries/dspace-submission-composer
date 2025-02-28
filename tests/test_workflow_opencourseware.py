@@ -4,8 +4,6 @@ from unittest.mock import patch
 
 import pytest
 
-from dsc.exceptions import ReconcileError
-
 INSTRUCTORS = [
     {
         "first_name": "Kerry",
@@ -37,15 +35,17 @@ def test_workflow_ocw_reconcile_bitstreams_and_metadata_success(
     mock_opencourseware_extract_metadata_from_zip_file.return_value = (
         opencourseware_source_metadata
     )
-    opencourseware_workflow_instance.reconcile_bitstreams_and_metadata()
+    reconciled = opencourseware_workflow_instance.reconcile_bitstreams_and_metadata()
+
+    assert reconciled
     assert (
-        "Successfully reconciled bitstreams and metadata for all items (n=1)"
+        "Successfully reconciled bitstreams and metadata for all 1 item(s)"
     ) in caplog.text
 
 
 @patch("dsc.workflows.opencourseware.OpenCourseWare._extract_metadata_from_zip_file")
 @patch("dsc.utilities.aws.s3.S3Client.files_iter")
-def test_workflow_ocw_reconcile_bitstreams_and_metadata_if_no_metadata_raise_error(
+def test_workflow_ocw_reconcile_bitstreams_and_metadata_if_no_metadata_success(
     mock_s3_client_files_iter,
     mock_opencourseware_extract_metadata_from_zip_file,
     caplog,
@@ -61,17 +61,17 @@ def test_workflow_ocw_reconcile_bitstreams_and_metadata_if_no_metadata_raise_err
         opencourseware_source_metadata,
         FileNotFoundError,
     ]
-    expected_reconcile_error_message = {
-        "note": "Failed to reconcile bitstreams and metadata.",
-        "bitstreams_without_metadata": {
-            "count": 1,
-            "identifiers": ["124"],
-        },
+    expected_reconcile_summary = {
+        "reconciled": 1,
+        "bitstreams_without_metadata": 1,
     }
-    with pytest.raises(ReconcileError):
-        opencourseware_workflow_instance.reconcile_bitstreams_and_metadata()
 
-    assert json.dumps(expected_reconcile_error_message) in caplog.text
+    reconciled = opencourseware_workflow_instance.reconcile_bitstreams_and_metadata()
+
+    assert not reconciled
+    assert f"Reconcile results: {json.dumps(expected_reconcile_summary)}" in caplog.text
+    assert "Failed to reconcile bitstreams and metadata" in caplog.text
+    assert "Bitstreams without metadata: ['124']" in caplog.text
 
 
 def test_workflow_ocw_extract_metadata_from_zip_file_success(
@@ -91,7 +91,7 @@ def test_workflow_ocw_extract_metadata_from_zip_file_success(
         )
 
     assert opencourseware_workflow_instance._extract_metadata_from_zip_file(
-        "opencourseware/batch-aaa/123.zip"
+        "s3://dsc/opencourseware/batch-aaa/123.zip"
     ) == {
         "course_description": "Investigating the paranormal, one burger at a time.",
         "course_title": "Burgers and Beyond",

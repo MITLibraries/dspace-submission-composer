@@ -8,7 +8,10 @@ from typing import Any
 import pandas as pd
 import smart_open
 
-from dsc.exceptions import ReconcileError
+from dsc.exceptions import (
+    ReconcileFoundBitstreamsWithoutMetadataWarning,
+    ReconcileFoundMetadataWithoutBitstreamsWarning,
+)
 from dsc.utilities.aws import S3Client
 from dsc.workflows.base import Workflow
 
@@ -26,7 +29,7 @@ class SimpleCSV(Workflow):
 
     def reconcile_bitstreams_and_metadata(
         self, metadata_file: str = "metadata.csv"
-    ) -> None:
+    ) -> bool:
         """Reconcile item metadata from metadata CSV file with bitstreams.
 
         For SimpleCSV workflows, bitstreams (files) and a metadata CSV file
@@ -35,10 +38,11 @@ class SimpleCSV(Workflow):
         CSV file--associated with it and vice versa.
         """
         logger.info(f"Reconciling bitstreams and metadata for batch '{self.batch_id}'")
+        reconciled: bool = False
         reconcile_summary = {
             "reconciled": 0,
-            "bitstreams_without_metadata": {},
-            "metadata_without_bitstreams": {},
+            "bitstreams_without_metadata": 0,
+            "metadata_without_bitstreams": 0,
         }
 
         # get metadata
@@ -59,6 +63,7 @@ class SimpleCSV(Workflow):
         reconciled_items = self._match_metadata_to_bitstreams(
             metadata_item_identifiers, bitstream_filenames
         )
+        self.workflow_events.reconciled_items = reconciled_items
 
         bitstreams_without_metadata = list(
             set(bitstream_filenames) - set(itertools.chain(*reconciled_items.values()))
@@ -66,28 +71,45 @@ class SimpleCSV(Workflow):
         metadata_without_bitstreams = list(
             metadata_item_identifiers - set(reconciled_items.keys())
         )
-
-        reconcile_summary["reconciled"] = len(reconciled_items)
+        reconcile_summary.update(
+            {
+                "reconciled": len(reconciled_items),
+                "bitstreams_without_metadata": len(bitstreams_without_metadata),
+                "metadata_without_bitstreams": len(metadata_without_bitstreams),
+            }
+        )
+        logger.info(f"Reconcile results: {json.dumps(reconcile_summary)}")
 
         if any((bitstreams_without_metadata, metadata_without_bitstreams)):
-            reconcile_summary["bitstreams_without_metadata"] = {
-                "count": len(bitstreams_without_metadata),
-                "filenames": sorted(bitstreams_without_metadata),
-            }
-            reconcile_summary["metadata_without_bitstreams"] = {
-                "count": len(metadata_without_bitstreams),
-                "item_identifiers": sorted(metadata_without_bitstreams),
-            }
-            logger.error(
-                "Failed to reconcile bitstreams and metadata: "
-                f"{json.dumps(reconcile_summary)}"
-            )
-            raise ReconcileError(json.dumps(reconcile_summary))
+            logger.warning("Failed to reconcile bitstreams and metadata")
 
-        logger.info(
-            "Successfully reconciled bitstreams and metadata for all "
-            f"{len(reconciled_items)} item(s)"
-        )
+            if bitstreams_without_metadata:
+                logger.warning(
+                    ReconcileFoundBitstreamsWithoutMetadataWarning(
+                        bitstreams_without_metadata
+                    )
+                )
+                self.workflow_events.reconcile_errors["bitstreams_without_metadata"] = (
+                    bitstreams_without_metadata
+                )
+
+            if metadata_without_bitstreams:
+                logger.warning(
+                    ReconcileFoundMetadataWithoutBitstreamsWarning(
+                        metadata_without_bitstreams
+                    )
+                )
+                self.workflow_events.reconcile_errors["metadata_without_bitstreams"] = (
+                    metadata_without_bitstreams
+                )
+        else:
+            reconciled = True
+            logger.info(
+                "Successfully reconciled bitstreams and metadata for all "
+                f"{len(reconciled_items)} item(s)"
+            )
+
+        return reconciled
 
     def _match_metadata_to_bitstreams(
         self, item_identifiers: set[str], bitstream_filenames: list[str]

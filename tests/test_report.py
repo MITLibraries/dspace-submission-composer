@@ -1,9 +1,51 @@
-from unittest.mock import patch
-
 from freezegun import freeze_time
 
-from dsc.reports import FinalizeReport
+from dsc.reports import FinalizeReport, ReconcileReport
 from dsc.workflows.base import WorkflowEvents
+
+
+@freeze_time("2025-01-01 09:00:00")
+def test_reconcile_report_init_success(workflow_events_reconcile):
+    reconcile_report = ReconcileReport(
+        workflow_name="test", batch_id="aaa", events=workflow_events_reconcile
+    )
+
+    assert reconcile_report.workflow_name == "test"
+    assert reconcile_report.batch_id == "aaa"
+    assert reconcile_report.report_date == "2025-01-01 09:00:00"
+    assert reconcile_report.events == workflow_events_reconcile
+
+
+def test_reconcile_report_subject_success(workflow_events_reconcile):
+    reconcile_report = ReconcileReport(
+        workflow_name="test", batch_id="aaa", events=workflow_events_reconcile
+    )
+    assert reconcile_report.subject == "DSC Reconcile Results - test, batch='aaa'"
+
+
+def test_reconcile_report_create_attachments_success(workflow_events_reconcile):
+    reconcile_report = ReconcileReport(
+        workflow_name="test", batch_id="aaa", events=workflow_events_reconcile
+    )
+    attachments = reconcile_report.create_attachments()
+
+    reconciled_items_filename, reconciled_items_buffer = attachments[0]
+    assert reconciled_items_filename == "reconciled_items.csv"
+    assert reconciled_items_buffer.readlines() == [
+        "item_identifier,bitstreams\n",
+        "123,\"['123.pdf', '123.tiff']\"\n",
+    ]
+
+    reconcile_error_filename_a, reconcile_error_buffer_a = attachments[1]
+    assert reconcile_error_filename_a == "bitstreams_without_metadata.csv"
+    assert reconcile_error_buffer_a.readlines() == ["bitstream\n", "124.pdf\n"]
+
+    reconcile_error_filename_b, reconcile_error_buffer_b = attachments[2]
+    assert reconcile_error_filename_b == "metadata_without_bitstreams.csv"
+    assert reconcile_error_buffer_b.readlines() == [
+        "item_identifier\n",
+        "125\n",
+    ]
 
 
 @freeze_time("2025-01-01 09:00:00")
@@ -37,23 +79,24 @@ def test_finalize_report_subject_success(workflow_events_finalize):
     assert finalize_report.subject == "DSpace Submission Results - test, batch='aaa'"
 
 
-@patch("dsc.reports.FinalizeReport._write_errors_text_file")
-@patch("dsc.reports.FinalizeReport._write_ingested_items_csv")
 def test_finalize_report_create_attachments_success(
-    mock_finalize_report_processed_items_csv,
-    mock_finalize_report_errors_txt,
     workflow_events_finalize,
 ):
-    mock_finalize_report_processed_items_csv.return_value = "processed items csv content"
-    mock_finalize_report_errors_txt.return_value = "errors txt content"
-    workflow_events_finalize.errors = ["This is an error"]
-
     finalize_report = FinalizeReport(
         workflow_name="test", batch_id="aaa", events=workflow_events_finalize
     )
     attachments = finalize_report.create_attachments()
 
-    assert attachments == [
-        ("ingested_items.csv", "processed items csv content"),
-        ("errors.txt", "errors txt content"),
+    ingested_items_filename, ingested_items_buffer = attachments[0]
+    assert ingested_items_filename == "ingested_items.csv"
+    assert ingested_items_buffer.readlines() == [
+        "item_identifier,dspace_handle\n",
+        "123,1721.1/131022\n",
+    ]
+
+    errors_filename, errors_buffer = attachments[1]
+    assert errors_filename == "errors.csv"
+    assert errors_buffer.readlines() == [
+        "error\n",
+        "Failed to retrieve 'ReceiptHandle' from message: abc\n",
     ]
