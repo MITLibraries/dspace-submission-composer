@@ -25,7 +25,9 @@ class Report(ABC):
 
         # configure environment for loading jinja templates
         self.jinja_env = Environment(
-            loader=FileSystemLoader(["dsc/templates/html", "dsc/templates/plain_text"]),
+            loader=FileSystemLoader(
+                ["dsc/reports/templates/html", "dsc/reports/templates/plain_text"]
+            ),
             autoescape=select_autoescape(),
         )
 
