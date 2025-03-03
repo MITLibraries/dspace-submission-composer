@@ -68,7 +68,7 @@ class FinalizeReport(Report):
                 "dspace_handle": item["result_message_body"]["ItemHandle"],
             }
             for item in self.events.processed_items
-            if item["ingested"] == "success"
+            if item["ingested"]
         ]
 
     def to_plain_text(self) -> str:
