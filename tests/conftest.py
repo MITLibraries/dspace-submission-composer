@@ -357,6 +357,14 @@ def workflow_events_reconcile():
 
 
 @pytest.fixture
+def workflow_events_submit():
+    return WorkflowEvents(
+        submitted_items=[{"item_identifier": "123", "message_id": "abc"}],
+        errors=["Failed to send submission message for item: 124"],
+    )
+
+
+@pytest.fixture
 def workflow_events_finalize(result_message_body):
     return WorkflowEvents(
         processed_items=[

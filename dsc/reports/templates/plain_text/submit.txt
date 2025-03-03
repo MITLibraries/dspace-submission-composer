@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+Submission results for {{workflow_name}} deposit
+Batch: {{batch_id}}
+Run date: {{report_date}}
+
+Results:
+Messages successfully sent to DSS: {{ submitted_items|length }}
+Errors: {{ errors|length }}
+{% endblock %}

@@ -2,8 +2,10 @@ from __future__ import annotations
 
 import datetime
 from abc import ABC, abstractmethod
+from io import StringIO
 from typing import TYPE_CHECKING
 
+import pandas as pd
 from jinja2 import Environment, FileSystemLoader, Template, select_autoescape
 
 if TYPE_CHECKING:
@@ -66,6 +68,29 @@ class Report(ABC):
     @abstractmethod
     def create_attachments(self) -> list[tuple]:
         """Create attachments to include in report email."""
+
+    def _write_events_to_csv(
+        self,
+        events: list[dict] | list[str] | list[tuple],
+        columns: list[str] | None = None,
+    ) -> StringIO:
+        """Write events to a CSV string buffer.
+
+        If 'events' is a list of dictionaries, this method will create a
+        dataframe where the keys are set as the columns. If 'events' is a
+        list of strings, this method will create a single-column dataframe,
+        and 'columns' must be set to a list containing the name for the column.
+        If 'events' is a list of tuples, this method will create a dataframe
+        with n columns, where n = number of elements in each tuple, and
+        'columns' must be set to a list of n column names.
+        """
+        text_buffer = StringIO()
+
+        events_df = pd.DataFrame(events, columns=columns)
+        events_df.to_csv(text_buffer, index=False)
+
+        text_buffer.seek(0)
+        return text_buffer
 
     @abstractmethod
     def to_plain_text(self) -> str:

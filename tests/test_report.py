@@ -1,6 +1,6 @@
 from freezegun import freeze_time
 
-from dsc.reports import FinalizeReport, ReconcileReport
+from dsc.reports import FinalizeReport, ReconcileReport, SubmitReport
 from dsc.workflows.base import WorkflowEvents
 
 
@@ -45,6 +45,46 @@ def test_reconcile_report_create_attachments_success(workflow_events_reconcile):
     assert reconcile_error_buffer_b.readlines() == [
         "item_identifier\n",
         "125\n",
+    ]
+
+
+@freeze_time("2025-01-01 09:00:00")
+def test_submit_report_init_success(workflow_events_submit):
+    submit_report = SubmitReport(
+        workflow_name="test", batch_id="aaa", events=workflow_events_submit
+    )
+
+    assert submit_report.workflow_name == "test"
+    assert submit_report.batch_id == "aaa"
+    assert submit_report.report_date == "2025-01-01 09:00:00"
+    assert submit_report.events == workflow_events_submit
+
+
+def test_submit_report_subject_success(workflow_events_submit):
+    submit_report = SubmitReport(
+        workflow_name="test", batch_id="aaa", events=workflow_events_submit
+    )
+    assert submit_report.subject == "DSC Submission Results - test, batch='aaa'"
+
+
+def test_submit_report_create_attachments_success(workflow_events_submit):
+    submit_report = SubmitReport(
+        workflow_name="test", batch_id="aaa", events=workflow_events_submit
+    )
+    attachments = submit_report.create_attachments()
+
+    submitted_items_filename, submitted_items_buffer = attachments[0]
+    assert submitted_items_filename == "submitted_items.csv"
+    assert submitted_items_buffer.readlines() == [
+        "item_identifier,message_id\n",
+        "123,abc\n",
+    ]
+
+    errors_filename, errors_buffer = attachments[1]
+    assert errors_filename == "errors.csv"
+    assert errors_buffer.readlines() == [
+        "error\n",
+        "Failed to send submission message for item: 124\n",
     ]
 
 
