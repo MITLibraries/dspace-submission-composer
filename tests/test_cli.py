@@ -78,7 +78,13 @@ def test_reconcile_if_non_reconcile_workflow_raise_error(
 
 
 def test_submit_success(
-    caplog, runner, mocked_s3, mocked_sqs_input, base_workflow_instance, s3_client
+    caplog,
+    runner,
+    mocked_s3,
+    mocked_ses,
+    mocked_sqs_input,
+    base_workflow_instance,
+    s3_client,
 ):
     s3_client.put_file(file_content="", bucket="dsc", key="test/batch-aaa/123_01.pdf")
     s3_client.put_file(file_content="", bucket="dsc", key="test/batch-aaa/123_02.jpg")
@@ -99,7 +105,7 @@ def test_submit_success(
             "--collection-handle",
             "123.4/5678",
             "--email-recipients",
-            "test@test.edu",
+            "test@test.test,test2@test.test",
         ],
     )
     assert result.exit_code == 0

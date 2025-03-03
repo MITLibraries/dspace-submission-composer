@@ -5,7 +5,7 @@ from time import perf_counter
 import click
 
 from dsc.config import Config
-from dsc.reports import FinalizeReport, ReconcileReport
+from dsc.reports import FinalizeReport, ReconcileReport, SubmitReport
 from dsc.workflows.base import Workflow
 
 logger = logging.getLogger(__name__)
@@ -103,17 +103,21 @@ def reconcile(ctx: click.Context, email_recipients: str | None = None) -> None:
     "-e",
     "--email-recipients",
     help="The recipients of the submission results email as a comma-delimited string",
-    required=True,
+    default=None,
 )
 def submit(
     ctx: click.Context,
     collection_handle: str,
-    email_recipients: str,  # noqa: ARG001
+    email_recipients: str | None = None,
 ) -> None:
     """Send a batch of item submissions to the DSpace Submission Service (DSS)."""
     workflow = ctx.obj["workflow"]
     workflow.submit_items(collection_handle)
-    # TODO(): workflow.send_report(email_recipients.split(",")) #noqa:FIX002, TD003
+
+    if email_recipients:
+        workflow.send_report(
+            report_class=SubmitReport, email_recipients=email_recipients.split(",")
+        )
 
 
 @main.command()

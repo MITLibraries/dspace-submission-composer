@@ -2,10 +2,11 @@
 
 {% block content %}
 
-<p><b>Reconcile results summary for {{workflow_name}} deposit for batch='{{batch_id}}'</b></p>
+<p><b>Reconcile results for {{workflow_name}} deposit</b></p>
+<p>Batch: {{batch_id}}</p>
 <p>Run date: {{report_date}}</p>
-<p>Results:</p>
 
+<p>Results:</p>
 <p>Reconciled: {{ reconciled_items|length }}</p>
 {% if bitstreams_without_metadata %}
 <p>Bitstreams without metadata: {{ bitstreams_without_metadata|length }}</p>
