@@ -4,10 +4,10 @@
 
 ##############################################################################
 # These owners will be the default owners for everything in the repo. Unless a
-# later match takes precedence, @cabutlermit will be requested for review when
-# someone opens a pull request.This is commented out in favor of using a team
-# as the default (see below). It is left here as a comment to indicate the
-# primary expert for this code.
+# later match takes precedence, @jonavellecuerdo will be requested for review
+# when someone opens a pull request.This is commented out in favor of using a
+# team as the default (see below). It is left here as a comment to indicate
+# the primary expert for this code.
 # * @jonavellecuerdo
 
 # Teams can be specified as code owners as well. Teams should be identified in
@@ -17,4 +17,4 @@
 
 # We set the senior engineer in the team as the owner of the CODEOWNERS file as
 # a layer of protection for unauthorized changes.
-/.github/CODEOWNERS @cabutlermit
+/.github/CODEOWNERS @ghukill
