@@ -68,7 +68,7 @@ MINIO_ROOT_PASSWORD=# Password for root user account MinIO server.
 
 ## Related Assets
 
-This is a infrastructure repository that provides the DSpace Submission Composer. The following application infrastructure repositories are related to this repository:
+This is a repository that provides the DSpace Submission Composer. The following application infrastructure repositories are related to this repository:
 
 * [DSC Infrastructure](https://github.com/MITLibraries/mitlib-tf-workloads-dsc)
 * [ECR](https://github.com/MITLibraries/mitlib-tf-workloads-ecr)
