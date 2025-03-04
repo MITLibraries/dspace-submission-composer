@@ -100,6 +100,11 @@ def reconcile(ctx: click.Context, email_recipients: str | None = None) -> None:
     required=True,
 )
 @click.option(
+    "--skip-items",
+    help="Item identifiers to exclude from DSS submissions as a comma-delimited string",
+    default=None,
+)
+@click.option(
     "-e",
     "--email-recipients",
     help="The recipients of the submission results email as a comma-delimited string",
@@ -108,11 +113,12 @@ def reconcile(ctx: click.Context, email_recipients: str | None = None) -> None:
 def submit(
     ctx: click.Context,
     collection_handle: str,
+    skip_items: list | None = None,
     email_recipients: str | None = None,
 ) -> None:
     """Send a batch of item submissions to the DSpace Submission Service (DSS)."""
     workflow = ctx.obj["workflow"]
-    workflow.submit_items(collection_handle)
+    workflow.submit_items(collection_handle, skip_items)
 
     if email_recipients:
         workflow.send_report(

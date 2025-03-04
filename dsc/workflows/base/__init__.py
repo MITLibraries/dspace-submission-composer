@@ -131,12 +131,14 @@ class Workflow(ABC):
         """
 
     @final
-    def submit_items(self, collection_handle: str) -> list:
+    def submit_items(self, collection_handle: str, skip_items: str | None = None) -> list:
         """Submit items to the DSpace Submission Service according to the workflow class.
 
         Args:
             collection_handle: The handle of the DSpace collection to which the batch will
-              be submitted.
+            be submitted.
+            skip_items: A list of item identifiers to exclude from DSS submissions as a
+            comma-delimited string
 
         Returns a dict with the submission results organized into succeeded and failed
         items.
@@ -151,8 +153,10 @@ class Workflow(ABC):
             "errors": 0,
         }
 
+        skip_items_list = skip_items.split(",") if skip_items else []
+
         items = []
-        for item_submission in self.item_submissions_iter():
+        for item_submission in self.item_submissions_iter(skip_items_list):
             submission_summary["total"] += 1
             item_identifier = item_submission.item_identifier
 
@@ -207,13 +211,23 @@ class Workflow(ABC):
         return items
 
     @final
-    def item_submissions_iter(self) -> Iterator[ItemSubmission]:
+    def item_submissions_iter(
+        self, skip_items: list | None = None
+    ) -> Iterator[ItemSubmission]:
         """Yield item submissions for the DSpace Submission Service.
 
         MUST NOT be overridden by workflow subclasses.
         """
+        if not skip_items:
+            skip_items = []
+
         for item_metadata in self.item_metadata_iter():
             item_identifier = self.get_item_identifier(item_metadata)
+
+            if item_identifier in skip_items:
+                logger.info(f"Skipping submission for item: {item_identifier}")
+                continue
+
             logger.info(f"Preparing submission for item: {item_identifier}")
             dspace_metadata = self.create_dspace_metadata(item_metadata)
             self.validate_dspace_metadata(dspace_metadata)
