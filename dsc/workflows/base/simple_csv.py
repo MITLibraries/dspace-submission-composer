@@ -151,6 +151,7 @@ class SimpleCSV(Workflow):
         ) as csvfile:
             metadata_df = pd.read_csv(csvfile, dtype="str")
             metadata_df = metadata_df.dropna(how="all")
+            metadata_df = metadata_df.where(pd.notna(metadata_df), None)
 
             for _, row in metadata_df.iterrows():
                 yield row.to_dict()
