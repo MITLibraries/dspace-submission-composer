@@ -56,7 +56,7 @@ class SimpleCSV(Workflow):
             s3_client.files_iter(
                 bucket=self.s3_bucket,
                 prefix=self.batch_path,
-                exclude_prefixes=["archived", metadata_file],
+                exclude_prefixes=["archived", metadata_file, "metadata.json"],
             )
         )
 
@@ -180,7 +180,7 @@ class SimpleCSV(Workflow):
                 bucket=self.s3_bucket,
                 prefix=self.batch_path,
                 item_identifier=item_identifier,
-                exclude_prefixes=["archived"],
+                exclude_prefixes=["archived", "metadata.json"],
             )
         )
 
