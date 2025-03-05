@@ -77,6 +77,7 @@ class FinalizeReport(Report):
             batch_id=self.batch_id,
             report_date=self.report_date,
             processed_items=self.events.processed_items,
+            ingested_items=self.get_ingested_items(),
             errors=self.events.errors,
         )
 
@@ -86,5 +87,6 @@ class FinalizeReport(Report):
             batch_id=self.batch_id,
             report_date=self.report_date,
             processed_items=self.events.processed_items,
+            ingested_items=self.get_ingested_items(),
             errors=self.events.errors,
         )
