@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, final
@@ -15,7 +16,7 @@ from dsc.exceptions import (
     ItemMetadatMissingRequiredFieldError,
 )
 from dsc.item_submission import ItemSubmission
-from dsc.utilities.aws import SESClient, SQSClient
+from dsc.utilities.aws import S3Client, SESClient, SQSClient
 
 if TYPE_CHECKING:  # pragma: no cover
     from collections.abc import Iterator
@@ -136,9 +137,9 @@ class Workflow(ABC):
 
         Args:
             collection_handle: The handle of the DSpace collection to which the batch will
-            be submitted.
+                be submitted.
             skip_items: A list of item identifiers to exclude from DSS submissions as a
-            comma-delimited string
+                comma-delimited string
 
         Returns a dict with the submission results organized into succeeded and failed
         items.
@@ -332,6 +333,72 @@ class Workflow(ABC):
                 f"Invalid DSpace metadata created: {dspace_metadata} ",
             )
         return valid
+
+    @final
+    def remove_dspace_metadata(
+        self,
+        item_identifiers: str | None = None,
+        *,
+        remove_all: bool = False,
+        execute: bool = False,
+    ) -> None:
+        """Remove DSpace metadata JSON files from batch folder in S3.
+
+        The method performs bulk deletes of DSpace metadata JSON files and
+        can either delete a subset of metadata JSON files (if 'item_identifiers'
+        is set) or delete the full set of metadata JSON files (if 'remove_all'
+        is True). The intended use of this method is to ease the process of
+        "resetting" S3 buckets; deleting generated DSpace metadata JSON files
+        to avoid inclusion as "bitstreams" during reruns.
+
+        Args:
+            item_identifiers: Item identifiers specifying which DSpace
+                metadata JSON files should be removed, formatted as a
+                comma-delimited string. Cannot be set if 'remove_all' is True.
+                Defaults to None.
+            remove_all: Flag to delete ALL DSpace metadata JSON files.
+                Cannot be set if 'item_identifiers' are provided.
+            execute: Flag to perform deletions. Defaults to False.
+        """
+        s3_client = S3Client()
+        files_to_delete = []
+
+        if item_identifiers and remove_all:
+            raise ValueError(
+                "Either 'item_identifiers' or 'remove_all' must be set, cannot set both"
+            )
+
+        item_identifiers_list = item_identifiers.split(",") if item_identifiers else []
+
+        logger.info("Searching for DSpace metadata JSON file(s) to delete")
+        for dspace_metadata_file in s3_client.files_iter(
+            bucket=self.s3_bucket, prefix=self.batch_path, file_type=".json"
+        ):
+            filename = dspace_metadata_file.split("/")[-1]
+            object_key = dspace_metadata_file.split(f"s3://{self.s3_bucket}/")[-1]
+
+            if match := re.match("^(.*)(?=_metadata\\.json)", filename):
+                if remove_all:
+                    files_to_delete.append(object_key)
+                else:
+                    item_identifier = match.group(1)
+                    if item_identifier in item_identifiers_list:
+                        files_to_delete.append(object_key)
+
+        if files_to_delete:
+            logger.info(
+                f"Found {len(files_to_delete)} DSpace metadata JSON file(s) to delete: "
+                f"{files_to_delete}"
+            )
+
+            if execute:
+                logger.warning(
+                    f"Deleting {len(files_to_delete)} DSpace metadata JSON file(s)"
+                )
+                s3_client.delete_files(self.s3_bucket, files_to_delete)
+
+        else:
+            logger.info("No DSpace metadata JSON files found for deletion.")
 
     @abstractmethod
     def get_bitstream_s3_uris(self, item_identifier: str) -> list[str]:

@@ -141,3 +141,34 @@ def finalize(ctx: click.Context, email_recipients: str) -> None:
     workflow.send_report(
         report_class=FinalizeReport, email_recipients=email_recipients.split(",")
     )
+
+
+@main.command()
+@click.pass_context
+@click.option(
+    "-i",
+    "--items",
+    help=(
+        "Item identifiers specifying which DSpace metadata JSON files "
+        "should be removed, formatted as a comma-delimited string"
+    ),
+    default=None,
+)
+@click.option(
+    "--remove-all",
+    help="Pass to delete all DSpace metadata JSON files in batch folder",
+    is_flag=True,
+)
+@click.option("--execute/--no-execute", help="Pass to perform deletions", default=False)
+def remove_dspace_metadata(
+    ctx: click.Context,
+    items: str | None = None,
+    *,
+    remove_all: bool = False,
+    execute: bool = False,
+) -> None:
+    """Bulk delete DSpace metadata JSON files from batch folder in S3."""
+    workflow = ctx.obj["workflow"]
+    workflow.remove_dspace_metadata(
+        item_identifiers=items, remove_all=remove_all, execute=execute
+    )

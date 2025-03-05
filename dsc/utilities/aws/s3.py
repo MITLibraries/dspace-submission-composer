@@ -57,6 +57,12 @@ class S3Client:
         logger.debug(f"'{key}' uploaded to S3")
         return response
 
+    def delete_files(self, bucket: str, files: list[str]) -> None:
+        objects_to_delete = [{"Key": object_key} for object_key in files]
+        self.client.delete_objects(
+            Bucket=bucket, Delete={"Objects": objects_to_delete, "Quiet": True}  # type: ignore[typeddict-item]
+        )
+
     def files_iter(
         self,
         bucket: str,
