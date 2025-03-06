@@ -1,10 +1,11 @@
 {% extends "base.txt" %}
 
 {% block content %}
-Reconcile results summary for {{workflow_name}} deposit for batch='{{batch_id}}'
+Reconcile results summary for {{workflow_name}} deposit
+Batch: {{batch_id}}
 Run date: {{report_date}}
-Results:
 
+Results:
 Reconciled: {{ reconciled_items|length }}
 {% if bitstreams_without_metadata %}
 Bitstreams without metadata: {{ bitstreams_without_metadata|length }}

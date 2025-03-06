@@ -1,7 +1,3 @@
-from io import StringIO
-
-import pandas as pd
-
 from dsc.reports.base import Report
 
 
@@ -48,7 +44,8 @@ class ReconcileReport(Report):
                 (
                     "reconciled_items.csv",
                     self._write_events_to_csv(
-                        reconciled_items, columns=["item_identifier", "bitstreams"]
+                        list(reconciled_items.items()),
+                        columns=["item_identifier", "bitstreams"],
                     ),
                 )
             )
@@ -77,23 +74,6 @@ class ReconcileReport(Report):
                 )
             )
         return attachments
-
-    def _write_events_to_csv(
-        self,
-        events: dict | list,
-        columns: list[str] | None = None,
-    ) -> StringIO:
-        """Write 'reconcile' events to string buffer."""
-        text_buffer = StringIO()
-
-        if isinstance(events, dict):
-            events_df = pd.DataFrame(list(events.items()), columns=columns)
-        elif isinstance(events, list):
-            events_df = pd.DataFrame(events, columns=columns)
-        events_df.to_csv(text_buffer, index=False)
-
-        text_buffer.seek(0)
-        return text_buffer
 
     def to_plain_text(self) -> str:
         return self.jinja_template_plain_text.render(

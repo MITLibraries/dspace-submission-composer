@@ -1,7 +1,3 @@
-from io import StringIO
-
-import pandas as pd
-
 from dsc.reports.base import Report
 
 
@@ -72,22 +68,8 @@ class FinalizeReport(Report):
                 "dspace_handle": item["result_message_body"]["ItemHandle"],
             }
             for item in self.events.processed_items
-            if item["ingested"] == "success"
+            if item["ingested"]
         ]
-
-    def _write_events_to_csv(
-        self,
-        events: list[dict] | list,
-        columns: list[str] | None = None,
-    ) -> StringIO:
-        """Write 'finalize' events to string buffer."""
-        text_buffer = StringIO()
-
-        events_df = pd.DataFrame(events, columns=columns)
-        events_df.to_csv(text_buffer, index=False)
-
-        text_buffer.seek(0)
-        return text_buffer
 
     def to_plain_text(self) -> str:
         return self.jinja_template_plain_text.render(
