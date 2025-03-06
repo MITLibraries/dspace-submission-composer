@@ -100,6 +100,11 @@ def reconcile(ctx: click.Context, email_recipients: str | None = None) -> None:
     required=True,
 )
 @click.option(
+    "--skip-items",
+    help="Item identifiers to exclude from DSS submissions as a comma-delimited string",
+    default=None,
+)
+@click.option(
     "-e",
     "--email-recipients",
     help="The recipients of the submission results email as a comma-delimited string",
@@ -108,11 +113,12 @@ def reconcile(ctx: click.Context, email_recipients: str | None = None) -> None:
 def submit(
     ctx: click.Context,
     collection_handle: str,
+    skip_items: list | None = None,
     email_recipients: str | None = None,
 ) -> None:
     """Send a batch of item submissions to the DSpace Submission Service (DSS)."""
     workflow = ctx.obj["workflow"]
-    workflow.submit_items(collection_handle)
+    workflow.submit_items(collection_handle, skip_items)
 
     if email_recipients:
         workflow.send_report(
@@ -134,4 +140,35 @@ def finalize(ctx: click.Context, email_recipients: str) -> None:
     workflow.process_ingest_results()
     workflow.send_report(
         report_class=FinalizeReport, email_recipients=email_recipients.split(",")
+    )
+
+
+@main.command()
+@click.pass_context
+@click.option(
+    "-i",
+    "--items",
+    help=(
+        "Item identifiers specifying which DSpace metadata JSON files "
+        "should be removed, formatted as a comma-delimited string"
+    ),
+    default=None,
+)
+@click.option(
+    "--remove-all",
+    help="Pass to delete all DSpace metadata JSON files in batch folder",
+    is_flag=True,
+)
+@click.option("--execute/--no-execute", help="Pass to perform deletions", default=False)
+def remove_dspace_metadata(
+    ctx: click.Context,
+    items: str | None = None,
+    *,
+    remove_all: bool = False,
+    execute: bool = False,
+) -> None:
+    """Bulk delete DSpace metadata JSON files from batch folder in S3."""
+    workflow = ctx.obj["workflow"]
+    workflow.remove_dspace_metadata(
+        item_identifiers=items, remove_all=remove_all, execute=execute
     )

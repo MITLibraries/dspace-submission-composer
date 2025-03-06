@@ -29,6 +29,9 @@
         "language": "en_US",
         "delimiter": "|"
     },
+    "dc.contributor.department": {
+        "source_field_name": "dc.contributor.department"
+    },
     "dc.relation.isversionof": {
         "source_field_name": "dc.relation.isversionof"
     },
@@ -47,6 +50,9 @@
     },
     "dc.rights.uri": {
         "source_field_name": "dc.rights.uri"
+    },
+    "dc.description": {
+        "source_field_name": "dc.description"
     },
     "dc.description.sponsorship": {
         "source_field_name": "dc.description.sponsorship",

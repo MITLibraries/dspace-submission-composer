@@ -174,3 +174,80 @@ def test_finalize_success(
     assert "Logs sent to ['test@test.test', 'test2@test.test']" in caplog.text
     assert "Application exiting" in caplog.text
     assert "Total time elapsed" in caplog.text
+
+
+def test_remove_dspace_metadata_if_remove_all_success(
+    caplog, runner, base_workflow_instance, mocked_s3, s3_client
+):
+    s3_client.put_file(
+        file_content="",
+        bucket="dsc",
+        key="test/batch-aaa/123.pdf_metadata.json",
+    )
+    s3_client.put_file(
+        file_content="",
+        bucket="dsc",
+        key="test/batch-aaa/124.pdf_metadata.json",
+    )
+
+    result = runner.invoke(
+        main,
+        [
+            "--verbose",
+            "--workflow-name",
+            "test",
+            "--batch-id",
+            "batch-aaa",
+            "remove-dspace-metadata",
+            "--remove-all",
+            "--execute",
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert "Found 2 DSpace metadata JSON file(s) to delete" in caplog.text
+    assert (
+        str(
+            [
+                "test/batch-aaa/123.pdf_metadata.json",
+                "test/batch-aaa/124.pdf_metadata.json",
+            ]
+        )
+        in caplog.text
+    )
+    assert "Deleting 2 DSpace metadata JSON file(s)" in caplog.text
+
+
+def test_remove_dspace_metadata_if_item_identifiers_success(
+    caplog, runner, base_workflow_instance, mocked_s3, s3_client
+):
+    s3_client.put_file(
+        file_content="",
+        bucket="dsc",
+        key="test/batch-aaa/123.pdf_metadata.json",
+    )
+    s3_client.put_file(
+        file_content="",
+        bucket="dsc",
+        key="test/batch-aaa/124.pdf_metadata.json",
+    )
+
+    result = runner.invoke(
+        main,
+        [
+            "--verbose",
+            "--workflow-name",
+            "test",
+            "--batch-id",
+            "batch-aaa",
+            "remove-dspace-metadata",
+            "--items",
+            "123.pdf",
+            "--execute",
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert "Found 1 DSpace metadata JSON file(s) to delete" in caplog.text
+    assert str(["test/batch-aaa/123.pdf_metadata.json"]) in caplog.text
+    assert "Deleting 1 DSpace metadata JSON file(s)" in caplog.text

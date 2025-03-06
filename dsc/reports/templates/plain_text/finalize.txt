@@ -6,6 +6,7 @@ Batch: {{batch_id}}
 Run date: {{report_date}}
 
 Results:
-Ingested: {{ processed_items|length }}
+Processed: {{ processed_items|length }}
+Ingested: {{ ingested_items|length }}
 Errors: {{ errors|length }}
 {% endblock %}
