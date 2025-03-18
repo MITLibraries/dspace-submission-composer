@@ -56,7 +56,7 @@ class SimpleCSV(Workflow):
             s3_client.files_iter(
                 bucket=self.s3_bucket,
                 prefix=self.batch_path,
-                exclude_prefixes=["archived", metadata_file],
+                exclude_prefixes=["archived", metadata_file, "metadata.json"],
             )
         )
 
@@ -151,6 +151,7 @@ class SimpleCSV(Workflow):
         ) as csvfile:
             metadata_df = pd.read_csv(csvfile, dtype="str")
             metadata_df = metadata_df.dropna(how="all")
+            metadata_df = metadata_df.where(pd.notna(metadata_df), None)
 
             for _, row in metadata_df.iterrows():
                 yield row.to_dict()
@@ -179,7 +180,7 @@ class SimpleCSV(Workflow):
                 bucket=self.s3_bucket,
                 prefix=self.batch_path,
                 item_identifier=item_identifier,
-                exclude_prefixes=["archived"],
+                exclude_prefixes=["archived", "metadata.json"],
             )
         )
 
