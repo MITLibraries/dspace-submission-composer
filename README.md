@@ -51,8 +51,9 @@ Several DSC workflows involve reading metadata CSV files and searching for bitst
 SENTRY_DSN=### If set to a valid Sentry DSN, enables Sentry exception monitoring. This is not needed for local development.
 WORKSPACE=### Set to `dev` for local development, this will be set to `stage` and `prod` in those environments by Terraform.
 AWS_REGION_NAME=### Default AWS region.
-DSS_INPUT_QUEUE=### The DSS SQS input queue to which submission messages are sent.
 DSC_SOURCE_EMAIL=### The email address from which SES emails are sent.
+DSS_INPUT_QUEUE=### The DSS SQS input queue to which submission messages are sent.
+S3_BUCKET=### The name of DSC S3 bucket.
 ```
 
 ### Optional
