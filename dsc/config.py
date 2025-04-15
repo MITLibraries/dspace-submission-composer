@@ -10,8 +10,9 @@ class Config:
         "WORKSPACE",
         "SENTRY_DSN",
         "AWS_REGION_NAME",
-        "DSS_INPUT_QUEUE",
         "DSC_SOURCE_EMAIL",
+        "DSS_INPUT_QUEUE",
+        "S3_BUCKET",
     ]
 
     OPTIONAL_ENV_VARS: Iterable[str] = ["WARNING_ONLY_LOGGERS"]
@@ -29,6 +30,13 @@ class Config:
         return os.getenv("AWS_REGION_NAME", "us-east-1")
 
     @property
+    def dsc_source_email(self) -> str:
+        value = os.getenv("DSC_SOURCE_EMAIL")
+        if not value:
+            raise OSError("Env var 'DSC_SOURCE_EMAIL' must be defined")
+        return value
+
+    @property
     def dss_input_queue(self) -> str:
         value = os.getenv("DSS_INPUT_QUEUE")
         if not value:
@@ -36,17 +44,17 @@ class Config:
         return value
 
     @property
+    def s3_bucket(self) -> str:
+        value = os.getenv("S3_BUCKET")
+        if not value:
+            raise OSError("Env var 'S3_BUCKET' must be defined")
+        return value
+
+    @property
     def warning_only_loggers(self) -> list:
         if _excluded_loggers := os.getenv("WARNING_ONLY_LOGGERS"):
             return _excluded_loggers.split(",")
         return []
-
-    @property
-    def dsc_source_email(self) -> str:
-        value = os.getenv("DSC_SOURCE_EMAIL")
-        if not value:
-            raise OSError("Env var 'DSC_SOURCE_EMAIL' must be defined")
-        return value
 
     def check_required_env_vars(self) -> None:
         """Method to raise exception if required env vars not set."""

@@ -28,10 +28,6 @@ class TestWorkflow(Workflow):
         return "tests/fixtures/test_metadata_mapping.json"
 
     @property
-    def s3_bucket(self) -> str:
-        return "dsc"
-
-    @property
     def output_queue(self) -> str:
         return "mock-output-queue"
 
@@ -77,19 +73,11 @@ class TestSimpleCSV(SimpleCSV):
         return "tests/fixtures/test_metadata_mapping.json"
 
     @property
-    def s3_bucket(self) -> str:
-        return "dsc"
-
-    @property
     def output_queue(self) -> str:
         return "mock-output-queue"
 
 
 class TestOpenCourseWare(OpenCourseWare):
-
-    @property
-    def s3_bucket(self) -> str:
-        return "dsc"
 
     @property
     def output_queue(self) -> str:
@@ -103,9 +91,9 @@ def _test_env(monkeypatch):
     monkeypatch.setenv("AWS_REGION_NAME", "us-east-1")
     monkeypatch.setenv("AWS_ACCESS_KEY_ID", "testing")
     monkeypatch.setenv("AWS_SECRET_ACCESS_KEY", "testing")
-    monkeypatch.setenv("DSS_INPUT_QUEUE", "mock-input-queue")
     monkeypatch.setenv("DSC_SOURCE_EMAIL", "noreply@example.com")
-    monkeypatch.delenv("AWS_ENDPOINT_URL", raising=False)
+    monkeypatch.setenv("DSS_INPUT_QUEUE", "mock-input-queue")
+    monkeypatch.setenv("S3_BUCKET", "dsc")
 
 
 @pytest.fixture

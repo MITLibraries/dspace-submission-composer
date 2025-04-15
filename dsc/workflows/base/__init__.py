@@ -75,10 +75,10 @@ class Workflow(ABC):
         with open(self.metadata_mapping_path) as mapping_file:
             return json.load(mapping_file)
 
+    @final
     @property
-    @abstractmethod
     def s3_bucket(self) -> str:
-        """The S3 bucket containing the DSpace submission files."""
+        return CONFIG.s3_bucket
 
     @property
     @abstractmethod
