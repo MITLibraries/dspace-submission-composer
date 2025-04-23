@@ -81,9 +81,9 @@ class Workflow(ABC):
         return CONFIG.s3_bucket
 
     @property
-    @abstractmethod
     def output_queue(self) -> str:
         """The SQS output queue for the DSS result messages."""
+        return f"dss-output-{self.workflow_name}-{CONFIG.workspace}"
 
     @property
     def batch_path(self) -> str:

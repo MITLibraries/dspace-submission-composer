@@ -17,10 +17,6 @@ class SCCS(SimpleCSV):
     def metadata_mapping_path(self) -> str:
         return "dsc/workflows/metadata_mapping/sccs.json"
 
-    @property
-    def output_queue(self) -> str:
-        return "awaiting AWS infrastructure"
-
     @staticmethod
     def get_item_identifier(item_metadata: dict[str, Any]) -> str:
         """Get 'item_identifier' from item metadata entry.
