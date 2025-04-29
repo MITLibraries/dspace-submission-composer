@@ -78,7 +78,7 @@ class Workflow(ABC):
     @final
     @property
     def s3_bucket(self) -> str:
-        return CONFIG.s3_bucket
+        return CONFIG.s3_bucket_submission_assets
 
     @property
     def output_queue(self) -> str:
@@ -142,7 +142,7 @@ class Workflow(ABC):
         items.
         """
         logger.info(
-            f"Submitting messages to the DSS input queue '{CONFIG.dss_input_queue}' "
+            f"Submitting messages to the DSS input queue '{CONFIG.sqs_queue_dss_input}' "
             f"for batch '{self.batch_id}'"
         )
         submission_summary = {
@@ -201,7 +201,7 @@ class Workflow(ABC):
             logger.info(f"Sent item submission message: {item_data["message_id"]}")
 
         logger.info(
-            f"Submitted messages to the DSS input queue '{CONFIG.dss_input_queue}' "
+            f"Submitted messages to the DSS input queue '{CONFIG.sqs_queue_dss_input}' "
             f"for batch '{self.batch_id}': {json.dumps(submission_summary)}"
         )
         return items
@@ -413,7 +413,7 @@ class Workflow(ABC):
         ses_client = SESClient(region=CONFIG.aws_region_name)
         ses_client.create_and_send_email(
             subject=report.subject,
-            source_email_address=CONFIG.dsc_source_email,
+            source_email_address=CONFIG.source_email,
             recipient_email_addresses=email_recipients,
             message_body_plain_text=report.to_plain_text(),
             message_body_html=report.to_html(),

@@ -10,9 +10,9 @@ class Config:
         "WORKSPACE",
         "SENTRY_DSN",
         "AWS_REGION_NAME",
-        "DSC_SOURCE_EMAIL",
-        "DSS_INPUT_QUEUE",
-        "S3_BUCKET",
+        "S3_BUCKET_SUBMISSION_ASSETS",
+        "SOURCE_EMAIL",
+        "SQS_QUEUE_DSS_INPUT",
     ]
 
     OPTIONAL_ENV_VARS: Iterable[str] = ["WARNING_ONLY_LOGGERS"]
@@ -30,24 +30,24 @@ class Config:
         return os.getenv("AWS_REGION_NAME", "us-east-1")
 
     @property
-    def dsc_source_email(self) -> str:
-        value = os.getenv("DSC_SOURCE_EMAIL")
+    def s3_bucket_submission_assets(self) -> str:
+        value = os.getenv("S3_BUCKET_SUBMISSION_ASSETS")
         if not value:
-            raise OSError("Env var 'DSC_SOURCE_EMAIL' must be defined")
+            raise OSError("Env var 'S3_BUCKET_SUBMISSION_ASSETS' must be defined")
         return value
 
     @property
-    def dss_input_queue(self) -> str:
-        value = os.getenv("DSS_INPUT_QUEUE")
+    def source_email(self) -> str:
+        value = os.getenv("SOURCE_EMAIL")
         if not value:
-            raise OSError("Env var 'DSS_INPUT_QUEUE' must be defined")
+            raise OSError("Env var 'SOURCE_EMAIL' must be defined")
         return value
 
     @property
-    def s3_bucket(self) -> str:
-        value = os.getenv("S3_BUCKET")
+    def sqs_queue_dss_input(self) -> str:
+        value = os.getenv("SQS_QUEUE_DSS_INPUT")
         if not value:
-            raise OSError("Env var 'S3_BUCKET' must be defined")
+            raise OSError("Env var 'SQS_QUEUE_DSS_INPUT' must be defined")
         return value
 
     @property

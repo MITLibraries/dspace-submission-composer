@@ -3,16 +3,16 @@ import logging
 import pytest
 
 
-def test_dss_input_queue_raises_error(monkeypatch, config_instance):
-    monkeypatch.delenv("DSS_INPUT_QUEUE")
-    with pytest.raises(OSError, match="Env var 'DSS_INPUT_QUEUE' must be defined"):
-        _ = config_instance.dss_input_queue
+def test_sqs_queue_dss_input_raises_error(monkeypatch, config_instance):
+    monkeypatch.delenv("SQS_QUEUE_DSS_INPUT")
+    with pytest.raises(OSError, match="Env var 'SQS_QUEUE_DSS_INPUT' must be defined"):
+        _ = config_instance.sqs_queue_dss_input
 
 
-def test_dsc_source_email_raises_error(monkeypatch, config_instance):
-    monkeypatch.delenv("DSC_SOURCE_EMAIL")
-    with pytest.raises(OSError, match="Env var 'DSC_SOURCE_EMAIL' must be defined"):
-        _ = config_instance.dsc_source_email
+def test_source_email_raises_error(monkeypatch, config_instance):
+    monkeypatch.delenv("SOURCE_EMAIL")
+    with pytest.raises(OSError, match="Env var 'SOURCE_EMAIL' must be defined"):
+        _ = config_instance.source_email
 
 
 def test_check_required_env_vars(monkeypatch, config_instance):
