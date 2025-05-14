@@ -91,9 +91,9 @@ def _test_env(monkeypatch):
     monkeypatch.setenv("AWS_REGION_NAME", "us-east-1")
     monkeypatch.setenv("AWS_ACCESS_KEY_ID", "testing")
     monkeypatch.setenv("AWS_SECRET_ACCESS_KEY", "testing")
-    monkeypatch.setenv("DSC_SOURCE_EMAIL", "noreply@example.com")
-    monkeypatch.setenv("DSS_INPUT_QUEUE", "mock-input-queue")
-    monkeypatch.setenv("S3_BUCKET", "dsc")
+    monkeypatch.setenv("S3_BUCKET_SUBMISSION_ASSETS", "dsc")
+    monkeypatch.setenv("SOURCE_EMAIL", "noreply@example.com")
+    monkeypatch.setenv("SQS_QUEUE_DSS_INPUT", "mock-input-queue")
 
 
 @pytest.fixture

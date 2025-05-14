@@ -58,7 +58,7 @@ class ItemSubmission:
             collection_handle: The handle of collection where the submission is uploaded.
         """
         sqs_client = SQSClient(
-            region=CONFIG.aws_region_name, queue_name=CONFIG.dss_input_queue
+            region=CONFIG.aws_region_name, queue_name=CONFIG.sqs_queue_dss_input
         )
         message_attributes = sqs_client.create_dss_message_attributes(
             self.item_identifier, submission_source, output_queue
