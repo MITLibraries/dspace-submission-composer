@@ -15,7 +15,7 @@ from dsc.exceptions import (
     ItemMetadatMissingRequiredFieldError,
 )
 from dsc.item_submission import ItemSubmission
-from dsc.utilities.aws import SESClient, SQSClient
+from dsc.utilities.aws import S3Client, SESClient, SQSClient
 
 if TYPE_CHECKING:  # pragma: no cover
     from collections.abc import Iterator
@@ -151,13 +151,20 @@ class Workflow(ABC):
             "errors": 0,
         }
 
+        # create subfolder for DSpace metadata files in batch folder
+        metadata_folder = f"{self.batch_path}dspace_metadata/"
+        s3_client = S3Client()
+        s3_client.put_file(bucket=self.s3_bucket, key=metadata_folder)
+
         items = []
         for item_submission in self.item_submissions_iter():
             submission_summary["total"] += 1
             item_identifier = item_submission.item_identifier
 
             try:
-                item_submission.upload_dspace_metadata(self.s3_bucket, self.batch_path)
+                item_submission.upload_dspace_metadata(
+                    bucket=self.s3_bucket, prefix=metadata_folder
+                )
             except Exception as exception:  # noqa: BLE001
                 logger.error(  # noqa: TRY400
                     f"Failed to upload DSpace metadata for item. {exception}"

@@ -115,12 +115,12 @@ def test_submit_success(
     ) in caplog.text
     assert "Preparing submission for item: 123" in caplog.text
     assert (
-        "Metadata uploaded to S3: s3://dsc/test/batch-aaa/123_metadata.json"
+        "Metadata uploaded to S3: s3://dsc/test/batch-aaa/dspace_metadata/123_metadata.json"
         in caplog.text
     )
     assert "Preparing submission for item: 789" in caplog.text
     assert (
-        "Metadata uploaded to S3: s3://dsc/test/batch-aaa/789_metadata.json"
+        "Metadata uploaded to S3: s3://dsc/test/batch-aaa/dspace_metadata/789_metadata.json"
         in caplog.text
     )
     assert json.dumps(expected_submission_summary) in caplog.text
