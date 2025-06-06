@@ -229,6 +229,6 @@ class OpenCourseWare(Workflow):
                 prefix=self.batch_path,
                 item_identifier=item_identifier,
                 file_type=".zip",
-                exclude_prefixes=["archived"],
+                exclude_prefixes=self.exclude_prefixes,
             )
         )

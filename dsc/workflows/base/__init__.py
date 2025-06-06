@@ -64,6 +64,7 @@ class Workflow(ABC):
         """
         self.batch_id = batch_id
         self.workflow_events = WorkflowEvents()
+        self.exclude_prefixes: list[str] = ["archived/", "dspace_metadata/"]
 
     @property
     @abstractmethod
