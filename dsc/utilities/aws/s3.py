@@ -8,8 +8,6 @@ import boto3
 if TYPE_CHECKING:  # pragma: no cover
     from collections.abc import Iterator
 
-    from mypy_boto3_s3.type_defs import PutObjectOutputTypeDef
-
 logger = logging.getLogger(__name__)
 
 
@@ -40,22 +38,33 @@ class S3Client:
         )
 
     def put_file(
-        self, file_content: str | bytes, bucket: str, key: str
-    ) -> PutObjectOutputTypeDef:
-        """Put a file in a specified S3 bucket with a specified key.
+        self,
+        bucket: str,
+        key: str,
+        file_content: str | bytes = b"",
+    ) -> None:
+        """Create an object in a specified S3 bucket with a specified key.
+
+        If 'key' ends with a forward slash (/), this creates a 'folder' in S3, which is
+        a essentially a shared prefix for a group of objects. This creates a
+        zero-byte object in S3.
 
         Args:
-            file_content: The content of the file to be uploaded.
             bucket: The S3 bucket where the file will be uploaded.
             key: The key to be used for the uploaded file.
+            file_content: The content of the file to be uploaded. Defaults to
+                a zero-byte string (or empty bytes object).
         """
-        response = self.client.put_object(
+        self.client.put_object(
             Body=file_content,
             Bucket=bucket,
             Key=key,
         )
-        logger.debug(f"'{key}' uploaded to S3")
-        return response
+
+        if key.endswith("/"):
+            logger.debug(f"Folder created: {bucket}/{key} ")
+        else:
+            logger.debug(f"Object created: '{key}'")
 
     def files_iter(
         self,

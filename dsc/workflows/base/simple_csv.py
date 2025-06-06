@@ -180,7 +180,7 @@ class SimpleCSV(Workflow):
                 bucket=self.s3_bucket,
                 prefix=self.batch_path,
                 item_identifier=item_identifier,
-                exclude_prefixes=["archived", "metadata.json"],
+                exclude_prefixes=self.exclude_prefixes,
             )
         )
 
