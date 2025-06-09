@@ -8,6 +8,7 @@ boto3 = "*"
 boto3-stubs = {extras = ["essential","ses"], version = "*"}
 click = "*"
 jinja2 = "*"
+jsonschema = "*"
 pandas = "*"
 sentry-sdk = "*"
 smart_open = {extras = ["s3"], version = "*"}
@@ -23,6 +24,7 @@ pip-audit = "*"
 pre-commit = "*"
 pytest = "*"
 ruff = "*"
+types-jsonschema = "*"
 
 [requires]
 python_version = "3.12"
