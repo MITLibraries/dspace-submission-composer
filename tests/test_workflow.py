@@ -172,7 +172,7 @@ def test_base_workflow_process_sqs_queue_success(
     items = base_workflow_instance.process_sqs_queue()
 
     assert base_workflow_instance.workflow_events.processed_items[0]["ingested"]
-    assert "Item was successfully ingested: 10.1002/term.3131" in caplog.text
+    assert "Item was ingested: 10.1002/term.3131" in caplog.text
     assert json.dumps(expected_processing_summary) in caplog.text
     assert items == [
         {
@@ -193,25 +193,30 @@ def test_base_workflow_process_sqs_queue_success(
                 "lastModified": "Thu Sep 09 17:56:39 UTC 2021",
             },
             "ingested": True,
+            "error": None,
         }
     ]
 
 
-@patch("dsc.utilities.aws.sqs.SQSClient.parse_dss_result_message")
+@patch("dsc.workflows.Workflow._parse_result_message")
 def test_base_workflow_process_sqs_queue_if_exception_capture_event_and_log(
-    mocked_workflow_process_result_message,
+    mocked_workflow_parse_result_message,
     caplog,
     base_workflow_instance,
     mocked_sqs_output,
     result_message_attributes,
-    result_message_body,
     sqs_client,
 ):
-    mocked_workflow_process_result_message.side_effect = [Exception("An error occurred")]
+    mocked_workflow_parse_result_message.return_value = {
+        "item_identifier": "10.1002/term.3131",
+        "result_message_body": "",
+        "ingested": None,
+        "error": "Failed to parse content of 'Body'",
+    }
     caplog.set_level("DEBUG")
     sqs_client.send(
         message_attributes=result_message_attributes,
-        message_body=result_message_body,
+        message_body="",
     )
 
     expected_processing_summary = {
@@ -221,27 +226,47 @@ def test_base_workflow_process_sqs_queue_if_exception_capture_event_and_log(
     }
     items = base_workflow_instance.process_sqs_queue()
 
-    assert base_workflow_instance.workflow_events.errors[0] == "An error occurred"
-    assert "An error occurred" in caplog.text
+    assert (
+        base_workflow_instance.workflow_events.processed_items[0]["error"]
+        == "Failed to parse content of 'Body'"
+    )
     assert json.dumps(expected_processing_summary) in caplog.text
-    assert items == []
+    assert items == [
+        {
+            "item_identifier": "10.1002/term.3131",
+            "result_message_body": "",
+            "ingested": None,
+            "error": "Failed to parse content of 'Body'",
+        }
+    ]
 
 
-@patch("dsc.utilities.aws.sqs.SQSClient.parse_dss_result_message")
+@patch("dsc.workflows.Workflow._parse_result_message")
 def test_base_workflow_process_sqs_queue_if_not_ingested_capture_event_and_log(
-    mocked_workflow_process_result_message,
+    mocked_workflow_parse_result_message,
     caplog,
     base_workflow_instance,
     mocked_sqs_output,
     result_message_attributes,
     sqs_client,
 ):
-    result_message_body = {"ResultType": "error"}
-    mocked_workflow_process_result_message.return_value = ("123", result_message_body)
+    bad_result_message_body = {
+        "ResultType": "error",
+        "ErrorTimestamp": "text",
+        "ErrorInfo": "text",
+        "DSpaceResponse": "text",
+        "ExceptionTraceback": ["text"],
+    }
+    mocked_workflow_parse_result_message.return_value = {
+        "item_identifier": "10.1002/term.3131",
+        "result_message_body": bad_result_message_body,
+        "ingested": False,
+        "error": None,
+    }
     caplog.set_level("DEBUG")
     sqs_client.send(
         message_attributes=result_message_attributes,
-        message_body=json.dumps(result_message_body),
+        message_body=json.dumps(bad_result_message_body),
     )
 
     expected_processing_summary = {
@@ -252,18 +277,123 @@ def test_base_workflow_process_sqs_queue_if_not_ingested_capture_event_and_log(
     items = base_workflow_instance.process_sqs_queue()
 
     assert not base_workflow_instance.workflow_events.processed_items[0]["ingested"]
-    assert (
-        "Item was not ingested: 123" in base_workflow_instance.workflow_events.errors[0]
-    )
-    assert "Item was not ingested: 123" in caplog.text
+    assert not base_workflow_instance.workflow_events.processed_items[0]["error"]
+    assert "Item was not ingested: 10.1002/term.3131" in caplog.text
     assert json.dumps(expected_processing_summary) in caplog.text
     assert items == [
         {
-            "item_identifier": "123",
-            "result_message_body": result_message_body,
+            "item_identifier": "10.1002/term.3131",
+            "result_message_body": bad_result_message_body,
             "ingested": False,
+            "error": None,
         }
     ]
+
+
+def test_base_workflow_parse_result_message_success(
+    base_workflow_instance, result_message_valid
+):
+    message_attributes = result_message_valid["MessageAttributes"]
+    message_body = result_message_valid["Body"]
+
+    result_info = base_workflow_instance._parse_result_message(  # noqa: SLF001
+        message_attributes=message_attributes, message_body=message_body
+    )
+
+    assert result_info == {
+        "item_identifier": "10.1002/term.3131",
+        "result_message_body": json.loads(message_body),
+        "ingested": True,
+        "error": None,
+    }
+
+
+def test_base_workflow_parse_result_message_attrs_if_jsonschema_validation_fails(
+    base_workflow_instance, result_message_valid
+):
+    message_attributes = result_message_valid["MessageAttributes"]
+    message_body = result_message_valid["Body"]
+
+    # modify content of 'MessageAttributes'
+    del message_attributes["SubmissionSource"]
+
+    result_info = base_workflow_instance._parse_result_message(  # noqa: SLF001
+        message_attributes=message_attributes, message_body=message_body
+    )
+
+    assert result_info == {
+        "item_identifier": None,
+        "result_message_body": message_body,
+        "ingested": None,
+        "error": "Content of 'MessageAttributes' is invalid",
+    }
+
+
+def test_base_workflow_parse_result_message_body_if_jsonschema_validation_fails(
+    base_workflow_instance, result_message_valid
+):
+    message_attributes = result_message_valid["MessageAttributes"]
+    original_message_body = result_message_valid["Body"]
+
+    # modify content of 'Body'
+    modified_message_body = json.loads(original_message_body)
+    del modified_message_body["Bitstreams"]
+
+    result_info = base_workflow_instance._parse_result_message(  # noqa: SLF001
+        message_attributes=message_attributes,
+        message_body=json.dumps(modified_message_body),
+    )
+
+    assert result_info == {
+        "item_identifier": "10.1002/term.3131",
+        "result_message_body": json.dumps(modified_message_body),
+        "ingested": None,
+        "error": "Content of 'Body' is invalid",
+    }
+
+
+def test_base_workflow_parse_result_message_body_if_invalid_json(
+    base_workflow_instance, result_message_valid
+):
+    message_attributes = result_message_valid["MessageAttributes"]
+
+    result_info = base_workflow_instance._parse_result_message(  # noqa: SLF001
+        message_attributes=message_attributes,
+        message_body="",
+    )
+
+    assert result_info == {
+        "item_identifier": "10.1002/term.3131",
+        "result_message_body": "",
+        "ingested": None,
+        "error": "Failed to parse content of 'Body'",
+    }
+
+
+def test_base_workflow_parse_result_message_if_not_ingested(
+    base_workflow_instance, result_message_valid
+):
+    message_attributes = result_message_valid["MessageAttributes"]
+    message_body = {
+        "ResultType": "error",
+        "ErrorTimestamp": "2021-12-09 14:12:01",
+        "ErrorInfo": (
+            "Error occurred while posting item to DSpace collection '1721.1/123456'"
+        ),
+        "DSpaceResponse": "text",
+        "ExceptionTraceback": ["text"],
+    }
+    result_info = base_workflow_instance._parse_result_message(  # noqa: SLF001
+        message_attributes=message_attributes,
+        message_body=json.dumps(message_body),
+    )
+
+    assert result_info == {
+        "item_identifier": "10.1002/term.3131",
+        "result_message_body": message_body,
+        "ingested": False,
+        "error": None,
+    }
 
 
 def test_base_workflow_workflow_specific_processing_success(
