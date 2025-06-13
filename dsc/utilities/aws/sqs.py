@@ -6,8 +6,6 @@ from typing import TYPE_CHECKING, Any
 
 from boto3 import client
 
-from dsc.exceptions import InvalidSQSMessageError
-
 if TYPE_CHECKING:  # pragma: no cover
     from collections.abc import Iterator, Mapping
 
@@ -159,53 +157,3 @@ class SQSClient:
         logger.info(
             f"Retrieved {message_count} message(s) from the queue '{self.queue_name}'"
         )
-
-    def parse_dss_result_message(self, sqs_message: MessageTypeDef) -> tuple[str, dict]:
-        message_id = sqs_message["MessageId"]
-        self.validate_dss_result_message(sqs_message)
-        item_identifier = sqs_message["MessageAttributes"]["PackageID"]["StringValue"]
-        message_body = json.loads(sqs_message["Body"])
-        logger.debug(f"Parsed message: {message_id}")
-        return item_identifier, message_body
-
-    def validate_dss_result_message(self, sqs_message: MessageTypeDef) -> None:
-        """Validate format of DSS result message.
-
-        Args:
-            sqs_message: An SQS message to be evaluated.
-        """
-        if not sqs_message.get("ReceiptHandle"):
-            raise InvalidSQSMessageError(
-                "Failed to retrieve 'ReceiptHandle' from message: "
-                f"{sqs_message["MessageId"]}"
-            )
-        self.validate_message_attributes(sqs_message=sqs_message)
-        self.validate_message_body(sqs_message=sqs_message)
-
-    @staticmethod
-    def validate_message_attributes(sqs_message: MessageTypeDef) -> None:
-        """Validate that "MessageAttributes" field is formatted as expected.
-
-        Args:
-            sqs_message: An SQS message to be evaluated.
-        """
-        if (
-            "MessageAttributes" not in sqs_message
-            or "PackageID" not in sqs_message["MessageAttributes"]
-            or not sqs_message["MessageAttributes"]["PackageID"].get("StringValue")
-        ):
-            raise InvalidSQSMessageError(
-                f"Failed to parse message attributes: {sqs_message["MessageId"]}"
-            )
-
-    @staticmethod
-    def validate_message_body(sqs_message: MessageTypeDef) -> None:
-        """Validate that "Body" field is formatted as expected.
-
-        Args:
-            sqs_message: An SQS message to be evaluated.
-        """
-        if "Body" not in sqs_message or not json.loads(str(sqs_message["Body"])):
-            raise InvalidSQSMessageError(
-                f"Failed to parse message body: {sqs_message["MessageId"]}"
-            )
