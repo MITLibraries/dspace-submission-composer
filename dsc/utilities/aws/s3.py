@@ -41,30 +41,21 @@ class S3Client:
         self,
         bucket: str,
         key: str,
-        file_content: str | bytes = b"",
+        file_content: str | bytes,
     ) -> None:
-        """Create an object in a specified S3 bucket with a specified key.
-
-        If 'key' ends with a forward slash (/), this creates a 'folder' in S3, which is
-        a essentially a shared prefix for a group of objects. This creates a
-        zero-byte object in S3.
+        """Create an object in a specified S3 bucket.
 
         Args:
             bucket: The S3 bucket where the file will be uploaded.
             key: The key to be used for the uploaded file.
-            file_content: The content of the file to be uploaded. Defaults to
-                a zero-byte string (or empty bytes object).
+            file_content: The content of the file to be uploaded.
         """
         self.client.put_object(
             Body=file_content,
             Bucket=bucket,
             Key=key,
         )
-
-        if key.endswith("/"):
-            logger.debug(f"Folder created: {bucket}/{key} ")
-        else:
-            logger.debug(f"Object created: '{key}'")
+        logger.debug(f"File uploaded to S3: {bucket}/{key}")
 
     def files_iter(
         self,

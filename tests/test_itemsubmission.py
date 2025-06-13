@@ -14,10 +14,10 @@ def test_upload_dspace_metadata(mocked_s3, item_submission_instance, s3_client):
     item_submission_instance.upload_dspace_metadata("dsc", "workflow/folder/")
     assert (
         item_submission_instance.metadata_s3_uri
-        == "s3://dsc/workflow/folder/123_metadata.json"
+        == "s3://dsc/workflow/folder/dspace_metadata/123_metadata.json"
     )
     response = s3_client.client.get_object(
-        Bucket="dsc", Key="workflow/folder/123_metadata.json"
+        Bucket="dsc", Key="workflow/folder/dspace_metadata/123_metadata.json"
     )
     assert response["ResponseMetadata"]["HTTPStatusCode"] == HTTPStatus.OK
 

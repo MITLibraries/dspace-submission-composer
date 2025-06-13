@@ -31,11 +31,13 @@ class ItemSubmission:
 
         Args:
             bucket: The S3 bucket for uploading the item metadata file.
-            prefix: The S3 prefix used for objects in this workflow. Does NOT include
-            the item identifier.
+            prefix: The S3 prefix (or 'folder') in which the 'subfolder' for
+                DSpace metadata is created. In practice, this corresponds with
+                Workflow.batch_path.
+
         """
         s3_client = S3Client()
-        metadata_s3_key = f"{prefix}{self.item_identifier}_metadata.json"
+        metadata_s3_key = f"{prefix}dspace_metadata/{self.item_identifier}_metadata.json"
         s3_client.put_file(
             bucket=bucket,
             key=metadata_s3_key,
