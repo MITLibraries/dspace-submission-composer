@@ -64,6 +64,7 @@ class Workflow(ABC):
         """
         self.batch_id = batch_id
         self.workflow_events = WorkflowEvents()
+        self.exclude_prefixes: list[str] = ["archived/", "dspace_metadata/"]
 
     @property
     @abstractmethod
@@ -157,7 +158,9 @@ class Workflow(ABC):
             item_identifier = item_submission.item_identifier
 
             try:
-                item_submission.upload_dspace_metadata(self.s3_bucket, self.batch_path)
+                item_submission.upload_dspace_metadata(
+                    bucket=self.s3_bucket, prefix=self.batch_path
+                )
             except Exception as exception:  # noqa: BLE001
                 logger.error(  # noqa: TRY400
                     f"Failed to upload DSpace metadata for item. {exception}"
