@@ -119,24 +119,15 @@ def test_finalize_report_subject_success(workflow_events_finalize):
     assert finalize_report.subject == "DSpace Submission Results - test, batch='aaa'"
 
 
-def test_finalize_report_create_attachments_success(
-    workflow_events_finalize,
-):
+def test_finalize_report_create_attachments_success(workflow_events_finalize):
     finalize_report = FinalizeReport(
         workflow_name="test", batch_id="aaa", events=workflow_events_finalize
     )
     attachments = finalize_report.create_attachments()
 
     ingested_items_filename, ingested_items_buffer = attachments[0]
-    assert ingested_items_filename == "ingested_items.csv"
-    assert ingested_items_buffer.readlines() == [
-        "item_identifier,dspace_handle\n",
-        "123,1721.1/131022\n",
-    ]
-
-    errors_filename, errors_buffer = attachments[1]
-    assert errors_filename == "errors.csv"
-    assert errors_buffer.readlines() == [
-        "error\n",
-        "Failed to retrieve 'ReceiptHandle' from message: abc\n",
-    ]
+    assert ingested_items_filename == "dss_submission_results.csv"
+    assert (
+        ingested_items_buffer.readlines()[0]
+        == "item_identifier,result_message_body,ingested,dspace_handle,error\n"
+    )
