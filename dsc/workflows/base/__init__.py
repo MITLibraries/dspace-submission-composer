@@ -84,7 +84,7 @@ class Workflow(ABC):
     @property
     def output_queue(self) -> str:
         """The SQS output queue for the DSS result messages."""
-        return f"dss-output-{self.workflow_name}-{CONFIG.workspace}"
+        return f"dss-output-dsc-{CONFIG.workspace}"
 
     @property
     def batch_path(self) -> str:
