@@ -6,6 +6,8 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, final
 
+import jsonschema
+import jsonschema.exceptions
 from botocore.exceptions import ClientError
 
 from dsc.config import Config
@@ -16,6 +18,7 @@ from dsc.exceptions import (
 )
 from dsc.item_submission import ItemSubmission
 from dsc.utilities.aws import SESClient, SQSClient
+from dsc.utilities.validate.schemas import RESULT_MESSAGE_ATTRIBUTES, RESULT_MESSAGE_BODY
 
 if TYPE_CHECKING:  # pragma: no cover
     from collections.abc import Iterator
@@ -342,7 +345,7 @@ class Workflow(ABC):
         self.workflow_specific_processing(items)
 
     def process_sqs_queue(self) -> list[dict]:
-        """Process messages in DSS ouput queue to extract necessary data.
+        """Process messages in DSS output queue to determine submission results.
 
         May be overridden by workflow subclasses.
         """
@@ -362,44 +365,102 @@ class Workflow(ABC):
         items = []
         for sqs_message in sqs_client.receive():
             processing_summary["total"] += 1
-            try:
-                item_identifier, result_message_body = (
-                    sqs_client.parse_dss_result_message(sqs_message)
-                )
-            except Exception as exception:  # noqa: BLE001
-                logger.error(exception)  # noqa: TRY400
-                processing_summary["errors"] += 1
-                self.workflow_events.errors.append(str(exception))
-                continue
 
-            sqs_client.delete(
-                receipt_handle=sqs_message["ReceiptHandle"],
-                message_id=sqs_message["MessageId"],
+            message_id = sqs_message["MessageId"]
+            receipt_handle = sqs_message["ReceiptHandle"]
+
+            logger.debug(f"Processing result message: {message_id}")
+
+            result_info = self._parse_result_message(
+                sqs_message["MessageAttributes"], message_body=sqs_message["Body"]
             )
 
-            # capture all parsed items, whether ingested or not
-            item_data = {
-                "item_identifier": item_identifier,
-                "result_message_body": result_message_body,
-                "ingested": result_message_body["ResultType"] == "success",
-            }
-            items.append(item_data)
-            self.workflow_events.processed_items.append(item_data)
+            # delete message from the queue
+            sqs_client.delete(
+                receipt_handle=receipt_handle,
+                message_id=message_id,
+            )
 
-            if item_data["ingested"]:
-                processing_summary["ingested"] += 1
-                logger.info(f"Item was successfully ingested: {item_identifier}")
-            else:
-                message = f"Item was not ingested: {item_identifier}"
-                logger.info(message)
+            self.workflow_events.processed_items.append(result_info)
+            items.append(result_info)  # add item
+
+            item_identifier = result_info["item_identifier"]
+            if result_info["ingested"] is None:
+                logger.info(
+                    f"Unable to determine if item was ingested: {item_identifier}"
+                )
                 processing_summary["errors"] += 1
-                self.workflow_events.errors.append(message)
+            elif result_info["ingested"]:
+                logger.info(f"Item was ingested: {item_identifier}")
+                processing_summary["ingested"] += 1
+            else:
+                logger.info(f"Item was not ingested: {item_identifier}")
+                processing_summary["errors"] += 1
 
         logger.info(
             f"Processed DSS result messages from the output queue '{self.output_queue}': "
             f"{json.dumps(processing_summary)}"
         )
         return items
+
+    @final
+    @staticmethod
+    def _parse_result_message(message_attributes: dict, message_body: str) -> dict:
+        """Parse content of result message.
+
+        This method will validate the content of the result message and return
+        a dict summarizing the outcome of the attempted submission via DSS:
+
+        1. Verify that 'message_attributes' adheres to
+           dsc.utilities.validate.schemas.RESULT_MESSAGE_ATTRIBUTES JSON schema.
+        2. Verify that 'message_body' is a valid JSON string.
+        3. Verify that the parsed 'message_body' adheres to
+           dsc.utilities.validate.schemas.RESULT_MESSAGE_BODY JSON schema.
+
+        Args:
+            message_attributes: Content of 'MessageAttributes' in result message.
+            message_body (str): Content of 'Body' in result message.
+
+        Returns:
+            dict: Result of attempted submission via DSS.
+        """
+        result_info: dict = {
+            "item_identifier": None,
+            "result_message_body": message_body,
+            "ingested": None,
+            "error": None,
+        }
+
+        # validate content of 'MessageAttributes'
+        try:
+            jsonschema.validate(
+                instance=message_attributes,
+                schema=RESULT_MESSAGE_ATTRIBUTES,
+            )
+        except jsonschema.exceptions.ValidationError:
+            error_message = "Content of 'MessageAttributes' is invalid"
+            logger.exception(error_message)
+            result_info["error"] = error_message
+            return result_info
+
+        result_info["item_identifier"] = message_attributes["PackageID"]["StringValue"]
+
+        # validate content of 'Body'
+        try:
+            parsed_message_body = json.loads(message_body)
+            jsonschema.validate(instance=parsed_message_body, schema=RESULT_MESSAGE_BODY)
+        except json.JSONDecodeError:
+            error_message = "Failed to parse content of 'Body'"
+            logger.exception(error_message)
+            result_info["error"] = error_message
+        except jsonschema.exceptions.ValidationError:
+            error_message = "Content of 'Body' is invalid"
+            logger.exception(error_message)
+            result_info["error"] = error_message
+        else:
+            result_info["ingested"] = bool(parsed_message_body["ResultType"] == "success")
+            result_info["result_message_body"] = parsed_message_body
+        return result_info
 
     def workflow_specific_processing(self, items: list[dict]) -> None:
         logger.info(

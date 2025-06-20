@@ -168,7 +168,6 @@ def test_finalize_success(
     )
     assert "Receiving messages from the queue 'mock-output-queue'" in caplog.text
     assert "Retrieved message" in caplog.text
-    assert "Parsed message" in caplog.text
     assert "No messages remain in the queue 'mock-output-queue'" in caplog.text
     assert json.dumps(expected_processing_summary) in caplog.text
     assert "Logs sent to ['test@test.test', 'test2@test.test']" in caplog.text
