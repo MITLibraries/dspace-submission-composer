@@ -10,6 +10,7 @@ click = "*"
 jinja2 = "*"
 jsonschema = "*"
 pandas = "*"
+pynamodb = "*"
 sentry-sdk = "*"
 smart_open = {extras = ["s3"], version = "*"}
 
