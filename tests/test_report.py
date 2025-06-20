@@ -129,5 +129,5 @@ def test_finalize_report_create_attachments_success(workflow_events_finalize):
     assert ingested_items_filename == "dss_submission_results.csv"
     assert (
         ingested_items_buffer.readlines()[0]
-        == "item_identifier,result_message_body,ingested,dspace_handle,error\n"
+        == "item_identifier,ingested,dspace_handle,error,result_message_body\n"
     )
