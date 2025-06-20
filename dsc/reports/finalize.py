@@ -47,38 +47,35 @@ class FinalizeReport(Report):
         """
         attachments = []
 
-        if ingested_items := self.get_ingested_items():
-            attachments.append(
-                (
-                    "ingested_items.csv",
-                    self._write_events_to_csv(ingested_items),
-                )
+        attachments.append(
+            (
+                "dss_submission_results.csv",
+                self._write_events_to_csv(self.events.processed_items),
             )
-
-        if errors := self.events.errors:
-            attachments.append(
-                ("errors.csv", self._write_events_to_csv(errors, columns=["error"]))
-            )
+        )
         return attachments
 
-    def get_ingested_items(self) -> list[dict]:
-        return [
-            {
-                "item_identifier": item["item_identifier"],
-                "dspace_handle": item["result_message_body"]["ItemHandle"],
-            }
-            for item in self.events.processed_items
-            if item["ingested"]
-        ]
+    def create_summary(self) -> dict:
+        return {
+            "processed": len(self.events.processed_items),
+            "ingested": sum(
+                1
+                for processed_item in self.events.processed_items
+                if processed_item.get("ingested")
+            ),
+            "error": sum(
+                1
+                for processed_item in self.events.processed_items
+                if processed_item.get("error")
+            ),
+        }
 
     def to_plain_text(self) -> str:
         return self.jinja_template_plain_text.render(
             workflow_name=self.workflow_name,
             batch_id=self.batch_id,
             report_date=self.report_date,
-            processed_items=self.events.processed_items,
-            ingested_items=self.get_ingested_items(),
-            errors=self.events.errors,
+            summary=self.create_summary(),
         )
 
     def to_html(self) -> str:
@@ -86,7 +83,5 @@ class FinalizeReport(Report):
             workflow_name=self.workflow_name,
             batch_id=self.batch_id,
             report_date=self.report_date,
-            processed_items=self.events.processed_items,
-            ingested_items=self.get_ingested_items(),
-            errors=self.events.errors,
+            summary=self.create_summary(),
         )

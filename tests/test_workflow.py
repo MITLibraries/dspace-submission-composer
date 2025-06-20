@@ -193,6 +193,7 @@ def test_base_workflow_process_sqs_queue_success(
                 "lastModified": "Thu Sep 09 17:56:39 UTC 2021",
             },
             "ingested": True,
+            "dspace_handle": "1721.1/131022",
             "error": None,
         }
     ]
@@ -304,6 +305,7 @@ def test_base_workflow_parse_result_message_success(
         "item_identifier": "10.1002/term.3131",
         "result_message_body": json.loads(message_body),
         "ingested": True,
+        "dspace_handle": "1721.1/131022",
         "error": None,
     }
 
@@ -325,6 +327,7 @@ def test_base_workflow_parse_result_message_attrs_if_jsonschema_validation_fails
         "item_identifier": None,
         "result_message_body": message_body,
         "ingested": None,
+        "dspace_handle": None,
         "error": "Content of 'MessageAttributes' is invalid",
     }
 
@@ -348,6 +351,7 @@ def test_base_workflow_parse_result_message_body_if_jsonschema_validation_fails(
         "item_identifier": "10.1002/term.3131",
         "result_message_body": json.dumps(modified_message_body),
         "ingested": None,
+        "dspace_handle": None,
         "error": "Content of 'Body' is invalid",
     }
 
@@ -366,6 +370,7 @@ def test_base_workflow_parse_result_message_body_if_invalid_json(
         "item_identifier": "10.1002/term.3131",
         "result_message_body": "",
         "ingested": None,
+        "dspace_handle": None,
         "error": "Failed to parse content of 'Body'",
     }
 
@@ -392,6 +397,7 @@ def test_base_workflow_parse_result_message_if_not_ingested(
         "item_identifier": "10.1002/term.3131",
         "result_message_body": message_body,
         "ingested": False,
+        "dspace_handle": None,
         "error": None,
     }
 

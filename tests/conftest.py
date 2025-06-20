@@ -358,9 +358,10 @@ def workflow_events_finalize(result_message_body):
         processed_items=[
             {
                 "item_identifier": "123",
-                "result_message_body": json.loads(result_message_body),
                 "ingested": True,
+                "dspace_handle": None,
+                "error": None,
+                "result_message_body": json.loads(result_message_body),
             }
-        ],
-        errors=["Failed to retrieve 'ReceiptHandle' from message: abc"],
+        ]
     )

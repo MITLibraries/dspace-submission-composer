@@ -7,7 +7,9 @@
 <p>Run date: {{report_date}}</p>
 
 <p>Results:</p>
-<p>Processed: {{ processed_items|length }}</p>
-<p>Ingested: {{ ingested_items | length }}</p>
-<p>Errors: {{ errors|length }}</p>
+<ul>
+  {% for key, value in summary.items() %}
+    <li>{{ key }}: {{ value }}</li>
+  {% endfor %}
+</ul>
 {% endblock %}

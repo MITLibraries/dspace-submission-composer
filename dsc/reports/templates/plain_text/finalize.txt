@@ -6,7 +6,7 @@ Batch: {{batch_id}}
 Run date: {{report_date}}
 
 Results:
-Processed: {{ processed_items|length }}
-Ingested: {{ ingested_items|length }}
-Errors: {{ errors|length }}
+{% for key, value in summary.items() %}
+{{ key }}: {{ value }}
+{% endfor %}
 {% endblock %}

@@ -426,9 +426,10 @@ class Workflow(ABC):
         """
         result_info: dict = {
             "item_identifier": None,
-            "result_message_body": message_body,
             "ingested": None,
+            "dspace_handle": None,
             "error": None,
+            "result_message_body": message_body,
         }
 
         # validate content of 'MessageAttributes'
@@ -460,6 +461,7 @@ class Workflow(ABC):
         else:
             result_info["ingested"] = bool(parsed_message_body["ResultType"] == "success")
             result_info["result_message_body"] = parsed_message_body
+            result_info["dspace_handle"] = parsed_message_body.get("ItemHandle")
         return result_info
 
     def workflow_specific_processing(self, items: list[dict]) -> None:
