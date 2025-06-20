@@ -426,10 +426,10 @@ class Workflow(ABC):
         """
         result_info: dict = {
             "item_identifier": None,
-            "result_message_body": message_body,
             "ingested": None,
             "dspace_handle": None,
             "error": None,
+            "result_message_body": message_body,
         }
 
         # validate content of 'MessageAttributes'
