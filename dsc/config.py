@@ -10,6 +10,7 @@ class Config:
         "WORKSPACE",
         "SENTRY_DSN",
         "AWS_REGION_NAME",
+        "ITEM_TABLE_NAME",
         "S3_BUCKET_SUBMISSION_ASSETS",
         "SOURCE_EMAIL",
         "SQS_QUEUE_DSS_INPUT",
@@ -28,6 +29,13 @@ class Config:
     @property
     def aws_region_name(self) -> str:
         return os.getenv("AWS_REGION_NAME", "us-east-1")
+
+    @property
+    def item_table_name(self) -> str:
+        value = os.getenv("ITEM_TABLE_NAME")
+        if not value:
+            raise OSError("Env var 'ITEM_TABLE_NAME' must be defined")
+        return value
 
     @property
     def s3_bucket_submission_assets(self) -> str:
