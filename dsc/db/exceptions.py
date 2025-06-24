@@ -1,0 +1,2 @@
+class ItemSubmissionExistsError(Exception):
+    pass

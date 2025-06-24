@@ -9,7 +9,7 @@ from click.testing import CliRunner
 from moto import mock_aws
 
 from dsc.config import Config
-from dsc.db.item import ItemDB
+from dsc.db.models import ItemSubmissionDB
 from dsc.item_submission import ItemSubmission
 from dsc.utilities.aws.s3 import S3Client
 from dsc.utilities.aws.ses import SESClient
@@ -191,8 +191,8 @@ def item_submission_instance(dspace_metadata):
 @pytest.fixture
 def mocked_item_db():
     with mock_aws():
-        if not ItemDB.exists():
-            ItemDB.create_table()
+        if not ItemSubmissionDB.exists():
+            ItemSubmissionDB.create_table()
         yield
 
 
