@@ -54,7 +54,7 @@ class ItemSubmissionDB(Model):
         dspace_handle: A persistent, globally unique identifier for a digital object
             in DSpace. The handle is provided in the DSS result message when
             an item is successfully ingested into DSpace.
-            NOTE: If the item is sent to a submission queue, the handle is
+            NOTE: If the item is sent to a DSpace submission queue, the handle is
             NOT provided.
         status: The current state of an item submission in the DSC workflow.
             See dsc.db.models.ItemSubmissionStatus for accepted values.
