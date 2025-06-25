@@ -9,6 +9,7 @@ from click.testing import CliRunner
 from moto import mock_aws
 
 from dsc.config import Config
+from dsc.db.models import ItemSubmissionDB
 from dsc.item_submission import ItemSubmission
 from dsc.utilities.aws.s3 import S3Client
 from dsc.utilities.aws.ses import SESClient
@@ -89,8 +90,10 @@ def _test_env(monkeypatch):
     monkeypatch.setenv("SENTRY_DSN", "None")
     monkeypatch.setenv("WORKSPACE", "test")
     monkeypatch.setenv("AWS_REGION_NAME", "us-east-1")
+    monkeypatch.setenv("AWS_DEFAULT_REGION", "us-east-1")
     monkeypatch.setenv("AWS_ACCESS_KEY_ID", "testing")
     monkeypatch.setenv("AWS_SECRET_ACCESS_KEY", "testing")
+    monkeypatch.setenv("ITEM_TABLE_NAME", "dsc-test")
     monkeypatch.setenv("S3_BUCKET_SUBMISSION_ASSETS", "dsc")
     monkeypatch.setenv("SOURCE_EMAIL", "noreply@example.com")
     monkeypatch.setenv("SQS_QUEUE_DSS_INPUT", "mock-input-queue")
@@ -183,6 +186,14 @@ def item_submission_instance(dspace_metadata):
         ],
         item_identifier="123",
     )
+
+
+@pytest.fixture
+def mocked_item_db():
+    with mock_aws():
+        if not ItemSubmissionDB.exists():
+            ItemSubmissionDB.create_table()
+        yield
 
 
 @pytest.fixture
