@@ -113,7 +113,7 @@ class ItemSubmissionDB(Model):
         batch_id: str,
         workflow_name: str,
         **attributes: Unpack[OptionalItemAttributes],
-    ) -> None:
+    ) -> "ItemSubmissionDB":
         """Create a new item (row) in the 'dsc-item-submissions' table.
 
         This method also calls self.save() to write the item to DynamoDB.
@@ -140,6 +140,7 @@ class ItemSubmissionDB(Model):
             if exception.cause_response_code == "ConditionalCheckFailedException":
                 raise ItemSubmissionExistsError(
                     f"Item with item_identifier={item_identifier} (hash key) and "
-                    f"batch_id={batch_id} (range_key) already exists"
+                    f"batch_id={batch_id} (range key) already exists"
                 ) from exception
             raise
+        return item

@@ -9,8 +9,11 @@ from typing import TYPE_CHECKING, Any, final
 import jsonschema
 import jsonschema.exceptions
 from botocore.exceptions import ClientError
+from pynamodb.exceptions import DoesNotExist, PutError
 
 from dsc.config import Config
+from dsc.db.exceptions import ItemSubmissionExistsError
+from dsc.db.models import ItemSubmissionDB, ItemSubmissionStatus
 from dsc.exceptions import (
     InvalidDSpaceMetadataError,
     InvalidWorkflowNameError,
@@ -22,6 +25,7 @@ from dsc.utilities.validate.schemas import RESULT_MESSAGE_ATTRIBUTES, RESULT_MES
 
 if TYPE_CHECKING:  # pragma: no cover
     from collections.abc import Iterator
+    from datetime import datetime
 
     from dsc.reports import Report
 
@@ -113,6 +117,43 @@ class Workflow(ABC):
             yield from subclass._get_subclasses()  # noqa: SLF001
             yield subclass
 
+    @final
+    def reconcile_items(self, run_date: datetime) -> bool:
+        """Reconcile item submissions for a batch.
+
+        This method will first reconcile all bitstreams and metadata.
+        Next, it will examine the result of the reconcile for each
+        item in the batch, using the item identifiers retrieved
+        from the metadata*. Results are written to the
+        'dsc-item-submissions' table in DynamoDB.
+
+        *This may not be the full set of item submissions in a batch
+        as there may item submissions represented by bitstreams but
+        are NOT included in the metadata.
+        """
+        reconciled = self.reconcile_bitstreams_and_metadata()
+
+        # iterate over the results of the reconcile
+        # for all item submissions from the metadata
+        for item_metadata in self.item_metadata_iter():
+            item_identifier = item_metadata["item_identifier"]
+
+            if item_identifier in self.workflow_events.reconciled_items:
+                logger.debug(
+                    f"Item submission (item_identifier={item_identifier}) reconciled"
+                )
+                status = ItemSubmissionStatus.RECONCILE_SUCCESS
+            else:
+                logger.debug(
+                    f"Item submission (item_identifier={item_identifier}) "
+                    "failed reconcile"
+                )
+                status = ItemSubmissionStatus.RECONCILE_FAILED
+
+            # create/update record in
+            self.write_reconcile_results_to_dynamodb(item_identifier, status, run_date)
+        return reconciled
+
     @abstractmethod
     def reconcile_bitstreams_and_metadata(self) -> bool:
         """Reconcile bitstreams against metadata.
@@ -133,6 +174,73 @@ class Workflow(ABC):
             f"not used by workflow '{self.__class__.__name__}'."
         )
         """
+
+    @final
+    def write_reconcile_results_to_dynamodb(
+        self, item_identifier: str, status: str, run_date: datetime
+    ) -> None:
+        """Write reconcile results for each item submission to DynamoDB.
+
+        An item submission is first recorded in the DynamoDB table during
+        the 'reconcile' step. Once a record is successfully created or
+        retrieved from the table, this method will perform a series of
+        checks to determine how/what to update for the item submission
+        record. If the current status indicates that the item submission
+        is at a step that comes after 'reconcile', the record is not
+        updated in DynamoDB.
+        """
+        item_submission_log_details = (
+            f"with primary keys item_identifier={item_identifier} (hash key) and "
+            f"batch_id={self.batch_id} (range key)"
+        )
+
+        try:
+            item_submission_record = ItemSubmissionDB.create(
+                item_identifier=item_identifier,
+                batch_id=self.batch_id,
+                workflow_name=self.workflow_name,
+            )
+        except ItemSubmissionExistsError as exception:
+            logger.info(exception)
+            try:
+                item_submission_record = ItemSubmissionDB.get(
+                    hash_key=self.batch_id, range_key=item_identifier
+                )
+            except DoesNotExist as exception:
+                logger.error(  # noqa: TRY400
+                    f"Failed to retrieve record {item_submission_log_details}"
+                )
+                return
+        except PutError as exception:
+            logger.error(  # noqa: TRY400
+                f"Unable to create record {item_submission_log_details}: "
+                f"{exception.cause_response_message}"
+            )
+            return
+
+        if item_submission_record:
+            if item_submission_record.status in [
+                None,
+                ItemSubmissionStatus.RECONCILE_FAILED,
+            ]:
+                logger.info(f"Updating record {item_submission_log_details}")
+
+                item_submission_record.update(
+                    actions=[
+                        ItemSubmissionDB.status.set(status),
+                        ItemSubmissionDB.last_run_date.set(run_date),
+                    ]
+                )
+            elif item_submission_record.status == ItemSubmissionStatus.RECONCILE_SUCCESS:
+                logger.info(
+                    f"Record {item_submission_log_details} was previously reconciled, "
+                    "skipping update"
+                )
+            else:
+                logger.info(
+                    f"Record {item_submission_log_details} not eligible for reconcile, "
+                    "skipping update"
+                )
 
     @final
     def submit_items(self, collection_handle: str) -> list:

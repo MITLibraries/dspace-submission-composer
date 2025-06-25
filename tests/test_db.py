@@ -4,7 +4,7 @@ from dsc.db.exceptions import ItemSubmissionExistsError
 from dsc.db.models import ItemSubmissionDB
 
 
-def test_db_itemsubmission_create_success(mocked_item_db):
+def test_db_itemsubmission_create_success(mocked_item_submission_db):
     ItemSubmissionDB.create(
         batch_id="batch-aaa", item_identifier="123", workflow_name="workflow"
     )
@@ -17,7 +17,7 @@ def test_db_itemsubmission_create_success(mocked_item_db):
     assert fetched_item.workflow_name == "workflow"
 
 
-def test_db_itemsubmission_create_if_exists_raise_error(mocked_item_db):
+def test_db_itemsubmission_create_if_exists_raise_error(mocked_item_submission_db):
     ItemSubmissionDB.create(
         batch_id="batch-aaa", item_identifier="123", workflow_name="workflow"
     )

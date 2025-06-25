@@ -1,6 +1,90 @@
 # ruff: noqa: SLF001
 import json
+from datetime import UTC, datetime
 from unittest.mock import patch
+
+import pytest
+from freezegun import freeze_time
+from pynamodb.exceptions import DoesNotExist
+
+from dsc.db.models import ItemSubmissionDB, ItemSubmissionStatus
+
+
+@freeze_time("2025-01-01 09:00:00")
+@patch("dsc.utilities.aws.s3.S3Client.files_iter")
+def test_workflow_simple_csv_reconcile_items_success(
+    mock_s3_client_files_iter,
+    caplog,
+    simple_csv_workflow_instance,
+    mocked_item_submission_db,
+    mocked_s3_simple_csv,
+):
+    caplog.set_level("DEBUG")
+    mock_s3_client_files_iter.return_value = [
+        "s3://dsc/simple_csv/batch-aaa/123_001.pdf",
+        "s3://dsc/simple_csv/batch-aaa/123_002.pdf",
+    ]
+    reconciled = simple_csv_workflow_instance.reconcile_items(run_date=datetime.now(UTC))
+    item_submission_record = ItemSubmissionDB.get(hash_key="batch-aaa", range_key="123")
+    assert reconciled
+    assert "Item submission (item_identifier=123) reconciled" in caplog.text
+    assert "Updating record" in caplog.text
+    assert item_submission_record.status == ItemSubmissionStatus.RECONCILE_SUCCESS
+
+
+@freeze_time("2025-01-01 09:00:00")
+@patch("dsc.utilities.aws.s3.S3Client.files_iter")
+def test_workflow_simple_csv_reconcile_items_if_item_submission_exists_success(
+    mock_s3_client_files_iter,
+    caplog,
+    simple_csv_workflow_instance,
+    mocked_item_submission_db,
+    mocked_s3_simple_csv,
+):
+    mock_s3_client_files_iter.return_value = [
+        "s3://dsc/simple_csv/batch-aaa/123_001.pdf",
+        "s3://dsc/simple_csv/batch-aaa/123_002.pdf",
+    ]
+
+    # create record to force raise dsc.db.exceptions ItemSubmissionExistsError
+    ItemSubmissionDB.create(
+        batch_id="batch-aaa",
+        item_identifier="123",
+        workflow_name=simple_csv_workflow_instance.workflow_name,
+        status=ItemSubmissionStatus.RECONCILE_SUCCESS,
+    )
+    reconciled = simple_csv_workflow_instance.reconcile_items(run_date=datetime.now(UTC))
+
+    assert reconciled
+    assert (
+        "Record with primary keys item_identifier=123 (hash key) and "
+        "batch_id=batch-aaa (range key) was previously reconciled, skipping update"
+    ) in caplog.text
+
+
+@freeze_time("2025-01-01 09:00:00")
+@patch("dsc.utilities.aws.s3.S3Client.files_iter")
+def test_workflow_simple_csv_reconcile_items_if_no_metadata_success(
+    mock_s3_client_files_iter,
+    caplog,
+    simple_csv_workflow_instance,
+    mocked_item_submission_db,
+    mocked_s3_simple_csv,
+):
+    mock_s3_client_files_iter.return_value = [
+        "s3://dsc/simple_csv/batch-aaa/123_001.pdf",
+        "s3://dsc/simple_csv/batch-aaa/123_002.pdf",
+        "s3://dsc/simple_csv/batch-aaa/456_003.pdf",
+    ]
+
+    # create record to force raise dsc.db.exceptions ItemSubmissionExistsError
+    reconciled = simple_csv_workflow_instance.reconcile_items(run_date=datetime.now(UTC))
+    assert not reconciled
+
+    # since item identifiers are retrieved from SimpleCSV.item_metadata_iter
+    # bitstreams without metadata are NOT written to the dsc-item-submissions table
+    with pytest.raises(DoesNotExist):
+        ItemSubmissionDB.get(hash_key="batch-aaa", range_key="456")
 
 
 @patch("dsc.utilities.aws.s3.S3Client.files_iter")

@@ -189,7 +189,7 @@ def item_submission_instance(dspace_metadata):
 
 
 @pytest.fixture
-def mocked_item_db():
+def mocked_item_submission_db():
     with mock_aws():
         if not ItemSubmissionDB.exists():
             ItemSubmissionDB.create_table()

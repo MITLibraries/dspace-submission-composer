@@ -40,7 +40,6 @@ def main(
     ctx.obj["start_time"] = perf_counter()
     workflow_class = Workflow.get_workflow(workflow_name)
     workflow = workflow_class(batch_id=batch_id)
-    ctx.obj["workflow"] = workflow
 
     root_logger = logging.getLogger()
     logger.info(CONFIG.configure_logger(root_logger, verbose=verbose))
@@ -48,6 +47,9 @@ def main(
     CONFIG.check_required_env_vars()
 
     logger.info("Running process")
+
+    ctx.obj["workflow"] = workflow
+    ctx.obj["run_date"] = datetime.datetime.now(datetime.UTC)
 
 
 @main.result_callback()
@@ -79,7 +81,7 @@ def reconcile(ctx: click.Context, email_recipients: str | None = None) -> None:
     """Reconcile bitstreams with item identifiers from the metadata."""
     workflow = ctx.obj["workflow"]
 
-    reconciled = workflow.reconcile_bitstreams_and_metadata()
+    reconciled = workflow.reconcile_items(run_date=ctx.obj["run_date"])
 
     if email_recipients:
         workflow.send_report(
