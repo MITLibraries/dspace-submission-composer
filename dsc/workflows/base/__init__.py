@@ -125,8 +125,9 @@ class Workflow(ABC):
         from the metadata*. Results are written to DynamoDB.
 
         *This may not be the full set of item submissions in a batch
-        as there may item submissions represented by bitstreams but
-        are NOT included in the metadata.
+        as there may be bitstreams (intended for item submissions)
+        for which an item identifier cannot be retrieved.
+
         """
         reconciled = self.reconcile_bitstreams_and_metadata()
 
