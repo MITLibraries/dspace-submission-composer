@@ -5,6 +5,7 @@ from time import perf_counter
 import click
 
 from dsc.config import Config
+from dsc.db.models import ItemSubmissionDB
 from dsc.reports import FinalizeReport, ReconcileReport, SubmitReport
 from dsc.workflows.base import Workflow
 
@@ -47,6 +48,7 @@ def main(
     CONFIG.check_required_env_vars()
 
     logger.info("Running process")
+    ItemSubmissionDB.set_table_name(CONFIG.item_table_name)
 
     ctx.obj["workflow"] = workflow
     ctx.obj["run_date"] = datetime.datetime.now(datetime.UTC)
