@@ -1,3 +1,4 @@
+import logging
 from enum import StrEnum
 from typing import TypedDict, Unpack
 
@@ -7,10 +8,12 @@ from pynamodb.attributes import (
     UnicodeAttribute,
     UTCDateTimeAttribute,
 )
-from pynamodb.exceptions import PutError
+from pynamodb.exceptions import DoesNotExist, PutError
 from pynamodb.models import Model
 
 from dsc.db.exceptions import ItemSubmissionExistsError
+
+logger = logging.getLogger(__name__)
 
 
 class ItemSubmissionStatus(StrEnum):
@@ -143,4 +146,36 @@ class ItemSubmissionDB(Model):
                     f"batch_id={batch_id} (range key) already exists"
                 ) from exception
             raise
+        return item
+
+    @classmethod
+    def get_or_create(
+        cls, item_identifier: str, batch_id: str, workflow_name: str
+    ) -> "ItemSubmissionDB | None":
+        log_details = (
+            f"with primary keys batch_id={batch_id} (hash key) and "
+            f"item_identifier={item_identifier} (range key)"
+        )
+
+        try:
+            item = ItemSubmissionDB.create(
+                item_identifier=item_identifier,
+                batch_id=batch_id,
+                workflow_name=workflow_name,
+            )
+            logger.info(f"Created record {log_details}")
+        except ItemSubmissionExistsError as exception:
+            logger.info(exception)
+            try:
+                item = ItemSubmissionDB.get(hash_key=batch_id, range_key=item_identifier)
+                logger.info(f"Retrieved record {log_details}")
+            except DoesNotExist as exception:
+                logger.error(f"Failed to retrieve record {log_details}")  # noqa: TRY400
+                return None
+        except PutError as exception:
+            logger.error(  # noqa: TRY400
+                f"Unable to create record {log_details}: "
+                f"{exception.cause_response_message}"
+            )
+            return None
         return item

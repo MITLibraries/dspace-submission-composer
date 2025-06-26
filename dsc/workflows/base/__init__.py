@@ -9,10 +9,8 @@ from typing import TYPE_CHECKING, Any, final
 import jsonschema
 import jsonschema.exceptions
 from botocore.exceptions import ClientError
-from pynamodb.exceptions import DoesNotExist, PutError
 
 from dsc.config import Config
-from dsc.db.exceptions import ItemSubmissionExistsError
 from dsc.db.models import ItemSubmissionDB, ItemSubmissionStatus
 from dsc.exceptions import (
     InvalidDSpaceMetadataError,
@@ -124,8 +122,7 @@ class Workflow(ABC):
         This method will first reconcile all bitstreams and metadata.
         Next, it will examine the result of the reconcile for each
         item in the batch, using the item identifiers retrieved
-        from the metadata*. Results are written to the
-        'dsc-item-submissions' table in DynamoDB.
+        from the metadata*. Results are written to DynamoDB.
 
         *This may not be the full set of item submissions in a batch
         as there may item submissions represented by bitstreams but
@@ -189,41 +186,23 @@ class Workflow(ABC):
         is at a step that comes after 'reconcile', the record is not
         updated in DynamoDB.
         """
-        item_submission_log_details = (
-            f"with primary keys item_identifier={item_identifier} (hash key) and "
-            f"batch_id={self.batch_id} (range key)"
+        item_submission_record = ItemSubmissionDB.get_or_create(
+            item_identifier=item_identifier,
+            batch_id=self.batch_id,
+            workflow_name=self.workflow_name,
         )
 
-        try:
-            item_submission_record = ItemSubmissionDB.create(
-                item_identifier=item_identifier,
-                batch_id=self.batch_id,
-                workflow_name=self.workflow_name,
-            )
-        except ItemSubmissionExistsError as exception:
-            logger.info(exception)
-            try:
-                item_submission_record = ItemSubmissionDB.get(
-                    hash_key=self.batch_id, range_key=item_identifier
-                )
-            except DoesNotExist as exception:
-                logger.error(  # noqa: TRY400
-                    f"Failed to retrieve record {item_submission_log_details}"
-                )
-                return
-        except PutError as exception:
-            logger.error(  # noqa: TRY400
-                f"Unable to create record {item_submission_log_details}: "
-                f"{exception.cause_response_message}"
-            )
-            return
+        log_details = (
+            f"with primary keys batch_id={self.batch_id} (hash key) and "
+            f"item_identifier={item_identifier} (range key)"
+        )
 
         if item_submission_record:
             if item_submission_record.status in [
                 None,
                 ItemSubmissionStatus.RECONCILE_FAILED,
             ]:
-                logger.info(f"Updating record {item_submission_log_details}")
+                logger.info(f"Updating record {log_details}")
 
                 item_submission_record.update(
                     actions=[
@@ -233,13 +212,11 @@ class Workflow(ABC):
                 )
             elif item_submission_record.status == ItemSubmissionStatus.RECONCILE_SUCCESS:
                 logger.info(
-                    f"Record {item_submission_log_details} was previously reconciled, "
-                    "skipping update"
+                    f"Record {log_details} was previously reconciled, skipping update"
                 )
             else:
                 logger.info(
-                    f"Record {item_submission_log_details} not eligible for reconcile, "
-                    "skipping update"
+                    f"Record {log_details} not eligible for reconcile, skipping update"
                 )
 
     @final

@@ -227,6 +227,7 @@ def mocked_s3_simple_csv(mocked_s3, item_metadata):
         Key="simple_csv/batch-aaa/metadata.csv",
         Body=csv_buffer.getvalue(),
     )
+    return mocked_s3
 
 
 @pytest.fixture
