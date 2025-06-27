@@ -152,7 +152,8 @@ class Workflow(ABC):
                 self.write_reconcile_results_to_dynamodb(
                     item_identifier, status, run_date
                 )
-            except Exception:  # noqa: BLE001, S112
+            except Exception as exception:  # noqa: BLE001
+                logger.error(exception)  # noqa: TRY400
                 continue
         return reconciled
 
