@@ -1,3 +1,4 @@
+import logging
 from enum import StrEnum
 from typing import TypedDict, Unpack
 
@@ -7,10 +8,16 @@ from pynamodb.attributes import (
     UnicodeAttribute,
     UTCDateTimeAttribute,
 )
-from pynamodb.exceptions import PutError
+from pynamodb.exceptions import DoesNotExist, PutError
 from pynamodb.models import Model
 
-from dsc.db.exceptions import ItemSubmissionExistsError
+from dsc.db.exceptions import ItemSubmissionCreateError, ItemSubmissionExistsError
+
+logger = logging.getLogger(__name__)
+ITEM_SUBMISSION_LOG_STR = (
+    "with primary keys batch_id={batch_id} (hash key) and "
+    "item_identifier={item_identifier} (range key)"
+)
 
 
 class ItemSubmissionStatus(StrEnum):
@@ -113,8 +120,8 @@ class ItemSubmissionDB(Model):
         batch_id: str,
         workflow_name: str,
         **attributes: Unpack[OptionalItemAttributes],
-    ) -> None:
-        """Create a new item (row) in the 'dsc-item-submissions' table.
+    ) -> "ItemSubmissionDB":
+        """Create a new item (row) in the DynamoDB table.
 
         This method also calls self.save() to write the item to DynamoDB.
         A condition is included in the 'save' call to prevent overwriting
@@ -123,6 +130,10 @@ class ItemSubmissionDB(Model):
         If the call to the save method fails due to the set condition, a
         db.exceptions.X is raised; otherwise, it re-raises
         the pynamodb.exceptions.PutError.
+
+        Raises:
+            ItemSubmissionCreateError
+            ItemSubmissionExistsError
         """
         item = cls(
             item_identifier=item_identifier,
@@ -136,10 +147,52 @@ class ItemSubmissionDB(Model):
                 condition=cls.item_identifier.does_not_exist()
                 & cls.batch_id.does_not_exist()
             )
+            logger.info(
+                "Created record "
+                f"{ITEM_SUBMISSION_LOG_STR.format(batch_id=batch_id,
+                                      item_identifier=item_identifier)}"
+            )
         except PutError as exception:
+            # if the `PutError` is due to failing conditional check, this means
+            # a row for the item submission already exists in DynamoDB
             if exception.cause_response_code == "ConditionalCheckFailedException":
                 raise ItemSubmissionExistsError(
-                    f"Item with item_identifier={item_identifier} (hash key) and "
-                    f"batch_id={batch_id} (range_key) already exists"
+                    f"Item with batch={batch_id} (hash key) and "
+                    f"item_identifier={item_identifier} (range key) already exists"
                 ) from exception
-            raise
+
+            # if the `PutError` is due to any other cause,
+            # note the cause in a custom 'catch-all' exception for put errors
+            raise ItemSubmissionCreateError(
+                exception.cause_response_message
+            ) from exception
+
+        return item
+
+    @classmethod
+    def get_or_create(
+        cls, item_identifier: str, batch_id: str, workflow_name: str
+    ) -> "ItemSubmissionDB":
+        """Get or create item (row) from the DynamoDB table.
+
+        This method will first try to get the item from the table.
+        If the  does not exist, it will try to create the record.
+
+        Raises:
+            ItemSubmissionCreateError
+        """
+        try:
+            item = ItemSubmissionDB.get(hash_key=batch_id, range_key=item_identifier)
+            logger.info(
+                "Retrieved record "
+                f"{ITEM_SUBMISSION_LOG_STR.format(batch_id=batch_id,
+                                      item_identifier=item_identifier)}"
+            )
+        except DoesNotExist:
+            item = ItemSubmissionDB.create(
+                item_identifier=item_identifier,
+                batch_id=batch_id,
+                workflow_name=workflow_name,
+            )
+
+        return item
