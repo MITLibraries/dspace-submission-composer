@@ -127,7 +127,6 @@ class Workflow(ABC):
         *This may not be the full set of item submissions in a batch
         as there may be bitstreams (intended for item submissions)
         for which an item identifier cannot be retrieved.
-
         """
         reconciled = self.reconcile_bitstreams_and_metadata()
 
@@ -148,8 +147,13 @@ class Workflow(ABC):
                 )
                 status = ItemSubmissionStatus.RECONCILE_FAILED
 
-            # create/update record in
-            self.write_reconcile_results_to_dynamodb(item_identifier, status, run_date)
+            # create/update record in DynamoDB
+            try:
+                self.write_reconcile_results_to_dynamodb(
+                    item_identifier, status, run_date
+                )
+            except Exception:  # noqa: BLE001, S112
+                continue
         return reconciled
 
     @abstractmethod
@@ -198,27 +202,26 @@ class Workflow(ABC):
             f"item_identifier={item_identifier} (range key)"
         )
 
-        if item_submission_record:
-            if item_submission_record.status in [
-                None,
-                ItemSubmissionStatus.RECONCILE_FAILED,
-            ]:
-                logger.info(f"Updating record {log_details}")
+        if item_submission_record.status in [
+            None,
+            ItemSubmissionStatus.RECONCILE_FAILED,
+        ]:
+            logger.info(f"Updating record {log_details}")
 
-                item_submission_record.update(
-                    actions=[
-                        ItemSubmissionDB.status.set(status),
-                        ItemSubmissionDB.last_run_date.set(run_date),
-                    ]
-                )
-            elif item_submission_record.status == ItemSubmissionStatus.RECONCILE_SUCCESS:
-                logger.info(
-                    f"Record {log_details} was previously reconciled, skipping update"
-                )
-            else:
-                logger.info(
-                    f"Record {log_details} not eligible for reconcile, skipping update"
-                )
+            item_submission_record.update(
+                actions=[
+                    ItemSubmissionDB.status.set(status),
+                    ItemSubmissionDB.last_run_date.set(run_date),
+                ]
+            )
+        elif item_submission_record.status == ItemSubmissionStatus.RECONCILE_SUCCESS:
+            logger.debug(
+                f"Record {log_details} was previously reconciled, skipping update"
+            )
+        else:
+            logger.info(
+                f"Record {log_details} not eligible for reconcile, skipping update"
+            )
 
     @final
     def submit_items(self, collection_handle: str) -> list:

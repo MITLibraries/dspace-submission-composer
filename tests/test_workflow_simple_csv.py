@@ -43,6 +43,7 @@ def test_workflow_simple_csv_reconcile_items_if_item_submission_exists_success(
     mocked_item_submission_db,
     mocked_s3_simple_csv,
 ):
+    caplog.set_level("DEBUG")
     mock_s3_client_files_iter.return_value = [
         "s3://dsc/simple_csv/batch-aaa/123_001.pdf",
         "s3://dsc/simple_csv/batch-aaa/123_002.pdf",
@@ -55,6 +56,7 @@ def test_workflow_simple_csv_reconcile_items_if_item_submission_exists_success(
         workflow_name=simple_csv_workflow_instance.workflow_name,
         status=ItemSubmissionStatus.RECONCILE_SUCCESS,
     )
+
     reconciled = simple_csv_workflow_instance.reconcile_items(run_date=datetime.now(UTC))
 
     assert reconciled

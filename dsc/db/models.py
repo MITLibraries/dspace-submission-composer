@@ -15,6 +15,11 @@ from dsc.db.exceptions import ItemSubmissionExistsError
 
 logger = logging.getLogger(__name__)
 
+LOG_DETAILS = (
+    "with primary keys batch_id={batch_id} (hash key) and "
+    "item_identifier={item_identifier} (range key)"
+)
+
 
 class ItemSubmissionStatus(StrEnum):
     RECONCILE_SUCCESS = "reconcile_success"
@@ -117,7 +122,7 @@ class ItemSubmissionDB(Model):
         workflow_name: str,
         **attributes: Unpack[OptionalItemAttributes],
     ) -> "ItemSubmissionDB":
-        """Create a new item (row) in the 'dsc-item-submissions' table.
+        """Create a new item (row) in the DynamoDB table.
 
         This method also calls self.save() to write the item to DynamoDB.
         A condition is included in the 'save' call to prevent overwriting
@@ -139,11 +144,16 @@ class ItemSubmissionDB(Model):
                 condition=cls.item_identifier.does_not_exist()
                 & cls.batch_id.does_not_exist()
             )
+            logger.info(
+                "Created record "
+                f"{LOG_DETAILS.format(batch_id=batch_id,
+                                      item_identifier=item_identifier)}"
+            )
         except PutError as exception:
             if exception.cause_response_code == "ConditionalCheckFailedException":
                 raise ItemSubmissionExistsError(
-                    f"Item with item_identifier={item_identifier} (hash key) and "
-                    f"batch_id={batch_id} (range key) already exists"
+                    f"Item with batch={batch_id} (hash key) and "
+                    f"item_identifier={item_identifier} (range key) already exists"
                 ) from exception
             raise
         return item
@@ -151,31 +161,34 @@ class ItemSubmissionDB(Model):
     @classmethod
     def get_or_create(
         cls, item_identifier: str, batch_id: str, workflow_name: str
-    ) -> "ItemSubmissionDB | None":
-        log_details = (
-            f"with primary keys batch_id={batch_id} (hash key) and "
-            f"item_identifier={item_identifier} (range key)"
-        )
+    ) -> "ItemSubmissionDB":
+        """Get or create item (row) from the DynamoDB table.
 
+        This method will first try to get the item from the table.
+        If the  does not exist, it will try to create the record.
+        If a pynamodb.exceptions.PutError is raised, the exception
+        is logged with the cause of the exception.
+        """
         try:
-            item = ItemSubmissionDB.create(
-                item_identifier=item_identifier,
-                batch_id=batch_id,
-                workflow_name=workflow_name,
+            item = ItemSubmissionDB.get(hash_key=batch_id, range_key=item_identifier)
+            logger.info(
+                "Retrieved record "
+                f"{LOG_DETAILS.format(batch_id=batch_id,
+                                      item_identifier=item_identifier)}"
             )
-            logger.info(f"Created record {log_details}")
-        except ItemSubmissionExistsError as exception:
-            logger.info(exception)
+        except DoesNotExist:
             try:
-                item = ItemSubmissionDB.get(hash_key=batch_id, range_key=item_identifier)
-                logger.info(f"Retrieved record {log_details}")
-            except DoesNotExist as exception:
-                logger.error(f"Failed to retrieve record {log_details}")  # noqa: TRY400
-                return None
-        except PutError as exception:
-            logger.error(  # noqa: TRY400
-                f"Unable to create record {log_details}: "
-                f"{exception.cause_response_message}"
-            )
-            return None
+                item = ItemSubmissionDB.create(
+                    item_identifier=item_identifier,
+                    batch_id=batch_id,
+                    workflow_name=workflow_name,
+                )
+            except PutError as exception:
+                logger.error(  # noqa: TRY400
+                    "Unable to create record "
+                    f"{LOG_DETAILS.format(batch_id=batch_id,
+                                          item_identifier=item_identifier)}"
+                    f": {exception.cause_response_message}"
+                )
+                raise
         return item
