@@ -767,67 +767,6 @@ class Workflow(ABC):
             ) from exception
         return parsed_message_body
 
-    @final
-    @staticmethod
-    def _parse_result_message(message_attributes: dict, message_body: str) -> dict:
-        """Parse content of result message.
-
-        This method will validate the content of the result message and return
-        a dict summarizing the outcome of the attempted submission via DSS:
-
-        1. Verify that 'message_attributes' adheres to
-           dsc.utilities.validate.schemas.RESULT_MESSAGE_ATTRIBUTES JSON schema.
-        2. Verify that 'message_body' is a valid JSON string.
-        3. Verify that the parsed 'message_body' adheres to
-           dsc.utilities.validate.schemas.RESULT_MESSAGE_BODY JSON schema.
-
-        Args:
-            message_attributes: Content of 'MessageAttributes' in result message.
-            message_body (str): Content of 'Body' in result message.
-
-        Returns:
-            dict: Result of attempted submission via DSS.
-        """
-        result_info: dict = {
-            "item_identifier": None,
-            "ingested": None,
-            "dspace_handle": None,
-            "error": None,
-            "result_message_body": message_body,
-        }
-
-        # validate content of 'MessageAttributes'
-        try:
-            jsonschema.validate(
-                instance=message_attributes,
-                schema=RESULT_MESSAGE_ATTRIBUTES,
-            )
-        except jsonschema.exceptions.ValidationError:
-            error_message = "Content of 'MessageAttributes' is invalid"
-            logger.exception(error_message)
-            result_info["error"] = error_message
-            return result_info
-
-        result_info["item_identifier"] = message_attributes["PackageID"]["StringValue"]
-
-        # validate content of 'Body'
-        try:
-            parsed_message_body = json.loads(message_body)
-            jsonschema.validate(instance=parsed_message_body, schema=RESULT_MESSAGE_BODY)
-        except json.JSONDecodeError:
-            error_message = "Failed to parse content of 'Body'"
-            logger.exception(error_message)
-            result_info["error"] = error_message
-        except jsonschema.exceptions.ValidationError:
-            error_message = "Content of 'Body' is invalid"
-            logger.exception(error_message)
-            result_info["error"] = error_message
-        else:
-            result_info["ingested"] = bool(parsed_message_body["ResultType"] == "success")
-            result_info["result_message_body"] = parsed_message_body
-            result_info["dspace_handle"] = parsed_message_body.get("ItemHandle")
-        return result_info
-
     def workflow_specific_processing(self, item_identifiers: list[str]) -> None:
         logger.info(
             f"No extra processing for {len(item_identifiers)} items based on workflow: "
