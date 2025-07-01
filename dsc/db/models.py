@@ -195,3 +195,16 @@ class ItemSubmissionDB(Model):
             )
 
         return item
+
+    def to_dict(self, *attributes: str) -> dict:
+        """Create dict representing an item submission.
+
+        This method will create a dict where the order of the keys
+        matches the order of the attributes passed in as positional args.
+
+        Args:
+            *attributes: Names of the model's attributes passed in as
+                positional args.
+        """
+        simple_dict = self.to_simple_dict()
+        return {attr: simple_dict.get(attr) for attr in attributes}

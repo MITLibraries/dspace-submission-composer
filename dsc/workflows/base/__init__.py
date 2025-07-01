@@ -572,6 +572,18 @@ class Workflow(ABC):
         sqs_processed_items = self.process_sqs_queue()
         self.workflow_specific_processing(sqs_processed_items)
 
+        # update WorkflowEvents with batch-level ingest results
+        for item_submission_record in ItemSubmissionDB.query(self.batch_id):
+            self.workflow_events.processed_items.append(
+                item_submission_record.to_dict(
+                    "item_identifier",
+                    "status",
+                    "status_details",
+                    "dspace_handle",
+                    "last_result_message",
+                )
+            )
+
     def process_sqs_queue(self) -> list[str]:
         """Process result messages from the output queue.
 
