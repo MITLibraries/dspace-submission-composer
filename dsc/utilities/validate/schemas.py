@@ -31,7 +31,7 @@ RESULT_MESSAGE_BODY = {
     "type": "object",
     "properties": {
         "ResultType": {"type": "string"},
-        "ItemHandle": {"type": "string"},
+        "ItemHandle": {"type": ["string", "null"]},
         "lastModified": {"type": "string"},
         "Bitstreams": {
             "type": "array",
@@ -56,7 +56,7 @@ RESULT_MESSAGE_BODY = {
         "ExceptionTraceback": {"type": "array", "items": {"type": "string"}},
     },
     "if": {"properties": {"ResultType": {"const": "success"}}},
-    "then": {"required": ["ItemHandle", "lastModified", "Bitstreams"]},
+    "then": {"required": ["lastModified", "Bitstreams"]},
     "else": {
         "required": [
             "ErrorTimestamp",
