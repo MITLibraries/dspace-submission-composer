@@ -1,9 +1,12 @@
+import datetime
 import json
 from unittest.mock import patch
 
 import pytest
 from botocore.exceptions import ClientError
+from freezegun import freeze_time
 
+from dsc.db.models import ItemSubmissionDB, ItemSubmissionStatus
 from dsc.exceptions import (
     InvalidDSpaceMetadataError,
     InvalidWorkflowNameError,
@@ -53,10 +56,29 @@ def test_base_workflow_reconcile_bitstreams_and_metadata_if_non_reconcile_raises
 
 
 def test_base_workflow_submit_items_success(
-    caplog, base_workflow_instance, mocked_s3, mocked_sqs_input, mocked_sqs_output
+    caplog,
+    base_workflow_instance,
+    mocked_s3,
+    mocked_sqs_input,
+    mocked_sqs_output,
+    mocked_item_submission_db,
 ):
     caplog.set_level("DEBUG")
-    items = base_workflow_instance.submit_items("123.4/5678")
+    ItemSubmissionDB.create(
+        item_identifier="123",
+        batch_id="batch-aaa",
+        workflow_name="test",
+        status=ItemSubmissionStatus.RECONCILE_SUCCESS,
+    )
+    ItemSubmissionDB.create(
+        item_identifier="789",
+        batch_id="batch-aaa",
+        workflow_name="test",
+        status=ItemSubmissionStatus.RECONCILE_SUCCESS,
+    )
+    items = base_workflow_instance.submit_items(
+        collection_handle="123.4/5678", run_date="2025-01-01 09:00:00"
+    )
 
     expected_submission_summary = {"total": 2, "submitted": 2, "errors": 0}
 
@@ -72,13 +94,28 @@ def test_base_workflow_submit_items_exceptions_handled(
     mocked_s3,
     mocked_sqs_input,
     mocked_sqs_output,
+    mocked_item_submission_db,
 ):
     side_effect = [
         {"MessageId": "abcd", "ResponseMetadata": {"HTTPStatusCode": 200}},
         ClientError,
     ]
     mocked_method.side_effect = side_effect
-    items = base_workflow_instance.submit_items("123.4/5678")
+    ItemSubmissionDB.create(
+        item_identifier="123",
+        batch_id="batch-aaa",
+        workflow_name="test",
+        status=ItemSubmissionStatus.RECONCILE_SUCCESS,
+    )
+    ItemSubmissionDB.create(
+        item_identifier="789",
+        batch_id="batch-aaa",
+        workflow_name="test",
+        status=ItemSubmissionStatus.RECONCILE_SUCCESS,
+    )
+    items = base_workflow_instance.submit_items(
+        collection_handle="123.4/5678", run_date="2025-01-01 09:00:00"
+    )
 
     expected_submission_summary = {"total": 2, "submitted": 1, "errors": 1}
 
@@ -152,6 +189,101 @@ def test_base_workflow_validate_dspace_metadata_invalid_raises_exception(
 ):
     with pytest.raises(InvalidDSpaceMetadataError):
         base_workflow_instance.validate_dspace_metadata({})
+
+
+def test_allow_submission_success(base_workflow_instance, mocked_item_submission_db):
+    item_identifier = "123"
+    batch_id = "batch-aaa"
+    ItemSubmissionDB.create(
+        item_identifier=item_identifier,
+        batch_id=batch_id,
+        workflow_name="test",
+        status=ItemSubmissionStatus.RECONCILE_SUCCESS,
+    )
+    assert base_workflow_instance.allow_submission(item_identifier)
+
+
+def test_allow_submission_ingested_returns_false(
+    base_workflow_instance, mocked_item_submission_db
+):
+    item_identifier = "123"
+    batch_id = "batch-aaa"
+    ItemSubmissionDB.create(
+        item_identifier=item_identifier,
+        batch_id=batch_id,
+        workflow_name="test",
+        status=ItemSubmissionStatus.INGEST_SUCCESS,
+    )
+    assert not base_workflow_instance.allow_submission(item_identifier)
+
+
+def test_allow_submission_submitted_returns_false(
+    base_workflow_instance, mocked_item_submission_db
+):
+    item_identifier = "123"
+    batch_id = "batch-aaa"
+    ItemSubmissionDB.create(
+        item_identifier=item_identifier,
+        batch_id=batch_id,
+        workflow_name="test",
+        status=ItemSubmissionStatus.SUBMIT_SUCCESS,
+    )
+    assert not base_workflow_instance.allow_submission(item_identifier)
+
+
+def test_allow_submission_max_retries_returns_false(
+    base_workflow_instance, mocked_item_submission_db
+):
+    item_identifier = "123"
+    batch_id = "batch-aaa"
+    ItemSubmissionDB.create(
+        item_identifier=item_identifier,
+        batch_id=batch_id,
+        workflow_name="test",
+        status=ItemSubmissionStatus.MAX_RETRIES_REACHED,
+    )
+    assert not base_workflow_instance.allow_submission(item_identifier)
+
+
+def test_allow_submission_not_reconciled_returns_false(
+    base_workflow_instance, mocked_item_submission_db
+):
+    item_identifier = "123"
+    batch_id = "batch-aaa"
+    ItemSubmissionDB.create(
+        item_identifier=item_identifier,
+        batch_id=batch_id,
+        workflow_name="test",
+        status=ItemSubmissionStatus.RECONCILE_FAILED,
+    )
+    assert not base_workflow_instance.allow_submission(item_identifier)
+
+
+@freeze_time("2025-01-01 09:00:00")
+def test_write_submit_results_to_dynamodb_success(
+    base_workflow_instance, mocked_item_submission_db
+):
+    item_identifier = "123"
+    batch_id = "batch-aaa"
+    run_date = datetime.datetime.now(datetime.UTC)
+    ItemSubmissionDB.create(
+        item_identifier=item_identifier,
+        batch_id=batch_id,
+        workflow_name="test",
+        status=ItemSubmissionStatus.RECONCILE_SUCCESS,
+        submit_attempts=0,
+    )
+    base_workflow_instance.write_submit_results_to_dynamodb(
+        item_identifier,
+        status=ItemSubmissionStatus.SUBMIT_SUCCESS,
+        run_date=run_date,
+    )
+    item_submission_record = ItemSubmissionDB.get(
+        hash_key=batch_id, range_key=item_identifier
+    )
+    assert item_submission_record.status == ItemSubmissionStatus.SUBMIT_SUCCESS
+    assert item_submission_record.last_run_date == run_date
+    assert item_submission_record.submit_attempts == 1
 
 
 def test_base_workflow_process_sqs_queue_success(

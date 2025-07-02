@@ -1,7 +1,10 @@
 import json
 from unittest.mock import patch
 
+from freezegun import freeze_time
+
 from dsc.cli import main
+from dsc.db.models import ItemSubmissionDB, ItemSubmissionStatus
 
 
 @patch("dsc.utilities.aws.s3.S3Client.files_iter")
@@ -77,19 +80,32 @@ def test_reconcile_if_non_reconcile_workflow_raise_error(
     assert isinstance(result.exception, TypeError)
 
 
+@freeze_time("2025-01-01 09:00:00")
 def test_submit_success(
     caplog,
     runner,
     mocked_s3,
     mocked_ses,
     mocked_sqs_input,
+    mocked_item_submission_db,
     base_workflow_instance,
     s3_client,
 ):
     s3_client.put_file(file_content="", bucket="dsc", key="test/batch-aaa/123_01.pdf")
     s3_client.put_file(file_content="", bucket="dsc", key="test/batch-aaa/123_02.jpg")
-    s3_client.put_file(file_content="", bucket="dsc", key="test/batch-aaa/456_01.pdf")
-    caplog.set_level("DEBUG")
+    s3_client.put_file(file_content="", bucket="dsc", key="test/batch-aaa/789_01.pdf")
+    ItemSubmissionDB.create(
+        item_identifier="123",
+        batch_id="batch-aaa",
+        workflow_name="test",
+        status=ItemSubmissionStatus.RECONCILE_SUCCESS,
+    )
+    ItemSubmissionDB.create(
+        item_identifier="789",
+        batch_id="batch-aaa",
+        workflow_name="test",
+        status=ItemSubmissionStatus.RECONCILE_SUCCESS,
+    )
 
     expected_submission_summary = {"total": 2, "submitted": 2, "errors": 0}
 

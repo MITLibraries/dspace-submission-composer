@@ -116,7 +116,7 @@ def submit(
 ) -> None:
     """Send a batch of item submissions to the DSpace Submission Service (DSS)."""
     workflow = ctx.obj["workflow"]
-    workflow.submit_items(collection_handle)
+    workflow.submit_items(collection_handle, run_date=ctx.obj["run_date"])
 
     if email_recipients:
         workflow.send_report(

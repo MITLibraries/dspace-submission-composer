@@ -95,6 +95,10 @@ class Workflow(ABC):
     def batch_path(self) -> str:
         return f"{self.workflow_name}/{self.batch_id}/"
 
+    @property
+    def retry_threshold(self) -> int:
+        return 20
+
     @final
     @classmethod
     def get_workflow(cls, workflow_name: str) -> type[Workflow]:
@@ -225,12 +229,13 @@ class Workflow(ABC):
             )
 
     @final
-    def submit_items(self, collection_handle: str) -> list:
+    def submit_items(self, collection_handle: str, run_date: datetime) -> list:
         """Submit items to the DSpace Submission Service according to the workflow class.
 
         Args:
             collection_handle: The handle of the DSpace collection to which the batch will
               be submitted.
+            run_date: The date that the batch submission is run.
 
         Returns a dict with the submission results organized into succeeded and failed
         items.
@@ -250,6 +255,11 @@ class Workflow(ABC):
             submission_summary["total"] += 1
             item_identifier = item_submission.item_identifier
 
+            # validate whether a message should be sent for this item submission
+            if not self.allow_submission(item_identifier):
+                continue
+
+            # upload DSpace metadata file to S3
             try:
                 item_submission.upload_dspace_metadata(
                     bucket=self.s3_bucket, prefix=self.batch_path
@@ -262,6 +272,7 @@ class Workflow(ABC):
                 submission_summary["errors"] += 1
                 continue
 
+            # Send submission message to DSS input queue
             try:
                 response = item_submission.send_submission_message(
                     self.workflow_name,
@@ -286,6 +297,7 @@ class Workflow(ABC):
                 submission_summary["errors"] += 1
                 continue
 
+            # Record details of the item submission message
             item_data = {
                 "item_identifier": item_identifier,
                 "message_id": response["MessageId"],
@@ -295,6 +307,24 @@ class Workflow(ABC):
             submission_summary["submitted"] += 1
 
             logger.info(f"Sent item submission message: {item_data["message_id"]}")
+
+            # Set status in DynamoDB
+            if item_identifier in self.workflow_events.submitted_items:
+                logger.debug(
+                    f"Item submission (item_identifier={item_identifier}) submitted"
+                )
+                status = ItemSubmissionStatus.SUBMIT_SUCCESS
+            else:
+                logger.debug(
+                    f"Item submission (item_identifier={item_identifier}) "
+                    "failed to submit"
+                )
+                status = ItemSubmissionStatus.SUBMIT_FAILED
+            try:
+                self.write_submit_results_to_dynamodb(item_identifier, status, run_date)
+            except Exception as exception:  # noqa: BLE001
+                logger.error(exception)  # noqa: TRY400
+                continue
 
         logger.info(
             f"Submitted messages to the DSS input queue '{CONFIG.sqs_queue_dss_input}' "
@@ -424,6 +454,60 @@ class Workflow(ABC):
         Args:
             item_identifier: The identifier used for locating the item's bitstreams.
         """
+
+    @final
+    def allow_submission(self, item_identifier: str) -> bool:
+        """Verify that a submission message should be sent based on status in DynamoDB."""
+        item_submission_record = ItemSubmissionDB.get(
+            hash_key=self.batch_id, range_key=item_identifier
+        )
+
+        log_details = (
+            f"with primary keys batch_id={self.batch_id} (hash key) and "
+            f"item_identifier={item_identifier} (range key)"
+        )
+        allow_submission = False
+
+        if item_submission_record.status == ItemSubmissionStatus.INGEST_SUCCESS:
+            logger.info(f"Record {log_details} already ingested, skipping submission")
+
+        elif item_submission_record.status == ItemSubmissionStatus.SUBMIT_SUCCESS:
+            logger.info(f"Record {log_details} already submitted, skipping submission")
+
+        elif item_submission_record.status == ItemSubmissionStatus.MAX_RETRIES_REACHED:
+            logger.info(f"Record {log_details} max retries reached, skipping submission")
+
+        elif item_submission_record.status in [
+            None,
+            ItemSubmissionStatus.RECONCILE_FAILED,
+        ]:
+            logger.info(f"Record {log_details} not reconciled, skipping submission")
+
+        else:
+            allow_submission = True
+
+        return allow_submission
+
+    @final
+    def write_submit_results_to_dynamodb(
+        self,
+        item_identifier: str,
+        status: str,
+        run_date: datetime,
+    ) -> None:
+        """Write submit results for each item submission to DynamoDB."""
+        item_submission_record = ItemSubmissionDB.get(
+            hash_key=self.batch_id, range_key=item_identifier
+        )
+        item_submission_record.update(
+            actions=[
+                ItemSubmissionDB.status.set(status),
+                ItemSubmissionDB.last_run_date.set(run_date),
+                ItemSubmissionDB.submit_attempts.set(
+                    ItemSubmissionDB.submit_attempts + 1
+                ),
+            ]
+        )
 
     @final
     def process_ingest_results(self) -> None:
