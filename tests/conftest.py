@@ -89,6 +89,7 @@ class TestOpenCourseWare(OpenCourseWare):
 def _test_env(monkeypatch):
     monkeypatch.setenv("SENTRY_DSN", "None")
     monkeypatch.setenv("WORKSPACE", "test")
+    monkeypatch.setenv("WARNING_ONLY_LOGGERS", "botocore,smart_open,urllib3")
     monkeypatch.setenv("AWS_REGION_NAME", "us-east-1")
     monkeypatch.setenv("AWS_DEFAULT_REGION", "us-east-1")
     monkeypatch.setenv("AWS_ACCESS_KEY_ID", "testing")
