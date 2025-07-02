@@ -1,10 +1,8 @@
-import datetime
 import json
 from unittest.mock import patch
 
 import pytest
 from botocore.exceptions import ClientError
-from freezegun import freeze_time
 
 from dsc.db.models import ItemSubmissionDB, ItemSubmissionStatus
 from dsc.exceptions import (
@@ -76,13 +74,70 @@ def test_base_workflow_submit_items_success(
         workflow_name="test",
         status=ItemSubmissionStatus.RECONCILE_SUCCESS,
     )
-    items = base_workflow_instance.submit_items(
-        collection_handle="123.4/5678", run_date="2025-01-01 09:00:00"
-    )
+    items = base_workflow_instance.submit_items(collection_handle="123.4/5678")
 
-    expected_submission_summary = {"total": 2, "submitted": 2, "errors": 0}
+    expected_submission_summary = {"total": 2, "submitted": 2, "skipped": 0, "errors": 0}
 
     assert len(items) == 2  # noqa: PLR2004
+    assert json.dumps(expected_submission_summary) in caplog.text
+
+
+def test_base_workflow_submit_items_missing_row_raises_warning(
+    caplog,
+    base_workflow_instance,
+    mocked_s3,
+    mocked_sqs_input,
+    mocked_sqs_output,
+    mocked_item_submission_db,
+):
+    caplog.set_level("DEBUG")
+    ItemSubmissionDB.create(
+        item_identifier="123",
+        batch_id="batch-aaa",
+        workflow_name="test",
+        status=ItemSubmissionStatus.RECONCILE_SUCCESS,
+    )
+    items = base_workflow_instance.submit_items(collection_handle="123.4/5678")
+
+    expected_submission_summary = {"total": 2, "submitted": 1, "skipped": 1, "errors": 0}
+
+    assert len(items) == 1
+    assert (
+        "DynamoDB row not found for '789', verify that it has been reconciled"
+        in caplog.text
+    )
+    assert json.dumps(expected_submission_summary) in caplog.text
+
+
+def test_base_workflow_submit_items_failed_allow_submission_is_skipped(
+    caplog,
+    base_workflow_instance,
+    mocked_s3,
+    mocked_sqs_input,
+    mocked_sqs_output,
+    mocked_item_submission_db,
+):
+    caplog.set_level("DEBUG")
+    ItemSubmissionDB.create(
+        item_identifier="123",
+        batch_id="batch-aaa",
+        workflow_name="test",
+        status=ItemSubmissionStatus.INGEST_SUCCESS,
+    )
+    ItemSubmissionDB.create(
+        item_identifier="789",
+        batch_id="batch-aaa",
+        workflow_name="test",
+        status=ItemSubmissionStatus.RECONCILE_SUCCESS,
+    )
+    items = base_workflow_instance.submit_items(collection_handle="123.4/5678")
+
+    expected_submission_summary = {"total": 2, "submitted": 1, "skipped": 1, "errors": 0}
+    assert len(items) == 1
+    assert (
+        "Record with primary keys batch_id=batch-aaa (hash key) and item_identifier=123 "
+        "(range key) already ingested, skipping submission" in caplog.text
+    )
     assert json.dumps(expected_submission_summary) in caplog.text
 
 
@@ -113,11 +168,9 @@ def test_base_workflow_submit_items_exceptions_handled(
         workflow_name="test",
         status=ItemSubmissionStatus.RECONCILE_SUCCESS,
     )
-    items = base_workflow_instance.submit_items(
-        collection_handle="123.4/5678", run_date="2025-01-01 09:00:00"
-    )
+    items = base_workflow_instance.submit_items(collection_handle="123.4/5678")
 
-    expected_submission_summary = {"total": 2, "submitted": 1, "errors": 1}
+    expected_submission_summary = {"total": 2, "submitted": 1, "skipped": 0, "errors": 1}
 
     assert len(items) == 1
     assert items == [{"item_identifier": "123", "message_id": "abcd"}]
@@ -200,7 +253,10 @@ def test_allow_submission_success(base_workflow_instance, mocked_item_submission
         workflow_name="test",
         status=ItemSubmissionStatus.RECONCILE_SUCCESS,
     )
-    assert base_workflow_instance.allow_submission(item_identifier)
+    item_submission_record = ItemSubmissionDB.get(
+        hash_key=batch_id, range_key=item_identifier
+    )
+    assert base_workflow_instance.allow_submission(item_submission_record)
 
 
 def test_allow_submission_ingested_returns_false(
@@ -214,7 +270,10 @@ def test_allow_submission_ingested_returns_false(
         workflow_name="test",
         status=ItemSubmissionStatus.INGEST_SUCCESS,
     )
-    assert not base_workflow_instance.allow_submission(item_identifier)
+    item_submission_record = ItemSubmissionDB.get(
+        hash_key=batch_id, range_key=item_identifier
+    )
+    assert not base_workflow_instance.allow_submission(item_submission_record)
 
 
 def test_allow_submission_submitted_returns_false(
@@ -228,7 +287,10 @@ def test_allow_submission_submitted_returns_false(
         workflow_name="test",
         status=ItemSubmissionStatus.SUBMIT_SUCCESS,
     )
-    assert not base_workflow_instance.allow_submission(item_identifier)
+    item_submission_record = ItemSubmissionDB.get(
+        hash_key=batch_id, range_key=item_identifier
+    )
+    assert not base_workflow_instance.allow_submission(item_submission_record)
 
 
 def test_allow_submission_max_retries_returns_false(
@@ -242,7 +304,10 @@ def test_allow_submission_max_retries_returns_false(
         workflow_name="test",
         status=ItemSubmissionStatus.MAX_RETRIES_REACHED,
     )
-    assert not base_workflow_instance.allow_submission(item_identifier)
+    item_submission_record = ItemSubmissionDB.get(
+        hash_key=batch_id, range_key=item_identifier
+    )
+    assert not base_workflow_instance.allow_submission(item_submission_record)
 
 
 def test_allow_submission_not_reconciled_returns_false(
@@ -256,34 +321,10 @@ def test_allow_submission_not_reconciled_returns_false(
         workflow_name="test",
         status=ItemSubmissionStatus.RECONCILE_FAILED,
     )
-    assert not base_workflow_instance.allow_submission(item_identifier)
-
-
-@freeze_time("2025-01-01 09:00:00")
-def test_write_submit_results_to_dynamodb_success(
-    base_workflow_instance, mocked_item_submission_db
-):
-    item_identifier = "123"
-    batch_id = "batch-aaa"
-    run_date = datetime.datetime.now(datetime.UTC)
-    ItemSubmissionDB.create(
-        item_identifier=item_identifier,
-        batch_id=batch_id,
-        workflow_name="test",
-        status=ItemSubmissionStatus.RECONCILE_SUCCESS,
-        submit_attempts=0,
-    )
-    base_workflow_instance.write_submit_results_to_dynamodb(
-        item_identifier,
-        status=ItemSubmissionStatus.SUBMIT_SUCCESS,
-        run_date=run_date,
-    )
     item_submission_record = ItemSubmissionDB.get(
         hash_key=batch_id, range_key=item_identifier
     )
-    assert item_submission_record.status == ItemSubmissionStatus.SUBMIT_SUCCESS
-    assert item_submission_record.last_run_date == run_date
-    assert item_submission_record.submit_attempts == 1
+    assert not base_workflow_instance.allow_submission(item_submission_record)
 
 
 def test_base_workflow_process_sqs_queue_success(

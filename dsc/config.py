@@ -11,6 +11,7 @@ class Config:
         "SENTRY_DSN",
         "AWS_REGION_NAME",
         "ITEM_TABLE_NAME",
+        "RETRY_THRESHOLD",
         "S3_BUCKET_SUBMISSION_ASSETS",
         "SOURCE_EMAIL",
         "SQS_QUEUE_DSS_INPUT",
@@ -36,6 +37,10 @@ class Config:
         if not value:
             raise OSError("Env var 'ITEM_TABLE_NAME' must be defined")
         return value
+
+    @property
+    def retry_threshold(self) -> int:
+        return int(os.getenv("RETRY_THRESHOLD", "20"))
 
     @property
     def s3_bucket_submission_assets(self) -> str:

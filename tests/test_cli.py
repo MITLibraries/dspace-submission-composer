@@ -107,7 +107,7 @@ def test_submit_success(
         status=ItemSubmissionStatus.RECONCILE_SUCCESS,
     )
 
-    expected_submission_summary = {"total": 2, "submitted": 2, "errors": 0}
+    expected_submission_summary = {"total": 2, "submitted": 2, "skipped": 0, "errors": 0}
 
     result = runner.invoke(
         main,

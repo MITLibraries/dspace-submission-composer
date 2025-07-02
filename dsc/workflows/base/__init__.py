@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import datetime
 import json
 import logging
 from abc import ABC, abstractmethod
@@ -9,6 +10,7 @@ from typing import TYPE_CHECKING, Any, final
 import jsonschema
 import jsonschema.exceptions
 from botocore.exceptions import ClientError
+from pynamodb.exceptions import DoesNotExist
 
 from dsc.config import Config
 from dsc.db.models import ItemSubmissionDB, ItemSubmissionStatus
@@ -23,7 +25,6 @@ from dsc.utilities.validate.schemas import RESULT_MESSAGE_ATTRIBUTES, RESULT_MES
 
 if TYPE_CHECKING:  # pragma: no cover
     from collections.abc import Iterator
-    from datetime import datetime
 
     from dsc.reports import Report
 
@@ -55,10 +56,7 @@ class Workflow(ABC):
     workflow_name: str = "base"
     submission_system: str = "DSpace@MIT"
 
-    def __init__(
-        self,
-        batch_id: str,
-    ) -> None:
+    def __init__(self, batch_id: str) -> None:
         """Initialize base instance.
 
         Args:
@@ -70,6 +68,7 @@ class Workflow(ABC):
         self.batch_id = batch_id
         self.workflow_events = WorkflowEvents()
         self.exclude_prefixes: list[str] = ["archived/", "dspace_metadata/"]
+        self.run_date = datetime.datetime.now(datetime.UTC)
 
     @property
     @abstractmethod
@@ -97,7 +96,7 @@ class Workflow(ABC):
 
     @property
     def retry_threshold(self) -> int:
-        return 20
+        return CONFIG.retry_threshold
 
     @final
     @classmethod
@@ -120,7 +119,7 @@ class Workflow(ABC):
             yield subclass
 
     @final
-    def reconcile_items(self, run_date: datetime) -> bool:
+    def reconcile_items(self) -> bool:
         """Reconcile item submissions for a batch.
 
         This method will first reconcile all bitstreams and metadata.
@@ -153,9 +152,7 @@ class Workflow(ABC):
 
             # create/update record in DynamoDB
             try:
-                self.write_reconcile_results_to_dynamodb(
-                    item_identifier, status, run_date
-                )
+                self.write_reconcile_results_to_dynamodb(item_identifier, status)
             except Exception as exception:  # noqa: BLE001
                 logger.error(exception)  # noqa: TRY400
                 continue
@@ -184,7 +181,7 @@ class Workflow(ABC):
 
     @final
     def write_reconcile_results_to_dynamodb(
-        self, item_identifier: str, status: str, run_date: datetime
+        self, item_identifier: str, status: str
     ) -> None:
         """Write reconcile results for each item submission to DynamoDB.
 
@@ -216,7 +213,7 @@ class Workflow(ABC):
             item_submission_record.update(
                 actions=[
                     ItemSubmissionDB.status.set(status),
-                    ItemSubmissionDB.last_run_date.set(run_date),
+                    ItemSubmissionDB.last_run_date.set(self.run_date),
                 ]
             )
         elif item_submission_record.status == ItemSubmissionStatus.RECONCILE_SUCCESS:
@@ -229,13 +226,13 @@ class Workflow(ABC):
             )
 
     @final
-    def submit_items(self, collection_handle: str, run_date: datetime) -> list:
+    def submit_items(self, collection_handle: str) -> list:
         """Submit items to the DSpace Submission Service according to the workflow class.
 
         Args:
             collection_handle: The handle of the DSpace collection to which the batch will
               be submitted.
-            run_date: The date that the batch submission is run.
+
 
         Returns a dict with the submission results organized into succeeded and failed
         items.
@@ -247,6 +244,7 @@ class Workflow(ABC):
         submission_summary = {
             "total": 0,
             "submitted": 0,
+            "skipped": 0,
             "errors": 0,
         }
 
@@ -255,8 +253,22 @@ class Workflow(ABC):
             submission_summary["total"] += 1
             item_identifier = item_submission.item_identifier
 
+            # retrieve record from DynamoDB
+            try:
+                item_submission_record = ItemSubmissionDB.get(
+                    hash_key=self.batch_id, range_key=item_identifier
+                )
+            except DoesNotExist:
+                logger.warning(
+                    f"DynamoDB row not found for '{item_identifier}', verify that it has "
+                    "been reconciled."
+                )
+                submission_summary["skipped"] += 1
+                continue
+
             # validate whether a message should be sent for this item submission
-            if not self.allow_submission(item_identifier):
+            if not self.allow_submission(item_submission_record):
+                submission_summary["skipped"] += 1
                 continue
 
             # upload DSpace metadata file to S3
@@ -270,6 +282,16 @@ class Workflow(ABC):
                 )
                 self.workflow_events.errors.append(str(exception))
                 submission_summary["errors"] += 1
+
+                # update record in DynamoDB
+                item_submission_record.update(
+                    actions=[
+                        ItemSubmissionDB.status.set(ItemSubmissionStatus.SUBMIT_FAILED),
+                        ItemSubmissionDB.status_details.set(str(exception)),
+                        ItemSubmissionDB.last_run_date.set(self.run_date),
+                        ItemSubmissionDB.submit_attempts.add(1),
+                    ]
+                )
                 continue
 
             # Send submission message to DSS input queue
@@ -287,6 +309,16 @@ class Workflow(ABC):
                 )
                 self.workflow_events.errors.append(str(exception))
                 submission_summary["errors"] += 1
+
+                # update record in DynamoDB
+                item_submission_record.update(
+                    actions=[
+                        ItemSubmissionDB.status.set(ItemSubmissionStatus.SUBMIT_FAILED),
+                        ItemSubmissionDB.status_details.set(str(exception)),
+                        ItemSubmissionDB.last_run_date.set(self.run_date),
+                        ItemSubmissionDB.submit_attempts.add(1),
+                    ]
+                )
                 continue
             except Exception as exception:  # noqa: BLE001
                 logger.error(  # noqa: TRY400
@@ -295,6 +327,16 @@ class Workflow(ABC):
                 )
                 self.workflow_events.errors.append(str(exception))
                 submission_summary["errors"] += 1
+
+                # update record in DynamoDB
+                item_submission_record.update(
+                    actions=[
+                        ItemSubmissionDB.status.set(ItemSubmissionStatus.SUBMIT_FAILED),
+                        ItemSubmissionDB.status_details.set(str(exception)),
+                        ItemSubmissionDB.last_run_date.set(self.run_date),
+                        ItemSubmissionDB.submit_attempts.add(1),
+                    ]
+                )
                 continue
 
             # Record details of the item submission message
@@ -309,19 +351,14 @@ class Workflow(ABC):
             logger.info(f"Sent item submission message: {item_data["message_id"]}")
 
             # Set status in DynamoDB
-            if item_identifier in self.workflow_events.submitted_items:
-                logger.debug(
-                    f"Item submission (item_identifier={item_identifier}) submitted"
-                )
-                status = ItemSubmissionStatus.SUBMIT_SUCCESS
-            else:
-                logger.debug(
-                    f"Item submission (item_identifier={item_identifier}) "
-                    "failed to submit"
-                )
-                status = ItemSubmissionStatus.SUBMIT_FAILED
             try:
-                self.write_submit_results_to_dynamodb(item_identifier, status, run_date)
+                item_submission_record.update(
+                    actions=[
+                        ItemSubmissionDB.status.set(ItemSubmissionStatus.SUBMIT_SUCCESS),
+                        ItemSubmissionDB.last_run_date.set(self.run_date),
+                        ItemSubmissionDB.submit_attempts.add(1),
+                    ]
+                )
             except Exception as exception:  # noqa: BLE001
                 logger.error(exception)  # noqa: TRY400
                 continue
@@ -456,58 +493,33 @@ class Workflow(ABC):
         """
 
     @final
-    def allow_submission(self, item_identifier: str) -> bool:
+    def allow_submission(self, item_submission_record: ItemSubmissionDB) -> bool:
         """Verify that a submission message should be sent based on status in DynamoDB."""
-        item_submission_record = ItemSubmissionDB.get(
-            hash_key=self.batch_id, range_key=item_identifier
-        )
-
         log_details = (
             f"with primary keys batch_id={self.batch_id} (hash key) and "
-            f"item_identifier={item_identifier} (range key)"
+            f"item_identifier={item_submission_record.item_identifier} (range key)"
         )
+
         allow_submission = False
 
-        if item_submission_record.status == ItemSubmissionStatus.INGEST_SUCCESS:
-            logger.info(f"Record {log_details} already ingested, skipping submission")
-
-        elif item_submission_record.status == ItemSubmissionStatus.SUBMIT_SUCCESS:
-            logger.info(f"Record {log_details} already submitted, skipping submission")
-
-        elif item_submission_record.status == ItemSubmissionStatus.MAX_RETRIES_REACHED:
-            logger.info(f"Record {log_details} max retries reached, skipping submission")
-
-        elif item_submission_record.status in [
-            None,
-            ItemSubmissionStatus.RECONCILE_FAILED,
-        ]:
-            logger.info(f"Record {log_details} not reconciled, skipping submission")
-
-        else:
-            allow_submission = True
+        match item_submission_record.status:
+            case ItemSubmissionStatus.INGEST_SUCCESS:
+                logger.info(f"Record {log_details} already ingested, skipping submission")
+            case ItemSubmissionStatus.SUBMIT_SUCCESS:
+                logger.info(
+                    f"Record {log_details} already submitted, skipping submission"
+                )
+            case ItemSubmissionStatus.MAX_RETRIES_REACHED:
+                logger.info(
+                    f"Record {log_details} max retries reached, skipping submission"
+                )
+            case None | ItemSubmissionStatus.RECONCILE_FAILED:
+                logger.info(f"Record {log_details} not reconciled, skipping submission")
+            case _:
+                logger.debug(f"Record {log_details} allowed for submission")
+                allow_submission = True
 
         return allow_submission
-
-    @final
-    def write_submit_results_to_dynamodb(
-        self,
-        item_identifier: str,
-        status: str,
-        run_date: datetime,
-    ) -> None:
-        """Write submit results for each item submission to DynamoDB."""
-        item_submission_record = ItemSubmissionDB.get(
-            hash_key=self.batch_id, range_key=item_identifier
-        )
-        item_submission_record.update(
-            actions=[
-                ItemSubmissionDB.status.set(status),
-                ItemSubmissionDB.last_run_date.set(run_date),
-                ItemSubmissionDB.submit_attempts.set(
-                    ItemSubmissionDB.submit_attempts + 1
-                ),
-            ]
-        )
 
     @final
     def process_ingest_results(self) -> None:
