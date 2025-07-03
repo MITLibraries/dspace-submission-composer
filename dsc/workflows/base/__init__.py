@@ -575,8 +575,8 @@ class Workflow(ABC):
 
         Must NOT be overridden by workflow subclasses.
         """
-        sqs_processed_items = self.process_result_messages()
-        self.workflow_specific_processing(sqs_processed_items)
+        self.process_result_messages()
+        self.workflow_specific_processing()
 
         # update WorkflowEvents with batch-level ingest results
         for item_submission_record in ItemSubmissionDB.query(self.batch_id):
@@ -590,7 +590,7 @@ class Workflow(ABC):
                 )
             )
 
-    def process_result_messages(self) -> list[str]:
+    def process_result_messages(self) -> None:
         """Process DSS result messages from the output queue.
 
         This method receives result messages from the output queue, parsing the content
@@ -618,9 +618,6 @@ class Workflow(ABC):
         5. Update the record in DynamoDB with details then delete the message from the
            output queue.
 
-        The method returns a list of item identifiers for item submissions, represented
-        by result messages in the output queue.
-
         May be overridden by workflow subclasses.
         """
         logger.info(
@@ -637,7 +634,6 @@ class Workflow(ABC):
             region=CONFIG.aws_region_name, queue_name=self.output_queue
         )
 
-        sqs_processed_items_ids = []
         for sqs_message in sqs_client.receive():
             sqs_results_summary["received_messages"] += 1
 
@@ -665,7 +661,6 @@ class Workflow(ABC):
                 continue
 
             item_identifier = message_attributes["PackageID"]["StringValue"]
-            sqs_processed_items_ids.append(item_identifier)
 
             # get record from ItemSubmissionDB
             item_submission_record = ItemSubmissionDB.get(
@@ -736,7 +731,6 @@ class Workflow(ABC):
             f"Processed DSS result messages from the output queue '{self.output_queue}': "
             f"{json.dumps(sqs_results_summary)}"
         )
-        return sqs_processed_items_ids
 
     @final
     @staticmethod
@@ -785,9 +779,9 @@ class Workflow(ABC):
             ) from exception
         return parsed_message_body
 
-    def workflow_specific_processing(self, item_identifiers: list[str]) -> None:
+    def workflow_specific_processing(self) -> None:
         logger.info(
-            f"No extra processing for {len(item_identifiers)} items based on workflow: "
+            f"No extra processing for batch based on workflow: "
             f"'{self.workflow_name}' "
         )
 

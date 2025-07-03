@@ -336,9 +336,8 @@ def test_base_workflow_process_result_messages_success(
         "ingest_unknown": 0,
     }
 
-    sqs_processed_item_ids = base_workflow_instance.process_result_messages()
+    base_workflow_instance.process_result_messages()
 
-    assert sqs_processed_item_ids == ["10.1002/term.3131"]
     assert "Item was ingested" in caplog.text
     assert json.dumps(expected_processing_summary) in caplog.text
 
@@ -366,11 +365,10 @@ def test_base_workflow_process_result_messages_if_invalid_msg_attrs_log(
         "ingest_failed": 0,
         "ingest_unknown": 1,
     }
-    sqs_processed_item_ids = base_workflow_instance.process_result_messages()
+    base_workflow_instance.process_result_messages()
 
     assert "Failed to parse 'MessageAttributes'" in caplog.text
     assert json.dumps(expected_processing_summary) in caplog.text
-    assert sqs_processed_item_ids == []
 
 
 @patch("dsc.db.models.ItemSubmissionDB.get")
@@ -401,11 +399,10 @@ def test_base_workflow_process_result_messages_if_invalid_msg_body_log_and_captu
         "ingest_failed": 0,
         "ingest_unknown": 1,
     }
-    sqs_processed_item_ids = base_workflow_instance.process_result_messages()
+    base_workflow_instance.process_result_messages()
 
     assert "Failed to parse content of 'Body'" in caplog.text
     assert json.dumps(expected_processing_summary) in caplog.text
-    assert sqs_processed_item_ids == ["10.1002/term.3131"]
 
 
 @patch("dsc.db.models.ItemSubmissionDB.get")
@@ -449,11 +446,10 @@ def test_base_workflow_process_result_messages_if_ingest_failed_log_and_capture(
         "ingest_failed": 1,
         "ingest_unknown": 0,
     }
-    sqs_processed_item_ids = base_workflow_instance.process_result_messages()
+    base_workflow_instance.process_result_messages()
 
     assert "Item failed ingest" in caplog.text
     assert json.dumps(expected_processing_summary) in caplog.text
-    assert sqs_processed_item_ids == ["10.1002/term.3131"]
 
 
 def test_base_workflow_parse_result_message_attrs_success(
@@ -526,8 +522,8 @@ def test_base_workflow_workflow_specific_processing_success(
     base_workflow_instance,
     mocked_ses,
 ):
-    base_workflow_instance.workflow_specific_processing([{}])
-    assert "No extra processing for 1 items based on workflow: 'test'" in caplog.text
+    base_workflow_instance.workflow_specific_processing()
+    assert "No extra processing for batch based on workflow: 'test'" in caplog.text
 
 
 def test_base_workflow_send_report_success(
