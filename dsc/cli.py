@@ -51,7 +51,6 @@ def main(
     ItemSubmissionDB.set_table_name(CONFIG.item_table_name)
 
     ctx.obj["workflow"] = workflow
-    ctx.obj["run_date"] = datetime.datetime.now(datetime.UTC)
 
 
 @main.result_callback()
@@ -83,7 +82,7 @@ def reconcile(ctx: click.Context, email_recipients: str | None = None) -> None:
     """Reconcile bitstreams with item identifiers from the metadata."""
     workflow = ctx.obj["workflow"]
 
-    reconciled = workflow.reconcile_items(run_date=ctx.obj["run_date"])
+    reconciled = workflow.reconcile_items()
 
     if email_recipients:
         workflow.send_report(

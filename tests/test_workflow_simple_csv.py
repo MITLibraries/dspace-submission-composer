@@ -1,7 +1,6 @@
 # ruff: noqa: SLF001
 import csv
 import json
-from datetime import UTC, datetime
 from io import StringIO
 from unittest.mock import patch
 
@@ -26,7 +25,7 @@ def test_workflow_simple_csv_reconcile_items_success(
         "s3://dsc/simple_csv/batch-aaa/123_001.pdf",
         "s3://dsc/simple_csv/batch-aaa/123_002.pdf",
     ]
-    reconciled = simple_csv_workflow_instance.reconcile_items(run_date=datetime.now(UTC))
+    reconciled = simple_csv_workflow_instance.reconcile_items()
     item_submission_record = ItemSubmissionDB.get(hash_key="batch-aaa", range_key="123")
     assert reconciled
     assert "Item submission (item_identifier=123) reconciled" in caplog.text
@@ -57,12 +56,12 @@ def test_workflow_simple_csv_reconcile_items_if_item_submission_exists_success(
         status=ItemSubmissionStatus.RECONCILE_SUCCESS,
     )
 
-    reconciled = simple_csv_workflow_instance.reconcile_items(run_date=datetime.now(UTC))
+    reconciled = simple_csv_workflow_instance.reconcile_items()
 
     assert reconciled
     assert (
-        "Record with primary keys batch_id=batch-aaa (hash key) and "
-        "item_identifier=123 (range key) was previously reconciled, skipping update"
+        "Record with primary keys batch_id='batch-aaa' (hash key) and "
+        "item_identifier='123' (range key) was previously reconciled, skipping update"
     ) in caplog.text
 
 
@@ -82,7 +81,7 @@ def test_workflow_simple_csv_reconcile_items_if_no_metadata_exclude_from_db(
     ]
 
     # create record to force raise dsc.db.exceptions ItemSubmissionExistsError
-    reconciled = simple_csv_workflow_instance.reconcile_items(run_date=datetime.now(UTC))
+    reconciled = simple_csv_workflow_instance.reconcile_items()
     assert not reconciled
 
     # since item identifiers are retrieved from SimpleCSV.item_metadata_iter
@@ -137,7 +136,7 @@ def test_workflow_simple_csv_reconcile_items_if_no_bitstreams_include_in_db(
     )
 
     # create record to force raise dsc.db.exceptions ItemSubmissionExistsError
-    reconciled = simple_csv_workflow_instance.reconcile_items(run_date=datetime.now(UTC))
+    reconciled = simple_csv_workflow_instance.reconcile_items()
     assert not reconciled
 
     # since item identifiers are retrieved from SimpleCSV.item_metadata_iter

@@ -25,11 +25,10 @@ class ItemSubmissionStatus(StrEnum):
     RECONCILE_FAILED = "reconcile_failed"
     SUBMIT_SUCCESS = "submit_success"
     SUBMIT_FAILED = "submit_failed"
-    SUBMIT_MAX_RETRIES_REACHED = "submit_max_retries_reached"
     INGEST_SUCCESS = "ingest_success"
     INGEST_FAILED = "ingest_failed"
     INGEST_UNKNOWN = "ingest_unknown"
-    INGEST_MAX_RETRIES_REACHED = "ingest_max_retries_reached"
+    MAX_RETRIES_REACHED = "max_retries_reached"
 
 
 class OptionalItemAttributes(TypedDict, total=False):
