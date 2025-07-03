@@ -32,6 +32,12 @@ logger = logging.getLogger(__name__)
 CONFIG = Config()
 
 
+ITEM_SUBMISSION_LOG_STR = (
+    "with primary keys batch_id='{batch_id}' (hash key) and "
+    "item_identifier='{item_identifier}' (range key)"
+)
+
+
 @dataclass
 class WorkflowEvents:
     """Record of events during the execution of Workflow methods.
@@ -199,16 +205,15 @@ class Workflow(ABC):
             workflow_name=self.workflow_name,
         )
 
-        log_details = (
-            f"with primary keys batch_id={self.batch_id} (hash key) and "
-            f"item_identifier={item_identifier} (range key)"
-        )
-
         if item_submission_record.status in [
             None,
             ItemSubmissionStatus.RECONCILE_FAILED,
         ]:
-            logger.info(f"Updating record {log_details}")
+            logger.info(
+                f"Updating record {ITEM_SUBMISSION_LOG_STR.format(batch_id=self.batch_id,
+                item_identifier=item_submission_record.item_identifier
+                )}"
+            )
 
             item_submission_record.update(
                 actions=[
@@ -218,11 +223,19 @@ class Workflow(ABC):
             )
         elif item_submission_record.status == ItemSubmissionStatus.RECONCILE_SUCCESS:
             logger.debug(
-                f"Record {log_details} was previously reconciled, skipping update"
+                f"Record "
+                f"{ITEM_SUBMISSION_LOG_STR.format(batch_id=self.batch_id,
+                                      item_identifier=item_submission_record.item_identifier)
+                    } "
+                "was previously reconciled, skipping update"
             )
         else:
             logger.info(
-                f"Record {log_details} not eligible for reconcile, skipping update"
+                f"Record "
+                f"{ITEM_SUBMISSION_LOG_STR.format(batch_id=self.batch_id,
+                                      item_identifier=item_submission_record.item_identifier)
+                    } "
+                "not eligible for reconcile, skipping update"
             )
 
     @final
@@ -260,8 +273,10 @@ class Workflow(ABC):
                 )
             except DoesNotExist:
                 logger.warning(
-                    f"DynamoDB row not found for '{item_identifier}', verify that it has "
-                    "been reconciled."
+                    "Record "
+                    f"{ITEM_SUBMISSION_LOG_STR.format(batch_id=self.batch_id,
+                                      item_identifier=item_identifier)}"
+                    "not found. Verify that it been reconciled."
                 )
                 submission_summary["skipped"] += 1
                 continue
@@ -495,28 +510,49 @@ class Workflow(ABC):
     @final
     def allow_submission(self, item_submission_record: ItemSubmissionDB) -> bool:
         """Verify that a submission message should be sent based on status in DynamoDB."""
-        log_details = (
-            f"with primary keys batch_id={self.batch_id} (hash key) and "
-            f"item_identifier={item_submission_record.item_identifier} (range key)"
-        )
-
         allow_submission = False
 
         match item_submission_record.status:
             case ItemSubmissionStatus.INGEST_SUCCESS:
-                logger.info(f"Record {log_details} already ingested, skipping submission")
+                logger.info(
+                    "Record "
+                    f"{ITEM_SUBMISSION_LOG_STR.format(batch_id=self.batch_id,
+                                      item_identifier=item_submission_record.item_identifier)
+                    } "
+                    "already ingested, skipping submission"
+                )
             case ItemSubmissionStatus.SUBMIT_SUCCESS:
                 logger.info(
-                    f"Record {log_details} already submitted, skipping submission"
+                    f"Record "
+                    f"{ITEM_SUBMISSION_LOG_STR.format(batch_id=self.batch_id,
+                                      item_identifier=item_submission_record.item_identifier)
+                    } "
+                    " already submitted, skipping submission"
                 )
             case ItemSubmissionStatus.MAX_RETRIES_REACHED:
                 logger.info(
-                    f"Record {log_details} max retries reached, skipping submission"
+                    f"Record "
+                    f"{ITEM_SUBMISSION_LOG_STR.format(batch_id=self.batch_id,
+                                      item_identifier=item_submission_record.item_identifier)
+                    } "
+                    "max retries reached, skipping submission"
                 )
             case None | ItemSubmissionStatus.RECONCILE_FAILED:
-                logger.info(f"Record {log_details} not reconciled, skipping submission")
+                logger.info(
+                    f"Record "
+                    f"{ITEM_SUBMISSION_LOG_STR.format(batch_id=self.batch_id,
+                                      item_identifier=item_submission_record.item_identifier)
+                    } "
+                    " not reconciled, skipping submission"
+                )
             case _:
-                logger.debug(f"Record {log_details} allowed for submission")
+                logger.debug(
+                    f"Record "
+                    f"{ITEM_SUBMISSION_LOG_STR.format(batch_id=self.batch_id,
+                                      item_identifier=item_submission_record.item_identifier)
+                    } "
+                    "allowed for submission"
+                )
                 allow_submission = True
 
         return allow_submission

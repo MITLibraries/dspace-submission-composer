@@ -103,7 +103,8 @@ def test_base_workflow_submit_items_missing_row_raises_warning(
 
     assert len(items) == 1
     assert (
-        "DynamoDB row not found for '789', verify that it has been reconciled"
+        "Record with primary keys batch_id='batch-aaa' (hash key) and "
+        "item_identifier='789' (range key)not found. Verify that it been reconciled."
         in caplog.text
     )
     assert json.dumps(expected_submission_summary) in caplog.text
@@ -135,8 +136,9 @@ def test_base_workflow_submit_items_failed_allow_submission_is_skipped(
     expected_submission_summary = {"total": 2, "submitted": 1, "skipped": 1, "errors": 0}
     assert len(items) == 1
     assert (
-        "Record with primary keys batch_id=batch-aaa (hash key) and item_identifier=123 "
-        "(range key) already ingested, skipping submission" in caplog.text
+        "Record with primary keys batch_id='batch-aaa' (hash key) and "
+        "item_identifier='123' (range key) already ingested, skipping submission"
+        in caplog.text
     )
     assert json.dumps(expected_submission_summary) in caplog.text
 
@@ -244,85 +246,62 @@ def test_base_workflow_validate_dspace_metadata_invalid_raises_exception(
         base_workflow_instance.validate_dspace_metadata({})
 
 
-def test_allow_submission_success(base_workflow_instance, mocked_item_submission_db):
-    item_identifier = "123"
-    batch_id = "batch-aaa"
-    ItemSubmissionDB.create(
-        item_identifier=item_identifier,
-        batch_id=batch_id,
+def test_base_workflow_allow_submission_success(
+    base_workflow_instance, mocked_item_submission_db
+):
+    item_submission_record = ItemSubmissionDB.create(
+        item_identifier="123",
+        batch_id="batch-aaa",
         workflow_name="test",
         status=ItemSubmissionStatus.RECONCILE_SUCCESS,
-    )
-    item_submission_record = ItemSubmissionDB.get(
-        hash_key=batch_id, range_key=item_identifier
     )
     assert base_workflow_instance.allow_submission(item_submission_record)
 
 
-def test_allow_submission_ingested_returns_false(
+def test_base_workflow_allow_submission_ingested_returns_false(
     base_workflow_instance, mocked_item_submission_db
 ):
-    item_identifier = "123"
-    batch_id = "batch-aaa"
-    ItemSubmissionDB.create(
-        item_identifier=item_identifier,
-        batch_id=batch_id,
+    item_submission_record = ItemSubmissionDB.create(
+        item_identifier="123",
+        batch_id="batch-aaa",
         workflow_name="test",
         status=ItemSubmissionStatus.INGEST_SUCCESS,
     )
-    item_submission_record = ItemSubmissionDB.get(
-        hash_key=batch_id, range_key=item_identifier
-    )
     assert not base_workflow_instance.allow_submission(item_submission_record)
 
 
-def test_allow_submission_submitted_returns_false(
+def test_base_workflow_allow_submission_submitted_returns_false(
     base_workflow_instance, mocked_item_submission_db
 ):
-    item_identifier = "123"
-    batch_id = "batch-aaa"
-    ItemSubmissionDB.create(
-        item_identifier=item_identifier,
-        batch_id=batch_id,
+    item_submission_record = ItemSubmissionDB.create(
+        item_identifier="123",
+        batch_id="batch-aaa",
         workflow_name="test",
         status=ItemSubmissionStatus.SUBMIT_SUCCESS,
     )
-    item_submission_record = ItemSubmissionDB.get(
-        hash_key=batch_id, range_key=item_identifier
-    )
     assert not base_workflow_instance.allow_submission(item_submission_record)
 
 
-def test_allow_submission_max_retries_returns_false(
+def test_base_workflow_allow_submission_max_retries_returns_false(
     base_workflow_instance, mocked_item_submission_db
 ):
-    item_identifier = "123"
-    batch_id = "batch-aaa"
-    ItemSubmissionDB.create(
-        item_identifier=item_identifier,
-        batch_id=batch_id,
+    item_submission_record = ItemSubmissionDB.create(
+        item_identifier="123",
+        batch_id="batch-aaa",
         workflow_name="test",
         status=ItemSubmissionStatus.MAX_RETRIES_REACHED,
     )
-    item_submission_record = ItemSubmissionDB.get(
-        hash_key=batch_id, range_key=item_identifier
-    )
     assert not base_workflow_instance.allow_submission(item_submission_record)
 
 
-def test_allow_submission_not_reconciled_returns_false(
+def test_base_workflow_allow_submission_not_reconciled_returns_false(
     base_workflow_instance, mocked_item_submission_db
 ):
-    item_identifier = "123"
-    batch_id = "batch-aaa"
-    ItemSubmissionDB.create(
-        item_identifier=item_identifier,
-        batch_id=batch_id,
+    item_submission_record = ItemSubmissionDB.create(
+        item_identifier="123",
+        batch_id="batch-aaa",
         workflow_name="test",
         status=ItemSubmissionStatus.RECONCILE_FAILED,
-    )
-    item_submission_record = ItemSubmissionDB.get(
-        hash_key=batch_id, range_key=item_identifier
     )
     assert not base_workflow_instance.allow_submission(item_submission_record)
 

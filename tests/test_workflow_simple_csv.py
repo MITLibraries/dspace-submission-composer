@@ -60,8 +60,8 @@ def test_workflow_simple_csv_reconcile_items_if_item_submission_exists_success(
 
     assert reconciled
     assert (
-        "Record with primary keys batch_id=batch-aaa (hash key) and "
-        "item_identifier=123 (range key) was previously reconciled, skipping update"
+        "Record with primary keys batch_id='batch-aaa' (hash key) and "
+        "item_identifier='123' (range key) was previously reconciled, skipping update"
     ) in caplog.text
 
 
