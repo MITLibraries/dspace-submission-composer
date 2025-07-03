@@ -564,12 +564,18 @@ class Workflow(ABC):
         return allow_submission
 
     @final
-    def process_ingest_results(self) -> None:
-        """Process DSS results from the workflow's output queue.
+    def finalize_items(self) -> None:
+        """Examine results for all item submissions in the batch.
+
+        This method involves three main steps:
+
+        1. Process DSS result messages from the output queue
+        2. Apply workflow-specific processing
+        3. Load ingest results into WorkflowEvents for reporting
 
         Must NOT be overridden by workflow subclasses.
         """
-        sqs_processed_items = self.process_sqs_queue()
+        sqs_processed_items = self.process_result_messages()
         self.workflow_specific_processing(sqs_processed_items)
 
         # update WorkflowEvents with batch-level ingest results
@@ -584,8 +590,8 @@ class Workflow(ABC):
                 )
             )
 
-    def process_sqs_queue(self) -> list[str]:
-        """Process result messages from the output queue.
+    def process_result_messages(self) -> list[str]:
+        """Process DSS result messages from the output queue.
 
         This method receives result messages from the output queue, parsing the content
         of each message to determine whether an item was ingested into DSpace.

@@ -308,7 +308,7 @@ def test_base_workflow_allow_submission_not_reconciled_returns_false(
 
 
 @patch("dsc.db.models.ItemSubmissionDB.get")
-def test_base_workflow_process_sqs_queue_success(
+def test_base_workflow_process_result_messages_success(
     mock_item_submission_db_get,
     caplog,
     base_workflow_instance,
@@ -336,14 +336,14 @@ def test_base_workflow_process_sqs_queue_success(
         "ingest_unknown": 0,
     }
 
-    sqs_processed_item_ids = base_workflow_instance.process_sqs_queue()
+    sqs_processed_item_ids = base_workflow_instance.process_result_messages()
 
     assert sqs_processed_item_ids == ["10.1002/term.3131"]
     assert "Item was ingested" in caplog.text
     assert json.dumps(expected_processing_summary) in caplog.text
 
 
-def test_base_workflow_process_sqs_queue_if_invalid_msg_attrs_log(
+def test_base_workflow_process_result_messages_if_invalid_msg_attrs_log(
     caplog,
     base_workflow_instance,
     mocked_sqs_output,
@@ -366,7 +366,7 @@ def test_base_workflow_process_sqs_queue_if_invalid_msg_attrs_log(
         "ingest_failed": 0,
         "ingest_unknown": 1,
     }
-    sqs_processed_item_ids = base_workflow_instance.process_sqs_queue()
+    sqs_processed_item_ids = base_workflow_instance.process_result_messages()
 
     assert "Failed to parse 'MessageAttributes'" in caplog.text
     assert json.dumps(expected_processing_summary) in caplog.text
@@ -374,7 +374,7 @@ def test_base_workflow_process_sqs_queue_if_invalid_msg_attrs_log(
 
 
 @patch("dsc.db.models.ItemSubmissionDB.get")
-def test_base_workflow_process_sqs_queue_if_invalid_msg_body_log_and_capture(
+def test_base_workflow_process_result_messages_if_invalid_msg_body_log_and_capture(
     mock_item_submission_db_get,
     caplog,
     base_workflow_instance,
@@ -401,7 +401,7 @@ def test_base_workflow_process_sqs_queue_if_invalid_msg_body_log_and_capture(
         "ingest_failed": 0,
         "ingest_unknown": 1,
     }
-    sqs_processed_item_ids = base_workflow_instance.process_sqs_queue()
+    sqs_processed_item_ids = base_workflow_instance.process_result_messages()
 
     assert "Failed to parse content of 'Body'" in caplog.text
     assert json.dumps(expected_processing_summary) in caplog.text
@@ -410,7 +410,7 @@ def test_base_workflow_process_sqs_queue_if_invalid_msg_body_log_and_capture(
 
 @patch("dsc.db.models.ItemSubmissionDB.get")
 @patch("dsc.workflows.Workflow._parse_result_message_body")
-def test_base_workflow_process_sqs_queue_if_ingest_failed_log_and_capture(
+def test_base_workflow_process_result_messages_if_ingest_failed_log_and_capture(
     mock_workflow_parse_result_message_body,
     mock_item_submission_db_get,
     caplog,
@@ -449,7 +449,7 @@ def test_base_workflow_process_sqs_queue_if_ingest_failed_log_and_capture(
         "ingest_failed": 1,
         "ingest_unknown": 0,
     }
-    sqs_processed_item_ids = base_workflow_instance.process_sqs_queue()
+    sqs_processed_item_ids = base_workflow_instance.process_result_messages()
 
     assert "Item failed ingest" in caplog.text
     assert json.dumps(expected_processing_summary) in caplog.text
