@@ -104,8 +104,8 @@ def test_base_workflow_submit_items_missing_row_raises_warning(
 
     assert len(items) == 1
     assert (
-        "Record with primary keys batch_id='batch-aaa' (hash key) and "
-        "item_identifier='789' (range key)not found. Verify that it been reconciled."
+        "Record with primary keys batch_id=batch-aaa (hash key) and "
+        "item_identifier=789 (range key)not found. Verify that it been reconciled."
         in caplog.text
     )
     assert json.dumps(expected_submission_summary) in caplog.text
@@ -137,8 +137,8 @@ def test_base_workflow_submit_items_failed_allow_submission_is_skipped(
     expected_submission_summary = {"total": 2, "submitted": 1, "skipped": 1, "errors": 0}
     assert len(items) == 1
     assert (
-        "Record with primary keys batch_id='batch-aaa' (hash key) and "
-        "item_identifier='123' (range key) already ingested, skipping submission"
+        "Record with primary keys batch_id=batch-aaa (hash key) and "
+        "item_identifier=123 (range key) already ingested, skipping submission"
         in caplog.text
     )
     assert json.dumps(expected_submission_summary) in caplog.text
