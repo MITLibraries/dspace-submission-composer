@@ -681,7 +681,7 @@ class Workflow(ABC):
                 item_submission_record.update(
                     actions=[ItemSubmissionDB.status_details.set(str(exception))]
                 )
-                logger.info("Unable to determine if ingest status for item.")
+                logger.info("Unable to determine ingest status for item.")
             else:
                 if bool(parsed_message_body["ResultType"] == "success"):
                     new_status = ItemSubmissionStatus.INGEST_SUCCESS
