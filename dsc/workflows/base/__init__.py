@@ -657,9 +657,19 @@ class Workflow(ABC):
             item_identifier = message_attributes["PackageID"]["StringValue"]
 
             # get record from ItemSubmissionDB
-            item_submission_record = ItemSubmissionDB.get(
-                hash_key=item_identifier, range_key=self.batch_id
-            )
+            try:
+                item_submission_record = ItemSubmissionDB.get(
+                    hash_key=self.batch_id, range_key=item_identifier
+                )
+            except DoesNotExist:
+                logger.warning(
+                    "Record "
+                    f"{ITEM_SUBMISSION_LOG_STR.format(batch_id=self.batch_id,
+                                      item_identifier=item_identifier)}"
+                    "not found. Verify that it been reconciled."
+                )
+                continue
+
             current_status = item_submission_record.status
 
             logger.info(
