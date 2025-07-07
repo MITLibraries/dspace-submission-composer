@@ -38,12 +38,6 @@ ITEM_SUBMISSION_LOG_STR = (
 )
 
 
-ITEM_SUBMISSION_LOG_STR = (
-    "with primary keys batch_id='{batch_id}' (hash key) and "
-    "item_identifier='{item_identifier}' (range key)"
-)
-
-
 @dataclass
 class WorkflowEvents:
     """Record of events during the execution of Workflow methods.
