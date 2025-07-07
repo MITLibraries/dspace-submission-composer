@@ -1,3 +1,4 @@
+from dsc.db.models import ItemSubmissionStatus
 from dsc.reports.base import Report
 
 
@@ -57,16 +58,21 @@ class FinalizeReport(Report):
 
     def create_summary(self) -> dict:
         return {
-            "processed": len(self.events.processed_items),
-            "ingested": sum(
+            "total": len(self.events.processed_items),
+            "ingest_success": sum(
                 1
                 for processed_item in self.events.processed_items
-                if processed_item.get("ingested")
+                if processed_item["status"] == ItemSubmissionStatus.INGEST_SUCCESS
             ),
-            "error": sum(
+            "ingest_failed": sum(
                 1
                 for processed_item in self.events.processed_items
-                if processed_item.get("error")
+                if processed_item["status"] == ItemSubmissionStatus.INGEST_FAILED
+            ),
+            "ingest_unknown": sum(
+                1
+                for processed_item in self.events.processed_items
+                if processed_item["status"] == ItemSubmissionStatus.INGEST_UNKNOWN
             ),
         }
 
