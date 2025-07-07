@@ -48,7 +48,7 @@ def main(
     CONFIG.check_required_env_vars()
 
     logger.info("Running process")
-    ItemSubmissionDB.set_table_name(CONFIG.item_table_name)
+    ItemSubmissionDB.set_table_name(CONFIG.item_submissions_table_name)
 
     ctx.obj["workflow"] = workflow
 
