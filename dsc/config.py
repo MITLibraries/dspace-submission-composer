@@ -10,7 +10,7 @@ class Config:
         "WORKSPACE",
         "SENTRY_DSN",
         "AWS_REGION_NAME",
-        "ITEM_TABLE_NAME",
+        "ITEM_SUBMISSIONS_TABLE_NAME",
         "RETRY_THRESHOLD",
         "S3_BUCKET_SUBMISSION_ASSETS",
         "SOURCE_EMAIL",
@@ -32,10 +32,10 @@ class Config:
         return os.getenv("AWS_REGION_NAME", "us-east-1")
 
     @property
-    def item_table_name(self) -> str:
-        value = os.getenv("ITEM_TABLE_NAME")
+    def item_submissions_table_name(self) -> str:
+        value = os.getenv("ITEM_SUBMISSIONS_TABLE_NAME")
         if not value:
-            raise OSError("Env var 'ITEM_TABLE_NAME' must be defined")
+            raise OSError("Env var 'ITEM_SUBMISSIONS_TABLE_NAME' must be defined")
         return value
 
     @property

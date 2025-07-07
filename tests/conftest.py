@@ -93,7 +93,7 @@ def _test_env(monkeypatch):
     monkeypatch.setenv("AWS_DEFAULT_REGION", "us-east-1")
     monkeypatch.setenv("AWS_ACCESS_KEY_ID", "testing")
     monkeypatch.setenv("AWS_SECRET_ACCESS_KEY", "testing")
-    monkeypatch.setenv("ITEM_TABLE_NAME", "dsc-test")
+    monkeypatch.setenv("ITEM_SUBMISSIONS_TABLE_NAME", "dsc-test")
     monkeypatch.setenv("RETRY_THRESHOLD", "20")
     monkeypatch.setenv("S3_BUCKET_SUBMISSION_ASSETS", "dsc")
     monkeypatch.setenv("SOURCE_EMAIL", "noreply@example.com")
