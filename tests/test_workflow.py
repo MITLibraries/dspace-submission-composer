@@ -4,8 +4,10 @@ from unittest.mock import patch
 import pytest
 from botocore.exceptions import ClientError
 
+from dsc.db.models import ItemSubmissionDB, ItemSubmissionStatus
 from dsc.exceptions import (
     InvalidDSpaceMetadataError,
+    InvalidSQSMessageError,
     InvalidWorkflowNameError,
     ItemMetadatMissingRequiredFieldError,
 )
@@ -53,14 +55,92 @@ def test_base_workflow_reconcile_bitstreams_and_metadata_if_non_reconcile_raises
 
 
 def test_base_workflow_submit_items_success(
-    caplog, base_workflow_instance, mocked_s3, mocked_sqs_input, mocked_sqs_output
+    caplog,
+    base_workflow_instance,
+    mocked_s3,
+    mocked_sqs_input,
+    mocked_sqs_output,
+    mocked_item_submission_db,
 ):
     caplog.set_level("DEBUG")
-    items = base_workflow_instance.submit_items("123.4/5678")
+    ItemSubmissionDB.create(
+        item_identifier="123",
+        batch_id="batch-aaa",
+        workflow_name="test",
+        status=ItemSubmissionStatus.RECONCILE_SUCCESS,
+    )
+    ItemSubmissionDB.create(
+        item_identifier="789",
+        batch_id="batch-aaa",
+        workflow_name="test",
+        status=ItemSubmissionStatus.RECONCILE_SUCCESS,
+    )
+    items = base_workflow_instance.submit_items(collection_handle="123.4/5678")
 
-    expected_submission_summary = {"total": 2, "submitted": 2, "errors": 0}
+    expected_submission_summary = {"total": 2, "submitted": 2, "skipped": 0, "errors": 0}
 
     assert len(items) == 2  # noqa: PLR2004
+    assert json.dumps(expected_submission_summary) in caplog.text
+
+
+def test_base_workflow_submit_items_missing_row_raises_warning(
+    caplog,
+    base_workflow_instance,
+    mocked_s3,
+    mocked_sqs_input,
+    mocked_sqs_output,
+    mocked_item_submission_db,
+):
+    caplog.set_level("DEBUG")
+    ItemSubmissionDB.create(
+        item_identifier="123",
+        batch_id="batch-aaa",
+        workflow_name="test",
+        status=ItemSubmissionStatus.RECONCILE_SUCCESS,
+    )
+    items = base_workflow_instance.submit_items(collection_handle="123.4/5678")
+
+    expected_submission_summary = {"total": 2, "submitted": 1, "skipped": 1, "errors": 0}
+
+    assert len(items) == 1
+    assert (
+        "Record with primary keys batch_id=batch-aaa (hash key) and "
+        "item_identifier=789 (range key)not found. Verify that it been reconciled."
+        in caplog.text
+    )
+    assert json.dumps(expected_submission_summary) in caplog.text
+
+
+def test_base_workflow_submit_items_failed_allow_submission_is_skipped(
+    caplog,
+    base_workflow_instance,
+    mocked_s3,
+    mocked_sqs_input,
+    mocked_sqs_output,
+    mocked_item_submission_db,
+):
+    caplog.set_level("DEBUG")
+    ItemSubmissionDB.create(
+        item_identifier="123",
+        batch_id="batch-aaa",
+        workflow_name="test",
+        status=ItemSubmissionStatus.INGEST_SUCCESS,
+    )
+    ItemSubmissionDB.create(
+        item_identifier="789",
+        batch_id="batch-aaa",
+        workflow_name="test",
+        status=ItemSubmissionStatus.RECONCILE_SUCCESS,
+    )
+    items = base_workflow_instance.submit_items(collection_handle="123.4/5678")
+
+    expected_submission_summary = {"total": 2, "submitted": 1, "skipped": 1, "errors": 0}
+    assert len(items) == 1
+    assert (
+        "Record with primary keys batch_id=batch-aaa (hash key) and "
+        "item_identifier=123 (range key) already ingested, skipping submission"
+        in caplog.text
+    )
     assert json.dumps(expected_submission_summary) in caplog.text
 
 
@@ -72,15 +152,28 @@ def test_base_workflow_submit_items_exceptions_handled(
     mocked_s3,
     mocked_sqs_input,
     mocked_sqs_output,
+    mocked_item_submission_db,
 ):
     side_effect = [
         {"MessageId": "abcd", "ResponseMetadata": {"HTTPStatusCode": 200}},
         ClientError,
     ]
     mocked_method.side_effect = side_effect
-    items = base_workflow_instance.submit_items("123.4/5678")
+    ItemSubmissionDB.create(
+        item_identifier="123",
+        batch_id="batch-aaa",
+        workflow_name="test",
+        status=ItemSubmissionStatus.RECONCILE_SUCCESS,
+    )
+    ItemSubmissionDB.create(
+        item_identifier="789",
+        batch_id="batch-aaa",
+        workflow_name="test",
+        status=ItemSubmissionStatus.RECONCILE_SUCCESS,
+    )
+    items = base_workflow_instance.submit_items(collection_handle="123.4/5678")
 
-    expected_submission_summary = {"total": 2, "submitted": 1, "errors": 1}
+    expected_submission_summary = {"total": 2, "submitted": 1, "skipped": 0, "errors": 1}
 
     assert len(items) == 1
     assert items == [{"item_identifier": "123", "message_id": "abcd"}]
@@ -154,252 +247,274 @@ def test_base_workflow_validate_dspace_metadata_invalid_raises_exception(
         base_workflow_instance.validate_dspace_metadata({})
 
 
-def test_base_workflow_process_sqs_queue_success(
+def test_base_workflow_allow_submission_success(
+    base_workflow_instance, mocked_item_submission_db
+):
+    item_submission_record = ItemSubmissionDB.create(
+        item_identifier="123",
+        batch_id="batch-aaa",
+        workflow_name="test",
+        status=ItemSubmissionStatus.RECONCILE_SUCCESS,
+    )
+    assert base_workflow_instance.allow_submission(item_submission_record)
+
+
+def test_base_workflow_allow_submission_ingested_returns_false(
+    base_workflow_instance, mocked_item_submission_db
+):
+    item_submission_record = ItemSubmissionDB.create(
+        item_identifier="123",
+        batch_id="batch-aaa",
+        workflow_name="test",
+        status=ItemSubmissionStatus.INGEST_SUCCESS,
+    )
+    assert not base_workflow_instance.allow_submission(item_submission_record)
+
+
+def test_base_workflow_allow_submission_submitted_returns_false(
+    base_workflow_instance, mocked_item_submission_db
+):
+    item_submission_record = ItemSubmissionDB.create(
+        item_identifier="123",
+        batch_id="batch-aaa",
+        workflow_name="test",
+        status=ItemSubmissionStatus.SUBMIT_SUCCESS,
+    )
+    assert not base_workflow_instance.allow_submission(item_submission_record)
+
+
+def test_base_workflow_allow_submission_max_retries_returns_false(
+    base_workflow_instance, mocked_item_submission_db
+):
+    item_submission_record = ItemSubmissionDB.create(
+        item_identifier="123",
+        batch_id="batch-aaa",
+        workflow_name="test",
+        status=ItemSubmissionStatus.MAX_RETRIES_REACHED,
+    )
+    assert not base_workflow_instance.allow_submission(item_submission_record)
+
+
+def test_base_workflow_allow_submission_not_reconciled_returns_false(
+    base_workflow_instance, mocked_item_submission_db
+):
+    item_submission_record = ItemSubmissionDB.create(
+        item_identifier="123",
+        batch_id="batch-aaa",
+        workflow_name="test",
+        status=ItemSubmissionStatus.RECONCILE_FAILED,
+    )
+    assert not base_workflow_instance.allow_submission(item_submission_record)
+
+
+@patch("dsc.db.models.ItemSubmissionDB.get")
+def test_base_workflow_process_result_messages_success(
+    mock_item_submission_db_get,
     caplog,
     base_workflow_instance,
+    mocked_item_submission_db,
     mocked_sqs_output,
     result_message_attributes,
     result_message_body,
     sqs_client,
 ):
     caplog.set_level("DEBUG")
+
+    mock_item_submission_db_get.return_value = ItemSubmissionDB(
+        batch_id="batch-aaa", item_identifier="10.1002/term.3131", workflow_name="test"
+    )
+
     sqs_client.send(
         message_attributes=result_message_attributes,
         message_body=result_message_body,
     )
 
-    expected_processing_summary = {"total": 1, "ingested": 1, "errors": 0}
-    items = base_workflow_instance.process_sqs_queue()
+    expected_processing_summary = {
+        "received_messages": 1,
+        "ingest_success": 1,
+        "ingest_failed": 0,
+        "ingest_unknown": 0,
+    }
 
-    assert base_workflow_instance.workflow_events.processed_items[0]["ingested"]
-    assert "Item was ingested: 10.1002/term.3131" in caplog.text
+    base_workflow_instance.process_result_messages()
+
+    assert "Item was ingested" in caplog.text
     assert json.dumps(expected_processing_summary) in caplog.text
-    assert items == [
-        {
-            "item_identifier": "10.1002/term.3131",
-            "result_message_body": {
-                "Bitstreams": [
-                    {
-                        "BitstreamChecksum": {
-                            "checkSumAlgorithm": "MD5",
-                            "value": "a4e0f4930dfaff904fa3c6c85b0b8ecc",
-                        },
-                        "BitstreamName": "10.1002-term.3131.pdf",
-                        "BitstreamUUID": "a1b2c3d4e5",
-                    }
-                ],
-                "ItemHandle": "1721.1/131022",
-                "ResultType": "success",
-                "lastModified": "Thu Sep 09 17:56:39 UTC 2021",
-            },
-            "ingested": True,
-            "dspace_handle": "1721.1/131022",
-            "error": None,
-        }
-    ]
 
 
-@patch("dsc.workflows.Workflow._parse_result_message")
-def test_base_workflow_process_sqs_queue_if_exception_capture_event_and_log(
-    mocked_workflow_parse_result_message,
+def test_base_workflow_process_result_messages_if_invalid_msg_attrs_log(
     caplog,
     base_workflow_instance,
+    mocked_sqs_output,
+    sqs_client,
+):
+    caplog.set_level("DEBUG")
+
+    # send message with invalid 'MessageAttributes' to 'mock-output-queue'
+    invalid_result_message_attrs = {
+        "SubmissionSource": {"DataType": "String", "StringValue": "Submission system"},
+    }
+    sqs_client.send(
+        message_attributes=invalid_result_message_attrs,
+        message_body="",
+    )
+
+    expected_processing_summary = {
+        "received_messages": 1,
+        "ingest_success": 0,
+        "ingest_failed": 0,
+        "ingest_unknown": 1,
+    }
+    base_workflow_instance.process_result_messages()
+
+    assert "Failed to parse 'MessageAttributes'" in caplog.text
+    assert json.dumps(expected_processing_summary) in caplog.text
+
+
+@patch("dsc.db.models.ItemSubmissionDB.get")
+def test_base_workflow_process_result_messages_if_invalid_msg_body_log_and_capture(
+    mock_item_submission_db_get,
+    caplog,
+    base_workflow_instance,
+    mocked_item_submission_db,
     mocked_sqs_output,
     result_message_attributes,
     sqs_client,
 ):
-    mocked_workflow_parse_result_message.return_value = {
-        "item_identifier": "10.1002/term.3131",
-        "result_message_body": "",
-        "ingested": None,
-        "error": "Failed to parse content of 'Body'",
-    }
     caplog.set_level("DEBUG")
+
+    mock_item_submission_db_get.return_value = ItemSubmissionDB(
+        batch_id="batch-aaa", item_identifier="10.1002/term.3131", workflow_name="test"
+    )
+
+    # send message with invalid 'Body' to 'mock-output-queue'
     sqs_client.send(
         message_attributes=result_message_attributes,
         message_body="",
     )
 
     expected_processing_summary = {
-        "total": 1,
-        "ingested": 0,
-        "errors": 1,
+        "received_messages": 1,
+        "ingest_success": 0,
+        "ingest_failed": 0,
+        "ingest_unknown": 1,
     }
-    items = base_workflow_instance.process_sqs_queue()
+    base_workflow_instance.process_result_messages()
 
-    assert (
-        base_workflow_instance.workflow_events.processed_items[0]["error"]
-        == "Failed to parse content of 'Body'"
-    )
+    assert "Failed to parse content of 'Body'" in caplog.text
     assert json.dumps(expected_processing_summary) in caplog.text
-    assert items == [
-        {
-            "item_identifier": "10.1002/term.3131",
-            "result_message_body": "",
-            "ingested": None,
-            "error": "Failed to parse content of 'Body'",
-        }
-    ]
 
 
-@patch("dsc.workflows.Workflow._parse_result_message")
-def test_base_workflow_process_sqs_queue_if_not_ingested_capture_event_and_log(
-    mocked_workflow_parse_result_message,
+@patch("dsc.db.models.ItemSubmissionDB.get")
+@patch("dsc.workflows.Workflow._parse_result_message_body")
+def test_base_workflow_process_result_messages_if_ingest_failed_log_and_capture(
+    mock_workflow_parse_result_message_body,
+    mock_item_submission_db_get,
     caplog,
     base_workflow_instance,
+    mocked_item_submission_db,
     mocked_sqs_output,
     result_message_attributes,
     sqs_client,
 ):
-    bad_result_message_body = {
+    caplog.set_level("DEBUG")
+
+    # mock "Body" for failed ingest
+    ingest_failed_result_message_body = {
         "ResultType": "error",
         "ErrorTimestamp": "text",
         "ErrorInfo": "text",
         "DSpaceResponse": "text",
         "ExceptionTraceback": ["text"],
     }
-    mocked_workflow_parse_result_message.return_value = {
-        "item_identifier": "10.1002/term.3131",
-        "result_message_body": bad_result_message_body,
-        "ingested": False,
-        "error": None,
-    }
-    caplog.set_level("DEBUG")
+    mock_workflow_parse_result_message_body.return_value = (
+        ingest_failed_result_message_body
+    )
+
+    mock_item_submission_db_get.return_value = ItemSubmissionDB(
+        batch_id="batch-aaa", item_identifier="10.1002/term.3131", workflow_name="test"
+    )
+
     sqs_client.send(
         message_attributes=result_message_attributes,
-        message_body=json.dumps(bad_result_message_body),
+        message_body=json.dumps(ingest_failed_result_message_body),
     )
 
     expected_processing_summary = {
-        "total": 1,
-        "ingested": 0,
-        "errors": 1,
+        "received_messages": 1,
+        "ingest_success": 0,
+        "ingest_failed": 1,
+        "ingest_unknown": 0,
     }
-    items = base_workflow_instance.process_sqs_queue()
+    base_workflow_instance.process_result_messages()
 
-    assert not base_workflow_instance.workflow_events.processed_items[0]["ingested"]
-    assert not base_workflow_instance.workflow_events.processed_items[0]["error"]
-    assert "Item was not ingested: 10.1002/term.3131" in caplog.text
+    assert "Item failed ingest" in caplog.text
     assert json.dumps(expected_processing_summary) in caplog.text
-    assert items == [
-        {
-            "item_identifier": "10.1002/term.3131",
-            "result_message_body": bad_result_message_body,
-            "ingested": False,
-            "error": None,
-        }
-    ]
 
 
-def test_base_workflow_parse_result_message_success(
+def test_base_workflow_parse_result_message_attrs_success(
     base_workflow_instance, result_message_valid
 ):
     message_attributes = result_message_valid["MessageAttributes"]
-    message_body = result_message_valid["Body"]
-
-    result_info = base_workflow_instance._parse_result_message(  # noqa: SLF001
-        message_attributes=message_attributes, message_body=message_body
+    valid_message_attributes = (
+        base_workflow_instance._parse_result_message_attrs(  # noqa: SLF001
+            message_attributes=message_attributes
+        )
     )
 
-    assert result_info == {
-        "item_identifier": "10.1002/term.3131",
-        "result_message_body": json.loads(message_body),
-        "ingested": True,
-        "dspace_handle": "1721.1/131022",
-        "error": None,
-    }
+    assert valid_message_attributes == message_attributes
 
 
-def test_base_workflow_parse_result_message_attrs_if_jsonschema_validation_fails(
+def test_base_workflow_parse_result_message_attrs_if_json_schema_validation_fails(
     base_workflow_instance, result_message_valid
 ):
     message_attributes = result_message_valid["MessageAttributes"]
-    message_body = result_message_valid["Body"]
 
     # modify content of 'MessageAttributes'
     del message_attributes["SubmissionSource"]
 
-    result_info = base_workflow_instance._parse_result_message(  # noqa: SLF001
-        message_attributes=message_attributes, message_body=message_body
+    with pytest.raises(
+        InvalidSQSMessageError,
+        match="Content of 'MessageAttributes' failed schema validation",
+    ):
+        base_workflow_instance._parse_result_message_attrs(  # noqa: SLF001
+            message_attributes=message_attributes
+        )
+
+
+def test_base_workflow_parse_result_message_body_success(
+    base_workflow_instance, result_message_valid, result_message_body
+):
+    message_body = result_message_valid["Body"]
+    valid_message_body = (
+        base_workflow_instance._parse_result_message_body(  # noqa: SLF001
+            message_body=message_body
+        )
     )
 
-    assert result_info == {
-        "item_identifier": None,
-        "result_message_body": message_body,
-        "ingested": None,
-        "dspace_handle": None,
-        "error": "Content of 'MessageAttributes' is invalid",
-    }
+    assert valid_message_body == json.loads(result_message_body)
 
 
-def test_base_workflow_parse_result_message_body_if_jsonschema_validation_fails(
+def test_base_workflow_parse_result_message_body_if_json_schema_validation_fails(
     base_workflow_instance, result_message_valid
 ):
-    message_attributes = result_message_valid["MessageAttributes"]
     original_message_body = result_message_valid["Body"]
 
     # modify content of 'Body'
     modified_message_body = json.loads(original_message_body)
     del modified_message_body["Bitstreams"]
 
-    result_info = base_workflow_instance._parse_result_message(  # noqa: SLF001
-        message_attributes=message_attributes,
-        message_body=json.dumps(modified_message_body),
-    )
-
-    assert result_info == {
-        "item_identifier": "10.1002/term.3131",
-        "result_message_body": json.dumps(modified_message_body),
-        "ingested": None,
-        "dspace_handle": None,
-        "error": "Content of 'Body' is invalid",
-    }
+    with pytest.raises(
+        InvalidSQSMessageError, match="Content of 'Body' failed schema validation"
+    ):
+        base_workflow_instance._parse_result_message_body(  # noqa: SLF001
+            message_body=json.dumps(modified_message_body),
+        )
 
 
-def test_base_workflow_parse_result_message_body_if_invalid_json(
-    base_workflow_instance, result_message_valid
-):
-    message_attributes = result_message_valid["MessageAttributes"]
-
-    result_info = base_workflow_instance._parse_result_message(  # noqa: SLF001
-        message_attributes=message_attributes,
-        message_body="",
-    )
-
-    assert result_info == {
-        "item_identifier": "10.1002/term.3131",
-        "result_message_body": "",
-        "ingested": None,
-        "dspace_handle": None,
-        "error": "Failed to parse content of 'Body'",
-    }
-
-
-def test_base_workflow_parse_result_message_if_not_ingested(
-    base_workflow_instance, result_message_valid
-):
-    message_attributes = result_message_valid["MessageAttributes"]
-    message_body = {
-        "ResultType": "error",
-        "ErrorTimestamp": "2021-12-09 14:12:01",
-        "ErrorInfo": (
-            "Error occurred while posting item to DSpace collection '1721.1/123456'"
-        ),
-        "DSpaceResponse": "text",
-        "ExceptionTraceback": ["text"],
-    }
-    result_info = base_workflow_instance._parse_result_message(  # noqa: SLF001
-        message_attributes=message_attributes,
-        message_body=json.dumps(message_body),
-    )
-
-    assert result_info == {
-        "item_identifier": "10.1002/term.3131",
-        "result_message_body": message_body,
-        "ingested": False,
-        "dspace_handle": None,
-        "error": None,
-    }
+def test_base_workflow_parse_result_message_body_if_invalid_json(base_workflow_instance):
+    with pytest.raises(InvalidSQSMessageError, match="Failed to parse content of 'Body'"):
+        base_workflow_instance._parse_result_message_body(message_body="")  # noqa: SLF001
 
 
 def test_base_workflow_workflow_specific_processing_success(
@@ -407,8 +522,8 @@ def test_base_workflow_workflow_specific_processing_success(
     base_workflow_instance,
     mocked_ses,
 ):
-    base_workflow_instance.workflow_specific_processing([{}])
-    assert "No extra processing for 1 items based on workflow: 'test'" in caplog.text
+    base_workflow_instance.workflow_specific_processing()
+    assert "No extra processing for batch based on workflow: 'test'" in caplog.text
 
 
 def test_base_workflow_send_report_success(

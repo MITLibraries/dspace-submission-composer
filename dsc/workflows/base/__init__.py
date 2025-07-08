@@ -4,15 +4,19 @@ import json
 import logging
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any, final
 
 import jsonschema
 import jsonschema.exceptions
 from botocore.exceptions import ClientError
+from pynamodb.exceptions import DoesNotExist
 
 from dsc.config import Config
+from dsc.db.models import ItemSubmissionDB, ItemSubmissionStatus
 from dsc.exceptions import (
     InvalidDSpaceMetadataError,
+    InvalidSQSMessageError,
     InvalidWorkflowNameError,
     ItemMetadatMissingRequiredFieldError,
 )
@@ -27,6 +31,11 @@ if TYPE_CHECKING:  # pragma: no cover
 
 logger = logging.getLogger(__name__)
 CONFIG = Config()
+
+ITEM_SUBMISSION_LOG_STR = (
+    "with primary keys batch_id={batch_id} (hash key) and "
+    "item_identifier={item_identifier} (range key)"
+)
 
 
 @dataclass
@@ -53,10 +62,7 @@ class Workflow(ABC):
     workflow_name: str = "base"
     submission_system: str = "DSpace@MIT"
 
-    def __init__(
-        self,
-        batch_id: str,
-    ) -> None:
+    def __init__(self, batch_id: str) -> None:
         """Initialize base instance.
 
         Args:
@@ -67,6 +73,7 @@ class Workflow(ABC):
         """
         self.batch_id = batch_id
         self.workflow_events = WorkflowEvents()
+        self.run_date = datetime.now(UTC)
         self.exclude_prefixes: list[str] = ["archived/", "dspace_metadata/"]
 
     @property
@@ -93,6 +100,10 @@ class Workflow(ABC):
     def batch_path(self) -> str:
         return f"{self.workflow_name}/{self.batch_id}/"
 
+    @property
+    def retry_threshold(self) -> int:
+        return CONFIG.retry_threshold
+
     @final
     @classmethod
     def get_workflow(cls, workflow_name: str) -> type[Workflow]:
@@ -112,6 +123,46 @@ class Workflow(ABC):
         for subclass in cls.__subclasses__():
             yield from subclass._get_subclasses()  # noqa: SLF001
             yield subclass
+
+    @final
+    def reconcile_items(self) -> bool:
+        """Reconcile item submissions for a batch.
+
+        This method will first reconcile all bitstreams and metadata.
+        Next, it will examine the result of the reconcile for each
+        item in the batch, using the item identifiers retrieved
+        from the metadata*. Results are written to DynamoDB.
+
+        *This may not be the full set of item submissions in a batch
+        as there may be bitstreams (intended for item submissions)
+        for which an item identifier cannot be retrieved.
+        """
+        reconciled = self.reconcile_bitstreams_and_metadata()
+
+        # iterate over the results of the reconcile
+        # for all item submissions from the metadata
+        for item_metadata in self.item_metadata_iter():
+            item_identifier = item_metadata["item_identifier"]
+
+            if item_identifier in self.workflow_events.reconciled_items:
+                logger.debug(
+                    f"Item submission (item_identifier={item_identifier}) reconciled"
+                )
+                status = ItemSubmissionStatus.RECONCILE_SUCCESS
+            else:
+                logger.debug(
+                    f"Item submission (item_identifier={item_identifier}) "
+                    "failed reconcile"
+                )
+                status = ItemSubmissionStatus.RECONCILE_FAILED
+
+            # create/update record in DynamoDB
+            try:
+                self.write_reconcile_results_to_dynamodb(item_identifier, status)
+            except Exception as exception:  # noqa: BLE001
+                logger.error(exception)  # noqa: TRY400
+                continue
+        return reconciled
 
     @abstractmethod
     def reconcile_bitstreams_and_metadata(self) -> bool:
@@ -135,12 +186,66 @@ class Workflow(ABC):
         """
 
     @final
+    def write_reconcile_results_to_dynamodb(
+        self, item_identifier: str, status: str
+    ) -> None:
+        """Write reconcile results for each item submission to DynamoDB.
+
+        An item submission is first recorded in the DynamoDB table during
+        the 'reconcile' step. Once a record is successfully created or
+        retrieved from the table, this method will perform a series of
+        checks to determine how/what to update for the item submission
+        record. If the current status indicates that the item submission
+        is at a step that comes after 'reconcile', the record is not
+        updated in DynamoDB.
+        """
+        item_submission_record = ItemSubmissionDB.get_or_create(
+            item_identifier=item_identifier,
+            batch_id=self.batch_id,
+            workflow_name=self.workflow_name,
+        )
+
+        if item_submission_record.status in [
+            None,
+            ItemSubmissionStatus.RECONCILE_FAILED,
+        ]:
+            logger.info(
+                f"Updating record {ITEM_SUBMISSION_LOG_STR.format(batch_id=self.batch_id,
+                item_identifier=item_submission_record.item_identifier
+                )}"
+            )
+
+            item_submission_record.update(
+                actions=[
+                    ItemSubmissionDB.status.set(status),
+                    ItemSubmissionDB.last_run_date.set(self.run_date),
+                ]
+            )
+        elif item_submission_record.status == ItemSubmissionStatus.RECONCILE_SUCCESS:
+            logger.debug(
+                f"Record "
+                f"{ITEM_SUBMISSION_LOG_STR.format(batch_id=self.batch_id,
+                                      item_identifier=item_submission_record.item_identifier)
+                    } "
+                "was previously reconciled, skipping update"
+            )
+        else:
+            logger.info(
+                f"Record "
+                f"{ITEM_SUBMISSION_LOG_STR.format(batch_id=self.batch_id,
+                                      item_identifier=item_submission_record.item_identifier)
+                    } "
+                "not eligible for reconcile, skipping update"
+            )
+
+    @final
     def submit_items(self, collection_handle: str) -> list:
         """Submit items to the DSpace Submission Service according to the workflow class.
 
         Args:
             collection_handle: The handle of the DSpace collection to which the batch will
               be submitted.
+
 
         Returns a dict with the submission results organized into succeeded and failed
         items.
@@ -152,6 +257,7 @@ class Workflow(ABC):
         submission_summary = {
             "total": 0,
             "submitted": 0,
+            "skipped": 0,
             "errors": 0,
         }
 
@@ -160,6 +266,27 @@ class Workflow(ABC):
             submission_summary["total"] += 1
             item_identifier = item_submission.item_identifier
 
+            # retrieve record from DynamoDB
+            try:
+                item_submission_record = ItemSubmissionDB.get(
+                    hash_key=self.batch_id, range_key=item_identifier
+                )
+            except DoesNotExist:
+                logger.warning(
+                    "Record "
+                    f"{ITEM_SUBMISSION_LOG_STR.format(batch_id=self.batch_id,
+                                      item_identifier=item_identifier)}"
+                    "not found. Verify that it been reconciled."
+                )
+                submission_summary["skipped"] += 1
+                continue
+
+            # validate whether a message should be sent for this item submission
+            if not self.allow_submission(item_submission_record):
+                submission_summary["skipped"] += 1
+                continue
+
+            # upload DSpace metadata file to S3
             try:
                 item_submission.upload_dspace_metadata(
                     bucket=self.s3_bucket, prefix=self.batch_path
@@ -170,8 +297,19 @@ class Workflow(ABC):
                 )
                 self.workflow_events.errors.append(str(exception))
                 submission_summary["errors"] += 1
+
+                # update record in DynamoDB
+                item_submission_record.update(
+                    actions=[
+                        ItemSubmissionDB.status.set(ItemSubmissionStatus.SUBMIT_FAILED),
+                        ItemSubmissionDB.status_details.set(str(exception)),
+                        ItemSubmissionDB.last_run_date.set(self.run_date),
+                        ItemSubmissionDB.submit_attempts.add(1),
+                    ]
+                )
                 continue
 
+            # Send submission message to DSS input queue
             try:
                 response = item_submission.send_submission_message(
                     self.workflow_name,
@@ -186,6 +324,16 @@ class Workflow(ABC):
                 )
                 self.workflow_events.errors.append(str(exception))
                 submission_summary["errors"] += 1
+
+                # update record in DynamoDB
+                item_submission_record.update(
+                    actions=[
+                        ItemSubmissionDB.status.set(ItemSubmissionStatus.SUBMIT_FAILED),
+                        ItemSubmissionDB.status_details.set(str(exception)),
+                        ItemSubmissionDB.last_run_date.set(self.run_date),
+                        ItemSubmissionDB.submit_attempts.add(1),
+                    ]
+                )
                 continue
             except Exception as exception:  # noqa: BLE001
                 logger.error(  # noqa: TRY400
@@ -194,8 +342,19 @@ class Workflow(ABC):
                 )
                 self.workflow_events.errors.append(str(exception))
                 submission_summary["errors"] += 1
+
+                # update record in DynamoDB
+                item_submission_record.update(
+                    actions=[
+                        ItemSubmissionDB.status.set(ItemSubmissionStatus.SUBMIT_FAILED),
+                        ItemSubmissionDB.status_details.set(str(exception)),
+                        ItemSubmissionDB.last_run_date.set(self.run_date),
+                        ItemSubmissionDB.submit_attempts.add(1),
+                    ]
+                )
                 continue
 
+            # Record details of the item submission message
             item_data = {
                 "item_identifier": item_identifier,
                 "message_id": response["MessageId"],
@@ -205,6 +364,19 @@ class Workflow(ABC):
             submission_summary["submitted"] += 1
 
             logger.info(f"Sent item submission message: {item_data["message_id"]}")
+
+            # Set status in DynamoDB
+            try:
+                item_submission_record.update(
+                    actions=[
+                        ItemSubmissionDB.status.set(ItemSubmissionStatus.SUBMIT_SUCCESS),
+                        ItemSubmissionDB.last_run_date.set(self.run_date),
+                        ItemSubmissionDB.submit_attempts.add(1),
+                    ]
+                )
+            except Exception as exception:  # noqa: BLE001
+                logger.error(exception)  # noqa: TRY400
+                continue
 
         logger.info(
             f"Submitted messages to the DSS input queue '{CONFIG.sqs_queue_dss_input}' "
@@ -336,44 +508,222 @@ class Workflow(ABC):
         """
 
     @final
-    def process_ingest_results(self) -> None:
-        """Process DSS results from the workflow's output queue.
+    def allow_submission(self, item_submission_record: ItemSubmissionDB) -> bool:
+        """Verify that a submission message should be sent based on status in DynamoDB."""
+        allow_submission = False
+
+        match item_submission_record.status:
+            case ItemSubmissionStatus.INGEST_SUCCESS:
+                logger.info(
+                    "Record "
+                    f"{ITEM_SUBMISSION_LOG_STR.format(batch_id=self.batch_id,
+                                      item_identifier=item_submission_record.item_identifier)
+                    } "
+                    "already ingested, skipping submission"
+                )
+            case ItemSubmissionStatus.SUBMIT_SUCCESS:
+                logger.info(
+                    f"Record "
+                    f"{ITEM_SUBMISSION_LOG_STR.format(batch_id=self.batch_id,
+                                      item_identifier=item_submission_record.item_identifier)
+                    } "
+                    " already submitted, skipping submission"
+                )
+            case ItemSubmissionStatus.MAX_RETRIES_REACHED:
+                logger.info(
+                    f"Record "
+                    f"{ITEM_SUBMISSION_LOG_STR.format(batch_id=self.batch_id,
+                                      item_identifier=item_submission_record.item_identifier)
+                    } "
+                    "max retries reached, skipping submission"
+                )
+            case None | ItemSubmissionStatus.RECONCILE_FAILED:
+                logger.info(
+                    f"Record "
+                    f"{ITEM_SUBMISSION_LOG_STR.format(batch_id=self.batch_id,
+                                      item_identifier=item_submission_record.item_identifier)
+                    } "
+                    " not reconciled, skipping submission"
+                )
+            case _:
+                logger.debug(
+                    f"Record "
+                    f"{ITEM_SUBMISSION_LOG_STR.format(batch_id=self.batch_id,
+                                      item_identifier=item_submission_record.item_identifier)
+                    } "
+                    "allowed for submission"
+                )
+                allow_submission = True
+
+        return allow_submission
+
+    @final
+    def finalize_items(self) -> None:
+        """Examine results for all item submissions in the batch.
+
+        This method involves three main steps:
+
+        1. Process DSS result messages from the output queue
+        2. Apply workflow-specific processing
+        3. Load ingest results into WorkflowEvents for reporting
 
         Must NOT be overridden by workflow subclasses.
         """
-        items = self.process_sqs_queue()
-        self.workflow_specific_processing(items)
+        self.process_result_messages()
+        self.workflow_specific_processing()
 
-    def process_sqs_queue(self) -> list[dict]:
-        """Process messages in DSS output queue to determine submission results.
+        # update WorkflowEvents with batch-level ingest results
+        for item_submission_record in ItemSubmissionDB.query(self.batch_id):
+            self.workflow_events.processed_items.append(
+                item_submission_record.to_dict(
+                    "item_identifier",
+                    "status",
+                    "status_details",
+                    "dspace_handle",
+                    "last_result_message",
+                )
+            )
+
+    def process_result_messages(self) -> None:
+        """Process DSS result messages from the output queue.
+
+        This method receives result messages from the output queue, parsing the content
+        of each message to determine whether an item was ingested into DSpace.
+
+        The following steps are executed for every result message:
+
+        1. Parse and validate the content of 'MessageAttributes'.
+           - If the content is invalid, log an error message, delete
+             the message from the output queue, and skip remaining steps.
+        2. Get the 'item_identifier' from the result message
+           and track ID in list.
+        3. Get the record for the item submission from DynamoDB and identify the
+           current status.
+        4. Parse and validate the content of 'Body'.
+
+           - If the content is invalid, log an error message and track the new status as
+             ItemSubmissionStatus.INGEST_UNKNOWN.
+           - If the content is valid, check whether item was ingested based on
+             'ResultType'.
+             - If the item was ingested, get DSpace handle (if available) and track the
+               new status as ItemSubmissionStatus.INGEST_SUCCESS.
+             - If the item failed ingest, track the new status as
+               ItemSubmissionStatus.INGEST_FAILED.
+        5. Update the record in DynamoDB with details then delete the message from the
+           output queue.
 
         May be overridden by workflow subclasses.
         """
         logger.info(
             f"Processing DSS result messages from the output queue '{self.output_queue}'"
         )
-        processing_summary = {
-            "total": 0,
-            "ingested": 0,
-            "errors": 0,
+        sqs_results_summary = {
+            "received_messages": 0,
+            "ingest_success": 0,
+            "ingest_failed": 0,
+            "ingest_unknown": 0,
         }
 
         sqs_client = SQSClient(
             region=CONFIG.aws_region_name, queue_name=self.output_queue
         )
 
-        items = []
         for sqs_message in sqs_client.receive():
-            processing_summary["total"] += 1
+            sqs_results_summary["received_messages"] += 1
 
             message_id = sqs_message["MessageId"]
+            message_body = sqs_message["Body"]
             receipt_handle = sqs_message["ReceiptHandle"]
 
             logger.debug(f"Processing result message: {message_id}")
 
-            result_info = self._parse_result_message(
-                sqs_message["MessageAttributes"], message_body=sqs_message["Body"]
+            try:
+                message_attributes = self._parse_result_message_attrs(
+                    sqs_message["MessageAttributes"]
+                )
+            except InvalidSQSMessageError as exception:
+                logger.error(  # noqa: TRY400
+                    f"Failed to parse 'MessageAttributes' from {message_id}: {exception}"
+                )
+                sqs_results_summary["ingest_unknown"] += 1
+
+                # delete message from the queue
+                sqs_client.delete(
+                    receipt_handle=receipt_handle,
+                    message_id=message_id,
+                )
+                continue
+
+            item_identifier = message_attributes["PackageID"]["StringValue"]
+
+            # get record from ItemSubmissionDB
+            try:
+                item_submission_record = ItemSubmissionDB.get(
+                    hash_key=self.batch_id, range_key=item_identifier
+                )
+            except DoesNotExist:
+                logger.warning(
+                    "Record "
+                    f"{ITEM_SUBMISSION_LOG_STR.format(batch_id=self.batch_id,
+                                      item_identifier=item_identifier)}"
+                    "not found. Verify that it been reconciled."
+                )
+                continue
+
+            current_status = item_submission_record.status
+
+            logger.info(
+                "Received result message for record "
+                f"{ITEM_SUBMISSION_LOG_STR.format(batch_id=item_submission_record.batch_id,
+                                      item_identifier=item_submission_record.item_identifier)}"
             )
+
+            try:
+                parsed_message_body = self._parse_result_message_body(message_body)
+            except InvalidSQSMessageError as exception:
+                logger.error(  # noqa: TRY400
+                    f"Failed to parse 'Body' from {message_id}:{exception}"
+                )
+                sqs_results_summary["ingest_unknown"] += 1
+
+                new_status = ItemSubmissionStatus.INGEST_UNKNOWN
+
+                item_submission_record.update(
+                    actions=[ItemSubmissionDB.status_details.set(str(exception))]
+                )
+                logger.info("Unable to determine ingest status for item.")
+            else:
+                if bool(parsed_message_body["ResultType"] == "success"):
+                    new_status = ItemSubmissionStatus.INGEST_SUCCESS
+                    sqs_results_summary["ingest_success"] += 1
+
+                    if dspace_handle := parsed_message_body.get("ItemHandle"):
+                        item_submission_record.update(
+                            actions=[
+                                ItemSubmissionDB.dspace_handle.set(dspace_handle),
+                            ]
+                        )
+                    logger.info("Item was ingested.")
+                else:
+                    new_status = ItemSubmissionStatus.INGEST_FAILED
+                    sqs_results_summary["ingest_failed"] += 1
+                    logger.info("Item failed ingest.")
+
+            item_submission_record.update(
+                actions=[
+                    ItemSubmissionDB.status.set(new_status),
+                    ItemSubmissionDB.last_result_message.set(message_body),
+                    ItemSubmissionDB.last_run_date.set(self.run_date),
+                    ItemSubmissionDB.ingest_attempts.add(1),
+                ]
+            )
+
+            logger.info(
+                "Updated record "
+                f"{ITEM_SUBMISSION_LOG_STR.format(batch_id=item_submission_record.batch_id,
+                                      item_identifier=item_submission_record.item_identifier)}"
+            )
+            logger.info(f"Status updated: '{current_status}' -> '{new_status}'")
 
             # delete message from the queue
             sqs_client.delete(
@@ -381,92 +731,61 @@ class Workflow(ABC):
                 message_id=message_id,
             )
 
-            self.workflow_events.processed_items.append(result_info)
-            items.append(result_info)  # add item
-
-            item_identifier = result_info["item_identifier"]
-            if result_info["ingested"] is None:
-                logger.info(
-                    f"Unable to determine if item was ingested: {item_identifier}"
-                )
-                processing_summary["errors"] += 1
-            elif result_info["ingested"]:
-                logger.info(f"Item was ingested: {item_identifier}")
-                processing_summary["ingested"] += 1
-            else:
-                logger.info(f"Item was not ingested: {item_identifier}")
-                processing_summary["errors"] += 1
-
         logger.info(
             f"Processed DSS result messages from the output queue '{self.output_queue}': "
-            f"{json.dumps(processing_summary)}"
+            f"{json.dumps(sqs_results_summary)}"
         )
-        return items
 
     @final
     @staticmethod
-    def _parse_result_message(message_attributes: dict, message_body: str) -> dict:
-        """Parse content of result message.
+    def _parse_result_message_attrs(message_attributes: dict) -> dict:
+        """Parse and validate content of 'MessageAttributes' in result message.
 
-        This method will validate the content of the result message and return
-        a dict summarizing the outcome of the attempted submission via DSS:
+        If the content passes schema validation, the content is returned.
 
-        1. Verify that 'message_attributes' adheres to
-           dsc.utilities.validate.schemas.RESULT_MESSAGE_ATTRIBUTES JSON schema.
-        2. Verify that 'message_body' is a valid JSON string.
-        3. Verify that the parsed 'message_body' adheres to
-           dsc.utilities.validate.schemas.RESULT_MESSAGE_BODY JSON schema.
-
-        Args:
-            message_attributes: Content of 'MessageAttributes' in result message.
-            message_body (str): Content of 'Body' in result message.
-
-        Returns:
-            dict: Result of attempted submission via DSS.
+        Raises:
+            InvalidSQSMessageError
         """
-        result_info: dict = {
-            "item_identifier": None,
-            "ingested": None,
-            "dspace_handle": None,
-            "error": None,
-            "result_message_body": message_body,
-        }
-
         # validate content of 'MessageAttributes'
         try:
             jsonschema.validate(
                 instance=message_attributes,
                 schema=RESULT_MESSAGE_ATTRIBUTES,
             )
-        except jsonschema.exceptions.ValidationError:
-            error_message = "Content of 'MessageAttributes' is invalid"
-            logger.exception(error_message)
-            result_info["error"] = error_message
-            return result_info
+        except jsonschema.exceptions.ValidationError as exception:
+            raise InvalidSQSMessageError(
+                "Content of 'MessageAttributes' failed schema validation"
+            ) from exception
+        return message_attributes
 
-        result_info["item_identifier"] = message_attributes["PackageID"]["StringValue"]
+    @final
+    @staticmethod
+    def _parse_result_message_body(message_body: str) -> dict:
+        """Parse and validate content of 'Body' in result message.
 
+        If the JSON string can be deserialized to a Python dictionary
+        and it passes schema validation, the parsed content is returned.
+
+        Raises:
+            InvalidSQSMessageError
+        """
         # validate content of 'Body'
         try:
             parsed_message_body = json.loads(message_body)
             jsonschema.validate(instance=parsed_message_body, schema=RESULT_MESSAGE_BODY)
-        except json.JSONDecodeError:
-            error_message = "Failed to parse content of 'Body'"
-            logger.exception(error_message)
-            result_info["error"] = error_message
-        except jsonschema.exceptions.ValidationError:
-            error_message = "Content of 'Body' is invalid"
-            logger.exception(error_message)
-            result_info["error"] = error_message
-        else:
-            result_info["ingested"] = bool(parsed_message_body["ResultType"] == "success")
-            result_info["result_message_body"] = parsed_message_body
-            result_info["dspace_handle"] = parsed_message_body.get("ItemHandle")
-        return result_info
+        except json.JSONDecodeError as exception:
+            raise InvalidSQSMessageError(
+                "Failed to parse content of 'Body'"
+            ) from exception
+        except jsonschema.exceptions.ValidationError as exception:
+            raise InvalidSQSMessageError(
+                "Content of 'Body' failed schema validation"
+            ) from exception
+        return parsed_message_body
 
-    def workflow_specific_processing(self, items: list[dict]) -> None:
+    def workflow_specific_processing(self) -> None:
         logger.info(
-            f"No extra processing for {len(items)} items based on workflow: "
+            f"No extra processing for batch based on workflow: "
             f"'{self.workflow_name}' "
         )
 

@@ -9,6 +9,7 @@ from click.testing import CliRunner
 from moto import mock_aws
 
 from dsc.config import Config
+from dsc.db.models import ItemSubmissionDB
 from dsc.item_submission import ItemSubmission
 from dsc.utilities.aws.s3 import S3Client
 from dsc.utilities.aws.ses import SESClient
@@ -88,9 +89,13 @@ class TestOpenCourseWare(OpenCourseWare):
 def _test_env(monkeypatch):
     monkeypatch.setenv("SENTRY_DSN", "None")
     monkeypatch.setenv("WORKSPACE", "test")
+    monkeypatch.setenv("WARNING_ONLY_LOGGERS", "botocore,smart_open,urllib3")
     monkeypatch.setenv("AWS_REGION_NAME", "us-east-1")
+    monkeypatch.setenv("AWS_DEFAULT_REGION", "us-east-1")
     monkeypatch.setenv("AWS_ACCESS_KEY_ID", "testing")
     monkeypatch.setenv("AWS_SECRET_ACCESS_KEY", "testing")
+    monkeypatch.setenv("ITEM_SUBMISSIONS_TABLE_NAME", "dsc-test")
+    monkeypatch.setenv("RETRY_THRESHOLD", "20")
     monkeypatch.setenv("S3_BUCKET_SUBMISSION_ASSETS", "dsc")
     monkeypatch.setenv("SOURCE_EMAIL", "noreply@example.com")
     monkeypatch.setenv("SQS_QUEUE_DSS_INPUT", "mock-input-queue")
@@ -186,6 +191,14 @@ def item_submission_instance(dspace_metadata):
 
 
 @pytest.fixture
+def mocked_item_submission_db():
+    with mock_aws():
+        if not ItemSubmissionDB.exists():
+            ItemSubmissionDB.create_table()
+        yield
+
+
+@pytest.fixture
 def metadata_mapping():
     with open("tests/fixtures/test_metadata_mapping.json") as mapping_file:
         return json.load(mapping_file)
@@ -216,6 +229,7 @@ def mocked_s3_simple_csv(mocked_s3, item_metadata):
         Key="simple_csv/batch-aaa/metadata.csv",
         Body=csv_buffer.getvalue(),
     )
+    return mocked_s3
 
 
 @pytest.fixture
