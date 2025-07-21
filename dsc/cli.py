@@ -1,5 +1,7 @@
 import datetime
 import logging
+import subprocess
+import sys
 from time import perf_counter
 
 import click
@@ -138,3 +140,119 @@ def finalize(ctx: click.Context, email_recipients: str) -> None:
     workflow.send_report(
         report_class=FinalizeReport, email_recipients=email_recipients.split(",")
     )
+
+
+# data sync command
+@main.command()
+@click.pass_context
+@click.option(
+    "-s",
+    "--source",
+    help=(
+        "Source directory formatted as a local filesystem path or "
+        "an S3 URI in s3://bucket/prefix form"
+    ),
+)
+@click.option(
+    "-d",
+    "--destination",
+    help=(
+        "Destination directory formatted as a local filesystem path or "
+        "an S3 URI in s3://bucket/prefix form"
+    ),
+)
+@click.option(
+    "--endpoint-url",
+    help=(
+        "Specifies a custom endpoint URL to which which the AWS CLI sends S3 requests "
+        "instead of the default AWS S3 service endpoint"
+    ),
+)
+@click.option(
+    "--dry-run",
+    is_flag=True,
+    help=(
+        "Display the operations that would be performed using the "
+        "specified command without actually running them"
+    ),
+)
+def sync(
+    ctx: click.Context,
+    source: str | None = None,
+    destination: str | None = None,
+    endpoint_url: str | None = None,
+    *,
+    dry_run: bool = False,
+) -> None:
+    """Sync data between two directories using the aws s3 sync command.
+
+    If 'source' and 'destination' are not provided, the method will derive values
+    based on the required '--batch-id / -b' and 'workflow-name / -w' options and
+    S3 bucket env vars:
+        * source: batch path in S3_BUCKET_SYNC_SOURCE
+        * destination: batch path in S3_BUCKET_SUBMISSION_ASSETS
+
+    This command accepts both local file system paths and S3 URIs in
+    s3://bucket/prefix form. It synchronizes the contents of the source directory
+    to the destination directory, and is configured to:
+        * --delete: delete files in the destination that are not present in the source
+        * --exclude metadata/*: exclude files in the dspace_metadata/ directory
+
+    Although the aws s3 sync command recursively copies files, it ignores
+    empty directories from the sync.
+    """
+    if source and destination:
+        logger.info(f"Using provided source={source} and destination={destination}")
+    else:
+        workflow = ctx.obj["workflow"]
+        source = f"s3://{CONFIG.s3_bucket_sync_source}/{workflow.batch_path}"
+        destination = f"s3://{CONFIG.s3_bucket_submission_assets}/{workflow.batch_path}"
+
+    logger.info(f"Syncing data from {source} to {destination}")
+
+    args = [
+        "aws",
+        "s3",
+        "sync",
+        source,
+        destination,
+        "--delete",
+        "--exclude",
+        "dspace_metadata/*",
+    ]
+
+    optional_args = []
+    if dry_run:
+        optional_args.append("--dryrun")
+    if endpoint_url:
+        optional_args.extend(["--endpoint-url", endpoint_url])
+
+    args.extend(optional_args)
+
+    process = subprocess.Popen(  # noqa: S603
+        args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
+    )
+
+    # log process output (stdout and stderr) in real-time
+    if process.stdout:
+        for line in process.stdout:
+            if line:
+                logger.info(line)
+    else:
+        logger.info("No changes detected in source, no sync required")
+
+    if process.stderr:
+        for line in process.stderr:
+            if line:
+                logger.error(line)
+
+    # wait for the process to complete
+    process.wait()
+    return_code = process.returncode
+
+    if return_code != 0:
+        logger.error(f"Failed to sync (exit code: {return_code})")
+    else:
+        logger.info("Sync completed successfully")
+
+    sys.exit(return_code)  # exit with the same code as subprocess

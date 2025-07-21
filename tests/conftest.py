@@ -8,6 +8,7 @@ import pytest
 from click.testing import CliRunner
 from freezegun import freeze_time
 from moto import mock_aws
+from moto.server import ThreadedMotoServer
 
 from dsc.config import Config
 from dsc.db.models import ItemSubmissionDB
@@ -93,13 +94,22 @@ def _test_env(monkeypatch):
     monkeypatch.setenv("WARNING_ONLY_LOGGERS", "botocore,smart_open,urllib3")
     monkeypatch.setenv("AWS_REGION_NAME", "us-east-1")
     monkeypatch.setenv("AWS_DEFAULT_REGION", "us-east-1")
-    monkeypatch.setenv("AWS_ACCESS_KEY_ID", "testing")
-    monkeypatch.setenv("AWS_SECRET_ACCESS_KEY", "testing")
     monkeypatch.setenv("ITEM_SUBMISSIONS_TABLE_NAME", "dsc-test")
     monkeypatch.setenv("RETRY_THRESHOLD", "20")
     monkeypatch.setenv("S3_BUCKET_SUBMISSION_ASSETS", "dsc")
     monkeypatch.setenv("SOURCE_EMAIL", "noreply@example.com")
     monkeypatch.setenv("SQS_QUEUE_DSS_INPUT", "mock-input-queue")
+
+
+@pytest.fixture(scope="module")
+def moto_server():
+    """Fixture to run a mocked AWS server for testing."""
+    # Note: pass `port=0` to get a random free port.
+    server = ThreadedMotoServer(port=0)
+    server.start()
+    host, port = server.get_host_and_port()
+    yield f"http://{host}:{port}"
+    server.stop()
 
 
 @pytest.fixture

@@ -18,7 +18,8 @@ smart_open = {extras = ["s3"], version = "*"}
 black = "*"
 coveralls = "*"
 freezegun = "*"
-moto="*"
+moto = {version="*", extras=["server"]}
+
 mypy = "*"
 pandas-stubs = "*"
 pip-audit = "*"

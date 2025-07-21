@@ -1,6 +1,7 @@
 import json
 from unittest.mock import patch
 
+import boto3
 from freezegun import freeze_time
 
 from dsc.cli import main
@@ -203,3 +204,54 @@ def test_finalize_success(
     assert "Logs sent to ['test@test.test', 'test2@test.test']" in caplog.text
     assert "Application exiting" in caplog.text
     assert "Total time elapsed" in caplog.text
+
+
+def test_sync_success(caplog, runner, monkeypatch, moto_server, config_instance):
+    """Run sync using moto stand-alone server."""
+    monkeypatch.setenv("S3_BUCKET_SUBMISSION_ASSETS", "destination")
+    monkeypatch.setenv("S3_BUCKET_SYNC_SOURCE", "source")
+
+    # set fake AWS credentials
+    monkeypatch.setenv("AWS_ACCESS_KEY_ID", "testing")
+    monkeypatch.setenv("AWS_SECRET_ACCESS_KEY", "testing")
+    monkeypatch.setenv("AWS_DEFAULT_REGION", "us-east-1")
+
+    # point boto3 client to test server
+    s3 = boto3.client(
+        "s3", region_name=config_instance.aws_region_name, endpoint_url=moto_server
+    )
+
+    # create 'source' bucket for syncing
+    s3.create_bucket(Bucket="source")
+    s3.put_object(
+        Bucket="source",
+        Key="test/batch-aaa/123.zip",
+        Body=b"",
+    )
+
+    # create 'destination' bucket
+    s3.create_bucket(Bucket="destination")
+
+    result = runner.invoke(
+        main,
+        [
+            "--verbose",
+            "--workflow-name",
+            "test",
+            "--batch-id",
+            "batch-aaa",
+            "sync",
+            "--endpoint-url",
+            moto_server,
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert (
+        "Syncing data from s3://source/test/batch-aaa/ to s3://destination/test/batch-aaa/"
+        in caplog.text
+    )
+    assert (
+        "copy: s3://source/test/batch-aaa/123.zip to s3://destination/test/batch-aaa/123.zip"
+        in caplog.text
+    )
