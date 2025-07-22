@@ -111,7 +111,7 @@ def test_base_workflow_submit_items_missing_row_raises_warning(
     assert json.dumps(expected_submission_summary) in caplog.text
 
 
-def test_base_workflow_submit_items_failed_allow_submission_is_skipped(
+def test_base_workflow_submit_items_failed_ready_to_submit_is_skipped(
     caplog,
     base_workflow_instance,
     mocked_s3,
@@ -180,8 +180,18 @@ def test_base_workflow_submit_items_exceptions_handled(
     assert json.dumps(expected_submission_summary) in caplog.text
 
 
-def test_base_workflow_item_submission_iter_success(base_workflow_instance):
+def test_base_workflow_item_submission_iter_success(
+    base_workflow_instance, mocked_item_submission_db
+):
+    ItemSubmissionDB.create(
+        item_identifier="123",
+        batch_id="batch-aaa",
+        workflow_name="test",
+        status=ItemSubmissionStatus.RECONCILE_SUCCESS,
+    )
     assert next(base_workflow_instance.item_submissions_iter()) == ItemSubmission(
+        batch_id="batch-aaa",
+        workflow_name="test",
         dspace_metadata={
             "metadata": [
                 {"key": "dc.title", "value": "Title", "language": "en_US"},
@@ -245,66 +255,6 @@ def test_base_workflow_validate_dspace_metadata_invalid_raises_exception(
 ):
     with pytest.raises(InvalidDSpaceMetadataError):
         base_workflow_instance.validate_dspace_metadata({})
-
-
-def test_base_workflow_allow_submission_success(
-    base_workflow_instance, mocked_item_submission_db
-):
-    item_submission_record = ItemSubmissionDB.create(
-        item_identifier="123",
-        batch_id="batch-aaa",
-        workflow_name="test",
-        status=ItemSubmissionStatus.RECONCILE_SUCCESS,
-    )
-    assert base_workflow_instance.allow_submission(item_submission_record)
-
-
-def test_base_workflow_allow_submission_ingested_returns_false(
-    base_workflow_instance, mocked_item_submission_db
-):
-    item_submission_record = ItemSubmissionDB.create(
-        item_identifier="123",
-        batch_id="batch-aaa",
-        workflow_name="test",
-        status=ItemSubmissionStatus.INGEST_SUCCESS,
-    )
-    assert not base_workflow_instance.allow_submission(item_submission_record)
-
-
-def test_base_workflow_allow_submission_submitted_returns_false(
-    base_workflow_instance, mocked_item_submission_db
-):
-    item_submission_record = ItemSubmissionDB.create(
-        item_identifier="123",
-        batch_id="batch-aaa",
-        workflow_name="test",
-        status=ItemSubmissionStatus.SUBMIT_SUCCESS,
-    )
-    assert not base_workflow_instance.allow_submission(item_submission_record)
-
-
-def test_base_workflow_allow_submission_max_retries_returns_false(
-    base_workflow_instance, mocked_item_submission_db
-):
-    item_submission_record = ItemSubmissionDB.create(
-        item_identifier="123",
-        batch_id="batch-aaa",
-        workflow_name="test",
-        status=ItemSubmissionStatus.MAX_RETRIES_REACHED,
-    )
-    assert not base_workflow_instance.allow_submission(item_submission_record)
-
-
-def test_base_workflow_allow_submission_not_reconciled_returns_false(
-    base_workflow_instance, mocked_item_submission_db
-):
-    item_submission_record = ItemSubmissionDB.create(
-        item_identifier="123",
-        batch_id="batch-aaa",
-        workflow_name="test",
-        status=ItemSubmissionStatus.RECONCILE_FAILED,
-    )
-    assert not base_workflow_instance.allow_submission(item_submission_record)
 
 
 @patch("dsc.db.models.ItemSubmissionDB.get")

@@ -3,9 +3,11 @@ from __future__ import annotations
 import json
 import logging
 from dataclasses import dataclass
+from datetime import datetime
 from typing import TYPE_CHECKING, Any
 
 from dsc.config import Config
+from dsc.db.models import ITEM_SUBMISSION_LOG_STR, ItemSubmissionDB, ItemSubmissionStatus
 from dsc.utilities.aws.s3 import S3Client
 from dsc.utilities.aws.sqs import SQSClient
 
@@ -21,10 +23,109 @@ CONFIG = Config()
 class ItemSubmission:
     """A class to store the required values for a DSpace submission."""
 
+    item_identifier: str
+    batch_id: str
+    workflow_name: str
     dspace_metadata: dict[str, Any]
     bitstream_s3_uris: list[str]
-    item_identifier: str
     metadata_s3_uri: str = ""
+    collection_handle: str | None = None
+    dspace_handle: str | None = None
+    status: str | None = None
+    status_details: str | None = None
+    ingest_date: str | None = None
+    last_result_message: str | None = None
+    last_run_date: str | None = None
+    submit_attempts: int = 0
+    ingest_attempts: int = 0
+
+    def populate_from_db(self) -> None:
+        """Populate instance attributes from a DynamoDB record."""
+        item_submission_db = ItemSubmissionDB.get(
+            hash_key=self.batch_id, range_key=self.item_identifier
+        )
+        for attr in [key for key, _ in self.__dict__.items()]:
+            if hasattr(item_submission_db, attr):
+                value = getattr(item_submission_db, attr)
+                if isinstance(value, datetime):
+                    value = value.isoformat()
+                setattr(self, attr, value)
+
+        logger.debug(
+            f"Populated record {ITEM_SUBMISSION_LOG_STR.format(
+                batch_id=self.batch_id, item_identifier=self.item_identifier
+                )}"
+        )
+
+    def update_db(self) -> None:
+        """Update DynamoDB with instance attributes.
+
+        Saves all instance attributes to DynamoDB, excluding dspace_metadata and
+        bitstream_s3_uris, which are not stored in the DynamoDB record.
+        """
+        submission_data = {
+            key: value
+            for key, value in self.__dict__.items()
+            if value and key not in ("dspace_metadata", "bitstream_s3_uris")
+        }
+        item_submission_record = ItemSubmissionDB(**submission_data)
+        item_submission_record.save()
+
+        logger.info(
+            f"Saved record "
+            f"{ITEM_SUBMISSION_LOG_STR.format(
+                batch_id=self.batch_id, item_identifier=self.item_identifier
+                )}"
+        )
+
+    def ready_to_submit(self) -> bool:
+        """Check if the item submission is ready to be submitted."""
+        ready_to_submit = False
+
+        match self.status:
+            case ItemSubmissionStatus.INGEST_SUCCESS:
+                logger.info(
+                    "Record "
+                    f"{ITEM_SUBMISSION_LOG_STR.format(batch_id=self.batch_id,
+                                      item_identifier=self.item_identifier)
+                    } "
+                    "already ingested, skipping submission"
+                )
+            case ItemSubmissionStatus.SUBMIT_SUCCESS:
+                logger.info(
+                    f"Record "
+                    f"{ITEM_SUBMISSION_LOG_STR.format(batch_id=self.batch_id,
+                                      item_identifier=self.item_identifier)
+                    } "
+                    " already submitted, skipping submission"
+                )
+            case ItemSubmissionStatus.MAX_RETRIES_REACHED:
+                logger.info(
+                    f"Record "
+                    f"{ITEM_SUBMISSION_LOG_STR.format(batch_id=self.batch_id,
+                                      item_identifier=self.item_identifier)
+                    } "
+                    "max retries reached, skipping submission"
+                )
+            case None | ItemSubmissionStatus.RECONCILE_FAILED:
+                logger.info(
+                    f"Record "
+                    f"{ITEM_SUBMISSION_LOG_STR.format(batch_id=self.batch_id,
+                                      item_identifier=self.item_identifier)
+                    } "
+                    " not reconciled, skipping submission"
+                )
+            case _:
+                logger.debug(
+                    f"Record "
+                    f"{ITEM_SUBMISSION_LOG_STR.format(batch_id=self.batch_id,
+                                      item_identifier=self.item_identifier)
+                    } "
+                    "allowed for submission"
+                )
+                ready_to_submit = True
+
+        return ready_to_submit
 
     def upload_dspace_metadata(self, bucket: str, prefix: str) -> None:
         """Upload DSpace metadata to S3 using the specified bucket and keyname.

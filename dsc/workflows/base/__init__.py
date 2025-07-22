@@ -282,7 +282,8 @@ class Workflow(ABC):
                 continue
 
             # validate whether a message should be sent for this item submission
-            if not self.allow_submission(item_submission_record):
+            item_submission.populate_from_db()
+            if not item_submission.ready_to_submit():
                 submission_summary["skipped"] += 1
                 continue
 
@@ -396,6 +397,8 @@ class Workflow(ABC):
             dspace_metadata = self.create_dspace_metadata(item_metadata)
             self.validate_dspace_metadata(dspace_metadata)
             item_submission = ItemSubmission(
+                batch_id=self.batch_id,
+                workflow_name=self.workflow_name,
                 dspace_metadata=dspace_metadata,
                 bitstream_s3_uris=self.get_bitstream_s3_uris(item_identifier),
                 item_identifier=item_identifier,
@@ -506,56 +509,6 @@ class Workflow(ABC):
         Args:
             item_identifier: The identifier used for locating the item's bitstreams.
         """
-
-    @final
-    def allow_submission(self, item_submission_record: ItemSubmissionDB) -> bool:
-        """Verify that a submission message should be sent based on status in DynamoDB."""
-        allow_submission = False
-
-        match item_submission_record.status:
-            case ItemSubmissionStatus.INGEST_SUCCESS:
-                logger.info(
-                    "Record "
-                    f"{ITEM_SUBMISSION_LOG_STR.format(batch_id=self.batch_id,
-                                      item_identifier=item_submission_record.item_identifier)
-                    } "
-                    "already ingested, skipping submission"
-                )
-            case ItemSubmissionStatus.SUBMIT_SUCCESS:
-                logger.info(
-                    f"Record "
-                    f"{ITEM_SUBMISSION_LOG_STR.format(batch_id=self.batch_id,
-                                      item_identifier=item_submission_record.item_identifier)
-                    } "
-                    " already submitted, skipping submission"
-                )
-            case ItemSubmissionStatus.MAX_RETRIES_REACHED:
-                logger.info(
-                    f"Record "
-                    f"{ITEM_SUBMISSION_LOG_STR.format(batch_id=self.batch_id,
-                                      item_identifier=item_submission_record.item_identifier)
-                    } "
-                    "max retries reached, skipping submission"
-                )
-            case None | ItemSubmissionStatus.RECONCILE_FAILED:
-                logger.info(
-                    f"Record "
-                    f"{ITEM_SUBMISSION_LOG_STR.format(batch_id=self.batch_id,
-                                      item_identifier=item_submission_record.item_identifier)
-                    } "
-                    " not reconciled, skipping submission"
-                )
-            case _:
-                logger.debug(
-                    f"Record "
-                    f"{ITEM_SUBMISSION_LOG_STR.format(batch_id=self.batch_id,
-                                      item_identifier=item_submission_record.item_identifier)
-                    } "
-                    "allowed for submission"
-                )
-                allow_submission = True
-
-        return allow_submission
 
     @final
     def finalize_items(self) -> None:

@@ -36,7 +36,6 @@ class OptionalItemAttributes(TypedDict, total=False):
     status: str
     status_details: str
     ingest_date: str
-    last_submission_message: str
     last_result_message: str
     last_run_date: str
     submit_attempts: int

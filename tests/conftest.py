@@ -181,6 +181,8 @@ def item_metadata():
 @pytest.fixture
 def item_submission_instance(dspace_metadata):
     return ItemSubmission(
+        batch_id="batch-aaa",
+        workflow_name="test",
         dspace_metadata=dspace_metadata,
         bitstream_s3_uris=[
             "s3://dsc/workflow/folder/123_01.pdf",
