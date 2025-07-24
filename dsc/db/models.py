@@ -32,6 +32,7 @@ class ItemSubmissionStatus(StrEnum):
 
 
 class OptionalItemAttributes(TypedDict, total=False):
+    collection_handle: str
     dspace_handle: str
     status: str
     status_details: str
@@ -56,6 +57,8 @@ class ItemSubmissionDB(Model):
         item_identifier [sort key]: A unique identifier for an item submission
             in a batch.
         workflow_name: The name of the DSC workflow.
+        collection_handle: A persistent, globally unique identifier for a
+            collection in DSpace. The handle is used in the DSS submission message.
         dspace_handle: A persistent, globally unique identifier for a digital object
             in DSpace. The handle is provided in the DSS result message when
             an item is successfully ingested into DSpace.
@@ -89,6 +92,7 @@ class ItemSubmissionDB(Model):
     batch_id = UnicodeAttribute(hash_key=True)
     item_identifier = UnicodeAttribute(range_key=True)
     workflow_name = UnicodeAttribute()
+    collection_handle = UnicodeAttribute(null=True)
     dspace_handle = UnicodeAttribute(null=True)
     status = UnicodeAttribute(null=True)
     status_details = UnicodeAttribute(null=True)
@@ -194,6 +198,15 @@ class ItemSubmissionDB(Model):
             )
 
         return item
+
+    @classmethod
+    def get_batch_items(cls, batch_id: str) -> list["ItemSubmissionDB"]:
+        """Get all items in a batch.
+
+        Args:
+            batch_id: The unique identifier for the workflow run.
+        """
+        return list(cls.query(batch_id))
 
     def to_dict(self, *attributes: str) -> dict:
         """Create dict representing an item submission.
