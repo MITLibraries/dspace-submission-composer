@@ -1,4 +1,5 @@
 import json
+from datetime import UTC, datetime
 from unittest.mock import patch
 
 import pytest
@@ -57,12 +58,16 @@ def test_base_workflow_reconcile_bitstreams_and_metadata_if_non_reconcile_raises
 def test_base_workflow_submit_items_success(
     caplog,
     base_workflow_instance,
+    s3_client,
     mocked_s3,
     mocked_sqs_input,
     mocked_sqs_output,
     mocked_item_submission_db,
 ):
     caplog.set_level("DEBUG")
+    s3_client.put_file(file_content="", bucket="dsc", key="test/batch-aaa/123_01.pdf")
+    s3_client.put_file(file_content="", bucket="dsc", key="test/batch-aaa/123_02.jpg")
+    s3_client.put_file(file_content="", bucket="dsc", key="test/batch-aaa/789_01.pdf")
     ItemSubmissionDB.create(
         item_identifier="123",
         batch_id="batch-aaa",
@@ -156,7 +161,15 @@ def test_base_workflow_submit_items_exceptions_handled(
 ):
     side_effect = [
         {"MessageId": "abcd", "ResponseMetadata": {"HTTPStatusCode": 200}},
-        ClientError,
+        ClientError(
+            {
+                "Error": {
+                    "Code": "InvalidParameterValue",
+                    "Message": "The specified S3 bucket does not exist.",
+                }
+            },
+            "SendMessage",
+        ),
     ]
     mocked_method.side_effect = side_effect
     ItemSubmissionDB.create(
@@ -204,6 +217,8 @@ def test_base_workflow_item_submission_iter_success(
             "s3://dsc/test/batch-aaa/123_02.pdf",
         ],
         item_identifier="123",
+        status=ItemSubmissionStatus.RECONCILE_SUCCESS,
+        last_run_date=datetime(2025, 1, 1, 9, 0, tzinfo=UTC),
     )
 
 
