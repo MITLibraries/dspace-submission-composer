@@ -6,6 +6,7 @@ from io import StringIO
 import boto3
 import pytest
 from click.testing import CliRunner
+from freezegun import freeze_time
 from moto import mock_aws
 
 from dsc.config import Config
@@ -59,7 +60,7 @@ class TestWorkflow(Workflow):
         bitstreams = [
             "s3://dsc/test/batch-aaa/123_01.pdf",
             "s3://dsc/test/batch-aaa/123_02.pdf",
-            "s3://dsc/test/batch-aaa/456_01.pdf",
+            "s3://dsc/test/batch-aaa/789_01.pdf",
         ]
         return [bitstream for bitstream in bitstreams if item_identifier in bitstream]
 
@@ -102,6 +103,7 @@ def _test_env(monkeypatch):
 
 
 @pytest.fixture
+@freeze_time("2025-01-01 09:00:00")
 def base_workflow_instance(item_metadata, metadata_mapping, mocked_s3):
     return TestWorkflow(batch_id="batch-aaa")
 

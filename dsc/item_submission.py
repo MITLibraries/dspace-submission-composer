@@ -3,8 +3,9 @@ from __future__ import annotations
 import json
 import logging
 from dataclasses import dataclass
-from datetime import datetime
 from typing import TYPE_CHECKING, Any
+
+from botocore.exceptions import ClientError
 
 from dsc.config import Config
 from dsc.db.models import ITEM_SUBMISSION_LOG_STR, ItemSubmissionDB, ItemSubmissionStatus
@@ -12,6 +13,7 @@ from dsc.utilities.aws.s3 import S3Client
 from dsc.utilities.aws.sqs import SQSClient
 
 if TYPE_CHECKING:  # pragma: no cover
+    from datetime import datetime
 
     from mypy_boto3_sqs.type_defs import SendMessageResultTypeDef
 
@@ -23,39 +25,61 @@ CONFIG = Config()
 class ItemSubmission:
     """A class to store the required values for a DSpace submission."""
 
-    item_identifier: str
+    # persisted attributes
     batch_id: str
+    item_identifier: str
     workflow_name: str
-    dspace_metadata: dict[str, Any]
-    bitstream_s3_uris: list[str]
-    metadata_s3_uri: str = ""
     collection_handle: str | None = None
+    last_run_date: datetime | None = None
+    submit_attempts: int = 0
+    ingest_attempts: int = 0
+    ingest_date: str | None = None
+    last_result_message: str | None = None
     dspace_handle: str | None = None
     status: str | None = None
     status_details: str | None = None
-    ingest_date: str | None = None
-    last_result_message: str | None = None
-    last_run_date: str | None = None
-    submit_attempts: int = 0
-    ingest_attempts: int = 0
 
-    def populate_from_db(self) -> None:
-        """Populate instance attributes from a DynamoDB record."""
-        item_submission_db = ItemSubmissionDB.get(
-            hash_key=self.batch_id, range_key=self.item_identifier
+    # processing attributes
+    dspace_metadata: dict[str, Any] | None = None
+    bitstream_s3_uris: list[str] | None = None
+    metadata_s3_uri: str = ""
+
+    @classmethod
+    def from_metadata(cls, batch_id: str, item_metadata: dict) -> ItemSubmission:
+        """Create an ItemSubmission instance from metadata."""
+        return cls(
+            batch_id=batch_id,
+            item_identifier=item_metadata["item_identifier"],
+            workflow_name=item_metadata["workflow_name"],
+            collection_handle=item_metadata.get("collection_handle"),
         )
-        for attr in [key for key, _ in self.__dict__.items()]:
+
+    @classmethod
+    def from_batch_id_and_item_identifier(
+        cls, batch_id: str, item_identifier: str
+    ) -> ItemSubmission:
+        item_submission_db = ItemSubmissionDB.get(batch_id, item_identifier)
+        return cls.from_db(item_submission_db)
+
+    @classmethod
+    def from_db(cls, item_submission_db: ItemSubmissionDB) -> ItemSubmission:
+        """Populate instance attributes from a DynamoDB record."""
+        instance = cls(
+            batch_id=item_submission_db.batch_id,
+            item_identifier=item_submission_db.item_identifier,
+            workflow_name=item_submission_db.workflow_name,
+        )
+        for attr in ItemSubmissionDB.get_attributes():
             if hasattr(item_submission_db, attr):
                 value = getattr(item_submission_db, attr)
-                if isinstance(value, datetime):
-                    value = value.isoformat()
-                setattr(self, attr, value)
-
+                setattr(instance, attr, value)
         logger.debug(
             f"Populated record {ITEM_SUBMISSION_LOG_STR.format(
-                batch_id=self.batch_id, item_identifier=self.item_identifier
-                )}"
+                batch_id=instance.batch_id,
+                item_identifier=instance.item_identifier
+            )}"
         )
+        return instance
 
     def update_db(self) -> None:
         """Update DynamoDB with instance attributes.
@@ -66,7 +90,13 @@ class ItemSubmission:
         submission_data = {
             key: value
             for key, value in self.__dict__.items()
-            if value and key not in ("dspace_metadata", "bitstream_s3_uris")
+            if value
+            and key
+            not in (
+                "dspace_metadata",
+                "metadata_s3_uri",
+                "bitstream_s3_uris",
+            )
         }
         item_submission_record = ItemSubmissionDB(**submission_data)
         item_submission_record.save()
@@ -139,11 +169,20 @@ class ItemSubmission:
         """
         s3_client = S3Client()
         metadata_s3_key = f"{prefix}dspace_metadata/{self.item_identifier}_metadata.json"
-        s3_client.put_file(
-            bucket=bucket,
-            key=metadata_s3_key,
-            file_content=json.dumps(self.dspace_metadata),
-        )
+        try:
+            s3_client.put_file(
+                bucket=bucket,
+                key=metadata_s3_key,
+                file_content=json.dumps(self.dspace_metadata),
+            )
+        except Exception as exception:
+            logger.exception("Failed to upload DSpace metadata for item.")
+            self.status = ItemSubmissionStatus.SUBMIT_FAILED
+            self.status_details = str(exception)
+            self.submit_attempts += 1
+            self.update_db()
+            raise
+
         metadata_s3_uri = f"s3://{bucket}/{metadata_s3_key}"
         logger.info(f"Metadata uploaded to S3: {metadata_s3_uri}")
         self.metadata_s3_uri = metadata_s3_uri
@@ -170,10 +209,31 @@ class ItemSubmission:
         message_attributes = sqs_client.create_dss_message_attributes(
             self.item_identifier, submission_source, output_queue
         )
+        if not self.metadata_s3_uri or not self.bitstream_s3_uris:
+            message = (
+                "Metadata S3 URI or bitstream S3 URIs not set "
+                f"for item: {self.item_identifier}"
+            )
+            logger.error(message)
+            raise ValueError(message)
+
         message_body = sqs_client.create_dss_message_body(
             submission_system,
             collection_handle,
             self.metadata_s3_uri,
             self.bitstream_s3_uris,
         )
-        return sqs_client.send(message_attributes, message_body)
+        try:
+            response = sqs_client.send(message_attributes, message_body)
+        except ClientError as exception:
+            logger.error(  # noqa: TRY400
+                f"Failed to send submission message for item: {self.item_identifier}. "
+                f"{exception}"
+            )
+
+            self.status = ItemSubmissionStatus.SUBMIT_FAILED
+            self.status_details = str(exception)
+            self.submit_attempts += 1
+            self.update_db()
+            raise
+        return response
