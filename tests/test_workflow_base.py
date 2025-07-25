@@ -1,4 +1,5 @@
 import json
+from datetime import UTC, datetime
 from unittest.mock import patch
 
 import pytest
@@ -57,12 +58,16 @@ def test_base_workflow_reconcile_bitstreams_and_metadata_if_non_reconcile_raises
 def test_base_workflow_submit_items_success(
     caplog,
     base_workflow_instance,
+    s3_client,
     mocked_s3,
     mocked_sqs_input,
     mocked_sqs_output,
     mocked_item_submission_db,
 ):
     caplog.set_level("DEBUG")
+    s3_client.put_file(file_content="", bucket="dsc", key="test/batch-aaa/123_01.pdf")
+    s3_client.put_file(file_content="", bucket="dsc", key="test/batch-aaa/123_02.jpg")
+    s3_client.put_file(file_content="", bucket="dsc", key="test/batch-aaa/789_01.pdf")
     ItemSubmissionDB.create(
         item_identifier="123",
         batch_id="batch-aaa",
@@ -111,7 +116,7 @@ def test_base_workflow_submit_items_missing_row_raises_warning(
     assert json.dumps(expected_submission_summary) in caplog.text
 
 
-def test_base_workflow_submit_items_failed_allow_submission_is_skipped(
+def test_base_workflow_submit_items_failed_ready_to_submit_is_skipped(
     caplog,
     base_workflow_instance,
     mocked_s3,
@@ -156,7 +161,15 @@ def test_base_workflow_submit_items_exceptions_handled(
 ):
     side_effect = [
         {"MessageId": "abcd", "ResponseMetadata": {"HTTPStatusCode": 200}},
-        ClientError,
+        ClientError(
+            {
+                "Error": {
+                    "Code": "InvalidParameterValue",
+                    "Message": "The specified S3 bucket does not exist.",
+                }
+            },
+            "SendMessage",
+        ),
     ]
     mocked_method.side_effect = side_effect
     ItemSubmissionDB.create(
@@ -180,8 +193,18 @@ def test_base_workflow_submit_items_exceptions_handled(
     assert json.dumps(expected_submission_summary) in caplog.text
 
 
-def test_base_workflow_item_submission_iter_success(base_workflow_instance):
+def test_base_workflow_item_submission_iter_success(
+    base_workflow_instance, mocked_item_submission_db
+):
+    ItemSubmissionDB.create(
+        item_identifier="123",
+        batch_id="batch-aaa",
+        workflow_name="test",
+        status=ItemSubmissionStatus.RECONCILE_SUCCESS,
+    )
     assert next(base_workflow_instance.item_submissions_iter()) == ItemSubmission(
+        batch_id="batch-aaa",
+        workflow_name="test",
         dspace_metadata={
             "metadata": [
                 {"key": "dc.title", "value": "Title", "language": "en_US"},
@@ -194,6 +217,8 @@ def test_base_workflow_item_submission_iter_success(base_workflow_instance):
             "s3://dsc/test/batch-aaa/123_02.pdf",
         ],
         item_identifier="123",
+        status=ItemSubmissionStatus.RECONCILE_SUCCESS,
+        last_run_date=datetime(2025, 1, 1, 9, 0, tzinfo=UTC),
     )
 
 
@@ -245,66 +270,6 @@ def test_base_workflow_validate_dspace_metadata_invalid_raises_exception(
 ):
     with pytest.raises(InvalidDSpaceMetadataError):
         base_workflow_instance.validate_dspace_metadata({})
-
-
-def test_base_workflow_allow_submission_success(
-    base_workflow_instance, mocked_item_submission_db
-):
-    item_submission_record = ItemSubmissionDB.create(
-        item_identifier="123",
-        batch_id="batch-aaa",
-        workflow_name="test",
-        status=ItemSubmissionStatus.RECONCILE_SUCCESS,
-    )
-    assert base_workflow_instance.allow_submission(item_submission_record)
-
-
-def test_base_workflow_allow_submission_ingested_returns_false(
-    base_workflow_instance, mocked_item_submission_db
-):
-    item_submission_record = ItemSubmissionDB.create(
-        item_identifier="123",
-        batch_id="batch-aaa",
-        workflow_name="test",
-        status=ItemSubmissionStatus.INGEST_SUCCESS,
-    )
-    assert not base_workflow_instance.allow_submission(item_submission_record)
-
-
-def test_base_workflow_allow_submission_submitted_returns_false(
-    base_workflow_instance, mocked_item_submission_db
-):
-    item_submission_record = ItemSubmissionDB.create(
-        item_identifier="123",
-        batch_id="batch-aaa",
-        workflow_name="test",
-        status=ItemSubmissionStatus.SUBMIT_SUCCESS,
-    )
-    assert not base_workflow_instance.allow_submission(item_submission_record)
-
-
-def test_base_workflow_allow_submission_max_retries_returns_false(
-    base_workflow_instance, mocked_item_submission_db
-):
-    item_submission_record = ItemSubmissionDB.create(
-        item_identifier="123",
-        batch_id="batch-aaa",
-        workflow_name="test",
-        status=ItemSubmissionStatus.MAX_RETRIES_REACHED,
-    )
-    assert not base_workflow_instance.allow_submission(item_submission_record)
-
-
-def test_base_workflow_allow_submission_not_reconciled_returns_false(
-    base_workflow_instance, mocked_item_submission_db
-):
-    item_submission_record = ItemSubmissionDB.create(
-        item_identifier="123",
-        batch_id="batch-aaa",
-        workflow_name="test",
-        status=ItemSubmissionStatus.RECONCILE_FAILED,
-    )
-    assert not base_workflow_instance.allow_submission(item_submission_record)
 
 
 @patch("dsc.db.models.ItemSubmissionDB.get")
