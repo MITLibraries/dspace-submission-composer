@@ -71,9 +71,6 @@ class ItemSubmissionDB(Model):
         ingest_date: A date representing when an item was successfully ingested
             into DSpace. In DynamoDB, the date is stored as a string
             (in ISO 8601 format).
-        last_submission_message: A serialized JSON string of the latest (most recent)
-            submission message composed and sent to the input SQS queue via
-            the submit command.
         last_result_message: A serialized JSON string of the latest (most recent)
             result message composed and sent to the output SQS queue for DSC via DSS.
         last_run_date: A date representing the last time a DSC CLI command was executed
@@ -97,7 +94,6 @@ class ItemSubmissionDB(Model):
     status = UnicodeAttribute(null=True)
     status_details = UnicodeAttribute(null=True)
     ingest_date = UTCDateTimeAttribute(null=True)
-    last_submission_message = JSONAttribute(null=True)
     last_result_message = JSONAttribute(null=True)
     last_run_date = UTCDateTimeAttribute(null=True)
     submit_attempts = NumberAttribute(default_for_new=0)

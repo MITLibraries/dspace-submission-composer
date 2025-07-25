@@ -20,8 +20,10 @@ def test_itemsubmission_init_success(item_submission_instance, dspace_metadata):
 
 
 def test_from_metadata_success():
-    test_metadata = {"item_identifier": "test-123", "workflow_name": "test-workflow"}
-    item = ItemSubmission.from_metadata("batch-001", test_metadata)
+    test_metadata = {"item_identifier": "test-123"}
+    item = ItemSubmission.from_metadata(
+        batch_id="batch-001", item_metadata=test_metadata, workflow_name="test-workflow"
+    )
 
     assert item == ItemSubmission(
         batch_id="batch-001",

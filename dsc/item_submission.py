@@ -45,13 +45,14 @@ class ItemSubmission:
     metadata_s3_uri: str = ""
 
     @classmethod
-    def from_metadata(cls, batch_id: str, item_metadata: dict) -> ItemSubmission:
+    def from_metadata(
+        cls, batch_id: str, item_metadata: dict, workflow_name: str
+    ) -> ItemSubmission:
         """Create an ItemSubmission instance from metadata."""
         return cls(
             batch_id=batch_id,
             item_identifier=item_metadata["item_identifier"],
-            workflow_name=item_metadata["workflow_name"],
-            collection_handle=item_metadata.get("collection_handle"),
+            workflow_name=workflow_name,
         )
 
     @classmethod
@@ -84,21 +85,12 @@ class ItemSubmission:
     def update_db(self) -> None:
         """Update DynamoDB with instance attributes.
 
-        Saves all instance attributes to DynamoDB, excluding dspace_metadata and
-        bitstream_s3_uris, which are not stored in the DynamoDB record.
+        Update associated ItemSubmissionDB instance in DynamoDB with attributes
+        from this ItemSubmission instance.
         """
-        submission_data = {
-            key: value
-            for key, value in self.__dict__.items()
-            if value
-            and key
-            not in (
-                "dspace_metadata",
-                "metadata_s3_uri",
-                "bitstream_s3_uris",
-            )
-        }
-        item_submission_record = ItemSubmissionDB(**submission_data)
+        item_submission_record = ItemSubmissionDB(
+            **{attr: getattr(self, attr) for attr in ItemSubmissionDB.get_attributes()}
+        )
         item_submission_record.save()
 
         logger.info(
