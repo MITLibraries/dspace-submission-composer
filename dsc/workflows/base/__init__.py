@@ -308,32 +308,25 @@ class Workflow(ABC):
 
         MUST NOT be overridden by workflow subclasses.
         """
-        for item_metadata in self.item_metadata_iter():
+        batch_metadata = {
+            self.get_item_identifier(item_metadata): item_metadata
+            for item_metadata in self.item_metadata_iter()
+        }
+        for item_submission_db in ItemSubmissionDB.get_batch_items(self.batch_id):
+            item_submission = ItemSubmission.from_db(item_submission_db)
             self.submission_summary["total"] += 1
-            item_identifier = self.get_item_identifier(item_metadata)
-            try:
-                item_submission = ItemSubmission.from_batch_id_and_item_identifier(
-                    batch_id=self.batch_id, item_identifier=item_identifier
-                )
-            except DoesNotExist:
-                logger.warning(
-                    "Record "
-                    f"{ITEM_SUBMISSION_LOG_STR.format(batch_id=self.batch_id,
-                                      item_identifier=item_identifier)}"
-                    "not found. Verify that it been reconciled."
-                )
-                self.submission_summary["skipped"] += 1
-                continue
-
-            logger.info(f"Preparing submission for item: {item_identifier}")
+            logger.info(
+                f"Preparing submission for item: {item_submission.item_identifier}"
+            )
             item_submission.last_run_date = self.run_date
             dspace_metadata = item_submission.create_dspace_metadata(
-                item_metadata, metadata_mapping=self.metadata_mapping
+                item_metadata=batch_metadata[item_submission.item_identifier],
+                metadata_mapping=self.metadata_mapping,
             )
             item_submission.validate_dspace_metadata(dspace_metadata)
             item_submission.dspace_metadata = dspace_metadata
             item_submission.bitstream_s3_uris = self.get_bitstream_s3_uris(
-                item_identifier
+                item_submission.item_identifier
             )
             yield item_submission
 

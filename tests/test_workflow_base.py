@@ -86,34 +86,6 @@ def test_base_workflow_submit_items_success(
     assert json.dumps(expected_submission_summary) in caplog.text
 
 
-def test_base_workflow_submit_items_missing_row_raises_warning(
-    caplog,
-    base_workflow_instance,
-    mocked_s3,
-    mocked_sqs_input,
-    mocked_sqs_output,
-    mocked_item_submission_db,
-):
-    caplog.set_level("DEBUG")
-    ItemSubmissionDB.create(
-        item_identifier="123",
-        batch_id="batch-aaa",
-        workflow_name="test",
-        status=ItemSubmissionStatus.RECONCILE_SUCCESS,
-    )
-    items = base_workflow_instance.submit_items(collection_handle="123.4/5678")
-
-    expected_submission_summary = {"total": 2, "submitted": 1, "skipped": 1, "errors": 0}
-
-    assert len(items) == 1
-    assert (
-        "Record with primary keys batch_id=batch-aaa (hash key) and "
-        "item_identifier=789 (range key)not found. Verify that it been reconciled."
-        in caplog.text
-    )
-    assert json.dumps(expected_submission_summary) in caplog.text
-
-
 def test_base_workflow_submit_items_failed_ready_to_submit_is_skipped(
     caplog,
     base_workflow_instance,
