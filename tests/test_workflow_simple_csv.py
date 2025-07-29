@@ -249,12 +249,6 @@ def test_workflow_simple_csv_item_metadata_iter_processing_success(
     ]
 
 
-def test_workflow_simple_csv_get_item_identifier_success(
-    simple_csv_workflow_instance, item_metadata
-):
-    assert simple_csv_workflow_instance.get_item_identifier(item_metadata) == "123"
-
-
 @patch("dsc.utilities.aws.s3.S3Client.files_iter")
 def test_workflow_simple_csv_get_bitstreams_uris_if_prefix_id_success(
     mock_s3_client_files_iter, simple_csv_workflow_instance

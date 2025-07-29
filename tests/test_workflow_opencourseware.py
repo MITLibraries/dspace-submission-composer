@@ -237,12 +237,6 @@ def test_workflow_ocw_get_topics_list_if_all_topics_empty_success(
     assert opencourseware_workflow_instance._get_topics_list([]) == []
 
 
-def test_workflow_ocw_get_item_identifier_success(
-    opencourseware_workflow_instance, item_metadata
-):
-    assert opencourseware_workflow_instance.get_item_identifier(item_metadata) == "123"
-
-
 @patch("dsc.utilities.aws.s3.S3Client.files_iter")
 def test_workflow_ocw_get_bitstreams_uris_success(
     mock_s3_client_files_iter, opencourseware_workflow_instance

@@ -203,12 +203,3 @@ class SimpleCSV(Workflow):
                 exclude_prefixes=self.exclude_prefixes,
             )
         )
-
-    @staticmethod
-    def get_item_identifier(item_metadata: dict[str, Any]) -> str:
-        """Get 'item_identifier' from item metadata entry.
-
-        This method expects a column labeled 'item_identifier' in the
-        source metadata file.
-        """
-        return item_metadata["item_identifier"]

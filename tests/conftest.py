@@ -55,9 +55,6 @@ class TestWorkflow(Workflow):
             },
         ]
 
-    def get_item_identifier(self, item_metadata):
-        return item_metadata["item_identifier"]
-
     def get_bitstream_s3_uris(self, item_identifier):
         bitstreams = [
             "s3://dsc/test/batch-aaa/123_01.pdf",

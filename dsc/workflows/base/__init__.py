@@ -124,6 +124,26 @@ class Workflow(ABC):
             yield from subclass._get_subclasses()  # noqa: SLF001
             yield subclass
 
+    @abstractmethod
+    def item_metadata_iter(self) -> Iterator[dict[str, Any]]:
+        """Iterate through batch metadata to yield item metadata.
+
+        MUST be overridden by workflow subclasses.
+        """
+
+    @final
+    def get_item_identifier(self, item_metadata: dict[str, Any]) -> str:
+        """Get item identifier from metadata.
+
+        Note: This method is to be used on a record yielded
+        from Workflow.item_metadata_iter.
+
+        Args:
+            item_metadata: Metadata record, which should include an
+                'item_identifier' column.
+        """
+        return item_metadata["item_identifier"]
+
     @final
     def reconcile_items(self) -> bool:
         """Reconcile item submissions for a batch.
@@ -323,23 +343,6 @@ class Workflow(ABC):
             f"for batch '{self.batch_id}': {json.dumps(self.submission_summary)}"
         )
         return items
-
-    @abstractmethod
-    def item_metadata_iter(self) -> Iterator[dict[str, Any]]:
-        """Iterate through batch metadata to yield item metadata.
-
-        MUST be overridden by workflow subclasses.
-        """
-
-    @abstractmethod
-    def get_item_identifier(self, item_metadata: dict[str, Any]) -> str:
-        """Get identifier for an item submission according to the workflow subclass.
-
-        MUST be overridden by workflow subclasses.
-
-        Args:
-            item_metadata: The item metadata from which the item identifier is extracted.
-        """
 
     @abstractmethod
     def get_bitstream_s3_uris(self, item_identifier: str) -> list[str]:
