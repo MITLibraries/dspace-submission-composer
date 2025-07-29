@@ -17,6 +17,10 @@ class SCCS(SimpleCSV):
     def metadata_mapping_path(self) -> str:
         return "dsc/workflows/metadata_mapping/sccs.json"
 
+    @property
+    def item_identifier_column_names(self) -> list[str]:
+        return ["item_identifier", "filename"]
+
     @staticmethod
     def get_item_identifier(item_metadata: dict[str, Any]) -> str:
         """Get 'item_identifier' from item metadata entry.

@@ -27,6 +27,10 @@ class SimpleCSV(Workflow):
 
     workflow_name: str = "simple_csv"
 
+    @property
+    def item_identifier_column_names(self) -> list[str]:
+        return ["item_identifier"]
+
     def reconcile_bitstreams_and_metadata(
         self, metadata_file: str = "metadata.csv"
     ) -> bool:
@@ -150,7 +154,23 @@ class SimpleCSV(Workflow):
             f"s3://{self.s3_bucket}/{self.batch_path}{metadata_file}",
         ) as csvfile:
             metadata_df = pd.read_csv(csvfile, dtype="str")
+
+            # set column names to lowercase
+            metadata_df = metadata_df.rename(columns=str.lower)
+
+            # explicitly rename column with item identifier as 'item_identifier'
+            metadata_df = metadata_df.rename(
+                columns={
+                    col: "item_identifier"
+                    for col in metadata_df.columns
+                    if col in self.item_identifier_column_names
+                }
+            )
+
+            # drop any rows where all values are missing
             metadata_df = metadata_df.dropna(how="all")
+
+            # replace all NaN values with None
             metadata_df = metadata_df.where(pd.notna(metadata_df), None)
 
             for _, row in metadata_df.iterrows():

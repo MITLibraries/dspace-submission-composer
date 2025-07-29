@@ -1,9 +1,12 @@
 # ruff: noqa: SLF001
 import csv
+import io
 import json
 from io import StringIO
 from unittest.mock import patch
 
+import numpy as np
+import pandas as pd
 import pytest
 from freezegun import freeze_time
 from pynamodb.exceptions import DoesNotExist
@@ -219,6 +222,31 @@ def test_workflow_simple_csv_item_metadata_iter_success(
         metadata_file="metadata.csv"
     )
     assert next(metadata_iter) == item_metadata
+
+
+def test_workflow_simple_csv_item_metadata_iter_processing_success(
+    simple_csv_workflow_instance, mocked_s3
+):
+    metadata_df = pd.DataFrame(
+        {"filename": ["123.pdf", "456.pdf"], "TITLE": ["Cheeses of the World", np.nan]}
+    )
+
+    # upload to mocked S3 bucket
+    csv_buffer = io.StringIO()
+    metadata_df.to_csv(csv_buffer, index=False)
+    mocked_s3.put_object(
+        Bucket="dsc",
+        Key="simple_csv/batch-aaa/metadata.csv",
+        Body=csv_buffer.getvalue(),
+    )
+
+    metadata_iter = simple_csv_workflow_instance.item_metadata_iter(
+        metadata_file="metadata.csv"
+    )
+    assert list(metadata_iter) == [
+        {"item_identifier": "123.pdf", "title": "Cheeses of the World"},
+        {"item_identifier": "456.pdf", "title": None},
+    ]
 
 
 def test_workflow_simple_csv_get_item_identifier_success(

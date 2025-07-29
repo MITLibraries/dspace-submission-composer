@@ -77,6 +77,10 @@ class TestSimpleCSV(SimpleCSV):
         return "tests/fixtures/test_metadata_mapping.json"
 
     @property
+    def item_identifier_column_names(self) -> list[str]:
+        return ["item_identifier", "filename"]
+
+    @property
     def output_queue(self) -> str:
         return "mock-output-queue"
 
