@@ -13,12 +13,7 @@ from pynamodb.exceptions import DoesNotExist
 
 from dsc.config import Config
 from dsc.db.models import ItemSubmissionDB, ItemSubmissionStatus
-from dsc.exceptions import (
-    InvalidDSpaceMetadataError,
-    InvalidSQSMessageError,
-    InvalidWorkflowNameError,
-    ItemMetadatMissingRequiredFieldError,
-)
+from dsc.exceptions import InvalidSQSMessageError, InvalidWorkflowNameError
 from dsc.item_submission import ItemSubmission
 from dsc.utilities.aws import SESClient, SQSClient
 from dsc.utilities.validate.schemas import RESULT_MESSAGE_ATTRIBUTES, RESULT_MESSAGE_BODY
@@ -332,8 +327,10 @@ class Workflow(ABC):
 
             logger.info(f"Preparing submission for item: {item_identifier}")
             item_submission.last_run_date = self.run_date
-            dspace_metadata = self.create_dspace_metadata(item_metadata)
-            self.validate_dspace_metadata(dspace_metadata)
+            dspace_metadata = item_submission.create_dspace_metadata(
+                item_metadata, metadata_mapping=self.metadata_mapping
+            )
+            item_submission.validate_dspace_metadata(dspace_metadata)
             item_submission.dspace_metadata = dspace_metadata
             item_submission.bitstream_s3_uris = self.get_bitstream_s3_uris(
                 item_identifier
@@ -356,84 +353,6 @@ class Workflow(ABC):
         Args:
             item_metadata: The item metadata from which the item identifier is extracted.
         """
-
-    @final
-    def create_dspace_metadata(self, item_metadata: dict[str, Any]) -> dict[str, Any]:
-        """Create DSpace metadata from the item's source metadata.
-
-        A metadata mapping is a dict with the format seen below:
-
-        {
-            "dc.contributor": {
-                "source_field_name": "contributor",
-                "language": "<language>",
-                "delimiter": "<delimiting character>",
-                "required": true | false
-            }
-        }
-
-        When setting up the metadata mapping JSON file, "language" and "delimiter"
-        can be omitted from the file if not applicable. Required fields ("item_identifier"
-        and "title") must be set as required (true); if "required" is not listed as a
-        a config, the field defaults as not required (false).
-
-        MUST NOT be overridden by workflow subclasses.
-
-        Args:
-            item_metadata: Item metadata from which the DSpace metadata will be derived.
-        """
-        metadata_entries = []
-        for field_name, field_mapping in self.metadata_mapping.items():
-            if field_name not in ["item_identifier"]:
-
-                field_value = item_metadata.get(field_mapping["source_field_name"])
-                if not field_value and field_mapping.get("required", False):
-                    raise ItemMetadatMissingRequiredFieldError(
-                        "Item metadata missing required field: '"
-                        f"{field_mapping["source_field_name"]}'"
-                    )
-
-                if field_value:
-                    if isinstance(field_value, list):
-                        field_values = field_value
-                    elif delimiter := field_mapping.get("delimiter"):
-                        field_values = field_value.split(delimiter)
-                    else:
-                        field_values = [field_value]
-
-                    metadata_entries.extend(
-                        [
-                            {
-                                "key": field_name,
-                                "value": value,
-                                "language": field_mapping.get("language"),
-                            }
-                            for value in field_values
-                        ]
-                    )
-
-        return {"metadata": metadata_entries}
-
-    @final
-    def validate_dspace_metadata(self, dspace_metadata: dict[str, Any]) -> bool:
-        """Validate that DSpace metadata follows the expected format for DSpace 6.x.
-
-        MUST NOT be overridden by workflow subclasses.
-
-        Args:
-            dspace_metadata: DSpace metadata to be validated.
-        """
-        valid = False
-        if dspace_metadata.get("metadata") is not None:
-            for element in dspace_metadata["metadata"]:
-                if element.get("key") is not None and element.get("value") is not None:
-                    valid = True
-            logger.debug("Valid DSpace metadata created")
-        else:
-            raise InvalidDSpaceMetadataError(
-                f"Invalid DSpace metadata created: {dspace_metadata} ",
-            )
-        return valid
 
     @abstractmethod
     def get_bitstream_s3_uris(self, item_identifier: str) -> list[str]:

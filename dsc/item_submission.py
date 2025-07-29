@@ -9,6 +9,10 @@ from botocore.exceptions import ClientError
 
 from dsc.config import Config
 from dsc.db.models import ITEM_SUBMISSION_LOG_STR, ItemSubmissionDB, ItemSubmissionStatus
+from dsc.exceptions import (
+    InvalidDSpaceMetadataError,
+    ItemMetadatMissingRequiredFieldError,
+)
 from dsc.utilities.aws.s3 import S3Client
 from dsc.utilities.aws.sqs import SQSClient
 
@@ -148,6 +152,86 @@ class ItemSubmission:
                 ready_to_submit = True
 
         return ready_to_submit
+
+    def create_dspace_metadata(
+        self, item_metadata: dict[str, Any], metadata_mapping: dict
+    ) -> dict[str, Any]:
+        """Create DSpace metadata from the item's source metadata.
+
+        A metadata mapping is a dict with the format seen below:
+
+        {
+            "dc.contributor": {
+                "source_field_name": "contributor",
+                "language": "<language>",
+                "delimiter": "<delimiting character>",
+                "required": true | false
+            }
+        }
+
+        When setting up the metadata mapping JSON file, "language" and "delimiter"
+        can be omitted from the file if not applicable. Required fields ("item_identifier"
+        and "title") must be set as required (true); if "required" is not listed as a
+        a config, the field defaults as not required (false).
+
+        MUST NOT be overridden by workflow subclasses.
+
+        Args:
+            item_metadata: Item metadata from which the DSpace metadata will be derived.
+            metadata_mapping: A mapping of DSpace metadata fields to source metadata
+            fields.
+        """
+        metadata_entries = []
+        for field_name, field_mapping in metadata_mapping.items():
+            if field_name not in ["item_identifier"]:
+
+                field_value = item_metadata.get(field_mapping["source_field_name"])
+                if not field_value and field_mapping.get("required", False):
+                    raise ItemMetadatMissingRequiredFieldError(
+                        "Item metadata missing required field: '"
+                        f"{field_mapping["source_field_name"]}'"
+                    )
+
+                if field_value:
+                    if isinstance(field_value, list):
+                        field_values = field_value
+                    elif delimiter := field_mapping.get("delimiter"):
+                        field_values = field_value.split(delimiter)
+                    else:
+                        field_values = [field_value]
+
+                    metadata_entries.extend(
+                        [
+                            {
+                                "key": field_name,
+                                "value": value,
+                                "language": field_mapping.get("language"),
+                            }
+                            for value in field_values
+                        ]
+                    )
+
+        return {"metadata": metadata_entries}
+
+    def validate_dspace_metadata(self, dspace_metadata: dict[str, Any]) -> bool:
+        """Validate that DSpace metadata follows the expected format for DSpace 6.x.
+
+        MUST NOT be overridden by workflow subclasses.
+
+        Args:
+            dspace_metadata: DSpace metadata to be validated.
+        """
+        valid = False
+        if dspace_metadata.get("metadata") is not None:
+            for element in dspace_metadata["metadata"]:
+                if element.get("key") is not None and element.get("value") is not None:
+                    valid = True
+            logger.debug("Valid DSpace metadata created")
+        else:
+            raise InvalidDSpaceMetadataError(
+                f"Invalid DSpace metadata created: {dspace_metadata} ",
+            )
+        return valid
 
     def upload_dspace_metadata(self, bucket: str, prefix: str) -> None:
         """Upload DSpace metadata to S3 using the specified bucket and keyname.

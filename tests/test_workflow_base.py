@@ -7,10 +7,8 @@ from botocore.exceptions import ClientError
 
 from dsc.db.models import ItemSubmissionDB, ItemSubmissionStatus
 from dsc.exceptions import (
-    InvalidDSpaceMetadataError,
     InvalidSQSMessageError,
     InvalidWorkflowNameError,
-    ItemMetadatMissingRequiredFieldError,
 )
 from dsc.item_submission import ItemSubmission
 from dsc.reports import FinalizeReport
@@ -220,56 +218,6 @@ def test_base_workflow_item_submission_iter_success(
         status=ItemSubmissionStatus.RECONCILE_SUCCESS,
         last_run_date=datetime(2025, 1, 1, 9, 0, tzinfo=UTC),
     )
-
-
-def test_base_workflow_create_dspace_metadata_success(
-    base_workflow_instance,
-    item_metadata,
-):
-    item_metadata["topics"] = [
-        "Topic Header - Topic Subheading - Topic Name",
-        "Topic Header 2 - Topic Subheading 2 - Topic Name 2",
-    ]
-    assert base_workflow_instance.create_dspace_metadata(item_metadata) == {
-        "metadata": [
-            {"key": "dc.title", "language": "en_US", "value": "Title"},
-            {"key": "dc.contributor", "language": None, "value": "Author 1"},
-            {"key": "dc.contributor", "language": None, "value": "Author 2"},
-            {
-                "key": "dc.subject",
-                "language": None,
-                "value": "Topic Header - Topic Subheading - Topic Name",
-            },
-            {
-                "key": "dc.subject",
-                "language": None,
-                "value": "Topic Header 2 - Topic Subheading 2 - Topic Name 2",
-            },
-        ]
-    }
-
-
-def test_base_workflow_create_dspace_metadata_required_field_missing_raises_exception(
-    base_workflow_instance,
-    item_metadata,
-):
-    item_metadata.pop("title")
-    with pytest.raises(ItemMetadatMissingRequiredFieldError):
-        base_workflow_instance.create_dspace_metadata(item_metadata)
-
-
-def test_base_workflow_validate_dspace_metadata_success(
-    base_workflow_instance,
-    dspace_metadata,
-):
-    assert base_workflow_instance.validate_dspace_metadata(dspace_metadata)
-
-
-def test_base_workflow_validate_dspace_metadata_invalid_raises_exception(
-    base_workflow_instance,
-):
-    with pytest.raises(InvalidDSpaceMetadataError):
-        base_workflow_instance.validate_dspace_metadata({})
 
 
 @patch("dsc.db.models.ItemSubmissionDB.get")

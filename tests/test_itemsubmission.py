@@ -7,6 +7,10 @@ from botocore.exceptions import ClientError
 from freezegun import freeze_time
 
 from dsc.db.models import ItemSubmissionDB, ItemSubmissionStatus
+from dsc.exceptions import (
+    InvalidDSpaceMetadataError,
+    ItemMetadatMissingRequiredFieldError,
+)
 from dsc.item_submission import ItemSubmission
 
 
@@ -183,6 +187,56 @@ def test_ready_to_submit_with_submit_failed(item_submission_instance):
 def test_ready_to_submit_with_ingest_failed(item_submission_instance):
     item_submission_instance.status = ItemSubmissionStatus.INGEST_FAILED
     assert item_submission_instance.ready_to_submit() is True
+
+
+def test_base_workflow_create_dspace_metadata_success(
+    item_submission_instance, item_metadata, metadata_mapping
+):
+    item_metadata["topics"] = [
+        "Topic Header - Topic Subheading - Topic Name",
+        "Topic Header 2 - Topic Subheading 2 - Topic Name 2",
+    ]
+    assert item_submission_instance.create_dspace_metadata(
+        item_metadata, metadata_mapping
+    ) == {
+        "metadata": [
+            {"key": "dc.title", "language": "en_US", "value": "Title"},
+            {"key": "dc.contributor", "language": None, "value": "Author 1"},
+            {"key": "dc.contributor", "language": None, "value": "Author 2"},
+            {
+                "key": "dc.subject",
+                "language": None,
+                "value": "Topic Header - Topic Subheading - Topic Name",
+            },
+            {
+                "key": "dc.subject",
+                "language": None,
+                "value": "Topic Header 2 - Topic Subheading 2 - Topic Name 2",
+            },
+        ]
+    }
+
+
+def test_base_workflow_create_dspace_metadata_required_field_missing_raises_exception(
+    item_submission_instance, item_metadata, metadata_mapping
+):
+    item_metadata.pop("title")
+    with pytest.raises(ItemMetadatMissingRequiredFieldError):
+        item_submission_instance.create_dspace_metadata(item_metadata, metadata_mapping)
+
+
+def test_base_workflow_validate_dspace_metadata_success(
+    item_submission_instance,
+    dspace_metadata,
+):
+    assert item_submission_instance.validate_dspace_metadata(dspace_metadata)
+
+
+def test_base_workflow_validate_dspace_metadata_invalid_raises_exception(
+    item_submission_instance,
+):
+    with pytest.raises(InvalidDSpaceMetadataError):
+        item_submission_instance.validate_dspace_metadata({})
 
 
 def test_upload_dspace_metadata_success(mocked_s3, item_submission_instance, s3_client):
