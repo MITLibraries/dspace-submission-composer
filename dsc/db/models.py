@@ -195,15 +195,6 @@ class ItemSubmissionDB(Model):
 
         return item
 
-    @classmethod
-    def get_batch_items(cls, batch_id: str) -> list["ItemSubmissionDB"]:
-        """Get all items in a batch.
-
-        Args:
-            batch_id: The unique identifier for the workflow run.
-        """
-        return list(cls.query(batch_id))
-
     def to_dict(self, *attributes: str) -> dict:
         """Create dict representing an item submission.
 

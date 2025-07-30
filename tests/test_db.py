@@ -61,18 +61,3 @@ def test_db_itemsubmission_get_or_create_success(mocked_item_submission_db):
     assert fetched_item.item_identifier == "123"
     assert fetched_item.batch_id == "batch-aaa"
     assert fetched_item.workflow_name == "workflow"
-
-
-def test_db_itemsubmission_get_batch_items_success(mocked_item_submission_db):
-    ItemSubmissionDB.create(
-        batch_id="batch-aaa", item_identifier="123", workflow_name="workflow"
-    )
-    ItemSubmissionDB.create(
-        batch_id="batch-bbb", item_identifier="1234", workflow_name="workflow"
-    )
-
-    items = ItemSubmissionDB.get_batch_items(batch_id="batch-aaa")
-
-    assert len(items) == 1
-    assert items[0].item_identifier == "123"
-    assert all(item.batch_id == "batch-aaa" for item in items)

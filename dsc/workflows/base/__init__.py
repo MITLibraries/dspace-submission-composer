@@ -261,7 +261,7 @@ class Workflow(ABC):
         }
 
         items = []
-        for item_submission_record in ItemSubmissionDB.get_batch_items(self.batch_id):
+        for item_submission_record in ItemSubmissionDB.query(self.batch_id):
 
             # instantiate ItemSubmission instance from DB record
             item_submission = ItemSubmission.from_db(item_submission_record)
