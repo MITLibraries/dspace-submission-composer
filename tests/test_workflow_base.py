@@ -1,5 +1,4 @@
 import json
-from datetime import UTC, datetime
 from unittest.mock import patch
 
 import pytest
@@ -10,7 +9,6 @@ from dsc.exceptions import (
     InvalidSQSMessageError,
     InvalidWorkflowNameError,
 )
-from dsc.item_submission import ItemSubmission
 from dsc.reports import FinalizeReport
 from dsc.workflows.base import Workflow
 
@@ -161,35 +159,6 @@ def test_base_workflow_submit_items_exceptions_handled(
     assert len(items) == 1
     assert items == [{"item_identifier": "123", "message_id": "abcd"}]
     assert json.dumps(expected_submission_summary) in caplog.text
-
-
-def test_base_workflow_item_submission_iter_success(
-    base_workflow_instance, mocked_item_submission_db
-):
-    ItemSubmissionDB.create(
-        item_identifier="123",
-        batch_id="batch-aaa",
-        workflow_name="test",
-        status=ItemSubmissionStatus.RECONCILE_SUCCESS,
-    )
-    assert next(base_workflow_instance.item_submissions_iter()) == ItemSubmission(
-        batch_id="batch-aaa",
-        workflow_name="test",
-        dspace_metadata={
-            "metadata": [
-                {"key": "dc.title", "value": "Title", "language": "en_US"},
-                {"key": "dc.contributor", "value": "Author 1", "language": None},
-                {"key": "dc.contributor", "value": "Author 2", "language": None},
-            ]
-        },
-        bitstream_s3_uris=[
-            "s3://dsc/test/batch-aaa/123_01.pdf",
-            "s3://dsc/test/batch-aaa/123_02.pdf",
-        ],
-        item_identifier="123",
-        status=ItemSubmissionStatus.RECONCILE_SUCCESS,
-        last_run_date=datetime(2025, 1, 1, 9, 0, tzinfo=UTC),
-    )
 
 
 @patch("dsc.db.models.ItemSubmissionDB.get")

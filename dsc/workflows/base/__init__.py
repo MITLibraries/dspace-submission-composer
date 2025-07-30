@@ -255,19 +255,36 @@ class Workflow(ABC):
             f"for batch '{self.batch_id}'"
         )
 
-        items = []
-        for item_submission in self.item_submissions_iter():
-            item_identifier = item_submission.item_identifier
-            try:
-                # upload DSpace metadata file to S3
-                item_submission.upload_dspace_metadata(
-                    bucket=self.s3_bucket, prefix=self.batch_path
-                )
+        batch_metadata = {
+            self.get_item_identifier(item_metadata): item_metadata
+            for item_metadata in self.item_metadata_iter()
+        }
 
-                # validate whether a message should be sent for this item submission
-                if not item_submission.ready_to_submit():
-                    self.submission_summary["skipped"] += 1
-                    continue
+        items = []
+        for item_submission_record in ItemSubmissionDB.get_batch_items(self.batch_id):
+
+            # instantiate ItemSubmission instance from DB record
+            item_submission = ItemSubmission.from_db(item_submission_record)
+            self.submission_summary["total"] += 1
+            item_identifier = item_submission.item_identifier
+            logger.debug(f"Preparing submission for item: {item_identifier}")
+            item_submission.last_run_date = self.run_date
+
+            # validate whether a message should be sent for this item submission
+            if not item_submission.ready_to_submit():
+                self.submission_summary["skipped"] += 1
+                continue
+            try:
+                # prepare submission assets
+                item_submission.prepare_dspace_metadata(
+                    metadata_mapping=self.metadata_mapping,
+                    item_metadata=batch_metadata[item_identifier],
+                    s3_bucket=self.s3_bucket,
+                    batch_path=self.batch_path,
+                )
+                item_submission.bitstream_s3_uris = self.get_bitstream_s3_uris(
+                    item_identifier
+                )
 
                 # Send submission message to DSS input queue
                 response = item_submission.send_submission_message(
@@ -296,39 +313,16 @@ class Workflow(ABC):
                 self.workflow_events.errors.append(str(exception))
                 self.submission_summary["errors"] += 1
 
+                item_submission.status = ItemSubmissionStatus.SUBMIT_FAILED
+                item_submission.status_details = str(exception)
+                item_submission.submit_attempts += 1
+                item_submission.update_db()
+
         logger.info(
             f"Submitted messages to the DSS input queue '{CONFIG.sqs_queue_dss_input}' "
             f"for batch '{self.batch_id}': {json.dumps(self.submission_summary)}"
         )
         return items
-
-    @final
-    def item_submissions_iter(self) -> Iterator[ItemSubmission]:
-        """Yield item submissions for the DSpace Submission Service.
-
-        MUST NOT be overridden by workflow subclasses.
-        """
-        batch_metadata = {
-            self.get_item_identifier(item_metadata): item_metadata
-            for item_metadata in self.item_metadata_iter()
-        }
-        for item_submission_db in ItemSubmissionDB.get_batch_items(self.batch_id):
-            item_submission = ItemSubmission.from_db(item_submission_db)
-            self.submission_summary["total"] += 1
-            logger.info(
-                f"Preparing submission for item: {item_submission.item_identifier}"
-            )
-            item_submission.last_run_date = self.run_date
-            dspace_metadata = item_submission.create_dspace_metadata(
-                item_metadata=batch_metadata[item_submission.item_identifier],
-                metadata_mapping=self.metadata_mapping,
-            )
-            item_submission.validate_dspace_metadata(dspace_metadata)
-            item_submission.dspace_metadata = dspace_metadata
-            item_submission.bitstream_s3_uris = self.get_bitstream_s3_uris(
-                item_submission.item_identifier
-            )
-            yield item_submission
 
     @abstractmethod
     def item_metadata_iter(self) -> Iterator[dict[str, Any]]:
