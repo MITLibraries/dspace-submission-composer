@@ -197,20 +197,21 @@ def item_metadata():
 def item_submission_instance(dspace_metadata):
     return ItemSubmission(
         batch_id="batch-aaa",
+        item_identifier="123",
         workflow_name="test",
         dspace_metadata=dspace_metadata,
         bitstream_s3_uris=[
             "s3://dsc/workflow/folder/123_01.pdf",
             "s3://dsc/workflow/folder/123_02.pdf",
         ],
-        item_identifier="123",
     )
 
 
 @pytest.fixture
-def mocked_item_submission_db():
+def mocked_item_submission_db(config_instance):
     with mock_aws():
         if not ItemSubmissionDB.exists():
+            ItemSubmissionDB.set_table_name(config_instance.item_submissions_table_name)
             ItemSubmissionDB.create_table()
         yield
 

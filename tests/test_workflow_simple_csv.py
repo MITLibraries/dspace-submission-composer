@@ -31,8 +31,6 @@ def test_workflow_simple_csv_reconcile_items_success(
     reconciled = simple_csv_workflow_instance.reconcile_items()
     item_submission_record = ItemSubmissionDB.get(hash_key="batch-aaa", range_key="123")
     assert reconciled
-    assert "Item submission (item_identifier=123) reconciled" in caplog.text
-    assert "Updating record" in caplog.text
     assert item_submission_record.status == ItemSubmissionStatus.RECONCILE_SUCCESS
 
 
@@ -62,10 +60,6 @@ def test_workflow_simple_csv_reconcile_items_if_item_submission_exists_success(
     reconciled = simple_csv_workflow_instance.reconcile_items()
 
     assert reconciled
-    assert (
-        "Record with primary keys batch_id=batch-aaa (hash key) and "
-        "item_identifier=123 (range key) was previously reconciled, skipping update"
-    ) in caplog.text
 
 
 @freeze_time("2025-01-01 09:00:00")

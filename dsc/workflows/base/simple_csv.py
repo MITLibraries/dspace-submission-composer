@@ -132,7 +132,7 @@ class SimpleCSV(Workflow):
         item_identifiers = set()
         item_identifiers.update(
             [
-                self.get_item_identifier(item_metadata)
+                item_metadata["item_identifier"]
                 for item_metadata in self.item_metadata_iter(metadata_file)
             ]
         )
@@ -159,11 +159,19 @@ class SimpleCSV(Workflow):
             metadata_df = metadata_df.rename(columns=str.lower)
 
             # explicitly rename column with item identifier as 'item_identifier'
+            if col_names := set(self.item_identifier_column_names).intersection(
+                metadata_df.columns
+            ):
+                logger.warning(
+                    f"Renaming multiple columns as 'item_identifier': {col_names}"
+                )
+
             metadata_df = metadata_df.rename(
                 columns={
                     col: "item_identifier"
                     for col in metadata_df.columns
                     if col in self.item_identifier_column_names
+                    and col != "item_identifier"
                 }
             )
 

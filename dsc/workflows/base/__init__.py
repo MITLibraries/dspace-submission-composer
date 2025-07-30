@@ -132,28 +132,20 @@ class Workflow(ABC):
         """
 
     @final
-    def get_item_identifier(self, item_metadata: dict[str, Any]) -> str:
-        """Get item identifier from metadata.
-
-        Note: This method is to be used on a record yielded
-        from Workflow.item_metadata_iter.
-
-        Args:
-            item_metadata: Metadata record, which should include an
-                'item_identifier' column.
-        """
-        return item_metadata["item_identifier"]
-
-    @final
     def reconcile_items(self) -> bool:
         """Reconcile item submissions for a batch.
 
         This method will first reconcile all bitstreams and metadata.
-        Next, it will examine the result of the reconcile for each
-        item in the batch, using the item identifiers retrieved
-        from the metadata*. Results are written to DynamoDB.
+        It will then iterate through the item metadata, creating instances
+        of the ItemSubmission class. For each instance, data will be loaded
+        in from the corresponding record in DynamoDB; if the record is not yet
+        recorded in DynamoDB, it will first create and save the record to the table.
 
-        *This may not be the full set of item submissions in a batch
+        Depending on the "current status" of the record in DynamoDB
+        (note that status=None for created records), the method will conditionally
+        update the records in the table with the status of the reconcile.
+
+        NOTE: This may not be the full set of item submissions in a batch
         as there may be bitstreams (intended for item submissions)
         for which an item identifier cannot be retrieved.
         """
@@ -162,26 +154,38 @@ class Workflow(ABC):
         # iterate over the results of the reconcile
         # for all item submissions from the metadata
         for item_metadata in self.item_metadata_iter():
-            item_identifier = item_metadata["item_identifier"]
-
-            if item_identifier in self.workflow_events.reconciled_items:
-                logger.debug(
-                    f"Item submission (item_identifier={item_identifier}) reconciled"
+            # create or get existing ItemSubmission
+            item_submission = ItemSubmission.get(
+                batch_id=self.batch_id, item_identifier=item_metadata["item_identifier"]
+            )
+            if not item_submission:
+                item_submission = ItemSubmission.create(
+                    batch_id=self.batch_id,
+                    item_identifier=item_metadata["item_identifier"],
+                    workflow_name=self.workflow_name,
                 )
-                status = ItemSubmissionStatus.RECONCILE_SUCCESS
-            else:
-                logger.debug(
-                    f"Item submission (item_identifier={item_identifier}) "
-                    "failed reconcile"
-                )
-                status = ItemSubmissionStatus.RECONCILE_FAILED
 
-            # create/update record in DynamoDB
-            try:
-                self.write_reconcile_results_to_dynamodb(item_identifier, status)
-            except Exception as exception:  # noqa: BLE001
-                logger.error(exception)  # noqa: TRY400
+            if item_submission.status not in [
+                None,
+                ItemSubmissionStatus.RECONCILE_FAILED,
+            ]:
                 continue
+
+            # update reconciliation status
+            item_submission.last_run_date = self.run_date
+            if item_submission.item_identifier in self.workflow_events.reconciled_items:
+                item_submission.status = ItemSubmissionStatus.RECONCILE_SUCCESS
+            else:
+                item_submission.status = ItemSubmissionStatus.RECONCILE_FAILED
+
+            logger.debug(
+                "Updating status for the item submission(item_identifier="
+                f"{item_submission.item_identifier}): {item_submission.status}"
+            )
+
+            # save status update
+            item_submission.upsert_db()
+
         return reconciled
 
     @abstractmethod
@@ -206,59 +210,6 @@ class Workflow(ABC):
         """
 
     @final
-    def write_reconcile_results_to_dynamodb(
-        self, item_identifier: str, status: str
-    ) -> None:
-        """Write reconcile results for each item submission to DynamoDB.
-
-        An item submission is first recorded in the DynamoDB table during
-        the 'reconcile' step. Once a record is successfully created or
-        retrieved from the table, this method will perform a series of
-        checks to determine how/what to update for the item submission
-        record. If the current status indicates that the item submission
-        is at a step that comes after 'reconcile', the record is not
-        updated in DynamoDB.
-        """
-        item_submission_record = ItemSubmissionDB.get_or_create(
-            item_identifier=item_identifier,
-            batch_id=self.batch_id,
-            workflow_name=self.workflow_name,
-        )
-
-        if item_submission_record.status in [
-            None,
-            ItemSubmissionStatus.RECONCILE_FAILED,
-        ]:
-            logger.info(
-                f"Updating record {ITEM_SUBMISSION_LOG_STR.format(batch_id=self.batch_id,
-                item_identifier=item_submission_record.item_identifier
-                )}"
-            )
-
-            item_submission_record.update(
-                actions=[
-                    ItemSubmissionDB.status.set(status),
-                    ItemSubmissionDB.last_run_date.set(self.run_date),
-                ]
-            )
-        elif item_submission_record.status == ItemSubmissionStatus.RECONCILE_SUCCESS:
-            logger.debug(
-                f"Record "
-                f"{ITEM_SUBMISSION_LOG_STR.format(batch_id=self.batch_id,
-                                      item_identifier=item_submission_record.item_identifier)
-                    } "
-                "was previously reconciled, skipping update"
-            )
-        else:
-            logger.info(
-                f"Record "
-                f"{ITEM_SUBMISSION_LOG_STR.format(batch_id=self.batch_id,
-                                      item_identifier=item_submission_record.item_identifier)
-                    } "
-                "not eligible for reconcile, skipping update"
-            )
-
-    @final
     def submit_items(self, collection_handle: str) -> list:
         """Submit items to the DSpace Submission Service according to the workflow class.
 
@@ -276,15 +227,14 @@ class Workflow(ABC):
         )
 
         batch_metadata = {
-            self.get_item_identifier(item_metadata): item_metadata
+            item_metadata["item_identifier"]: item_metadata
             for item_metadata in self.item_metadata_iter()
         }
 
         items = []
-        for item_submission_record in ItemSubmissionDB.query(self.batch_id):
+        for item_submission in ItemSubmission.get_batch(self.batch_id):
 
             # instantiate ItemSubmission instance from DB record
-            item_submission = ItemSubmission.from_db(item_submission_record)
             self.submission_summary["total"] += 1
             item_identifier = item_submission.item_identifier
             logger.debug(f"Preparing submission for item: {item_identifier}")
@@ -328,7 +278,7 @@ class Workflow(ABC):
                 # Set status in DynamoDB
                 item_submission.status = ItemSubmissionStatus.SUBMIT_SUCCESS
                 item_submission.submit_attempts += 1
-                item_submission.update_db()
+                item_submission.upsert_db()
             except Exception as exception:  # noqa: BLE001
                 self.workflow_events.errors.append(str(exception))
                 self.submission_summary["errors"] += 1
@@ -336,7 +286,7 @@ class Workflow(ABC):
                 item_submission.status = ItemSubmissionStatus.SUBMIT_FAILED
                 item_submission.status_details = str(exception)
                 item_submission.submit_attempts += 1
-                item_submission.update_db()
+                item_submission.upsert_db()
 
         logger.info(
             f"Submitted messages to the DSS input queue '{CONFIG.sqs_queue_dss_input}' "
