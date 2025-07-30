@@ -9,6 +9,12 @@ from botocore.exceptions import ClientError
 
 from dsc.config import Config
 from dsc.db.models import ITEM_SUBMISSION_LOG_STR, ItemSubmissionDB, ItemSubmissionStatus
+from dsc.exceptions import (
+    DSpaceMetadataUploadError,
+    InvalidDSpaceMetadataError,
+    ItemMetadatMissingRequiredFieldError,
+    SQSMessageSendError,
+)
 from dsc.utilities.aws.s3 import S3Client
 from dsc.utilities.aws.sqs import SQSClient
 
@@ -149,6 +155,92 @@ class ItemSubmission:
 
         return ready_to_submit
 
+    def prepare_dspace_metadata(
+        self, metadata_mapping: dict, item_metadata: dict, s3_bucket: str, batch_path: str
+    ) -> None:
+        """Prepare DSpace metadata for the item submission."""
+        self.create_dspace_metadata(
+            item_metadata=item_metadata,
+            metadata_mapping=metadata_mapping,
+        )
+        self.validate_dspace_metadata()
+        self.upload_dspace_metadata(bucket=s3_bucket, prefix=batch_path)
+
+    def create_dspace_metadata(
+        self, item_metadata: dict[str, Any], metadata_mapping: dict
+    ) -> None:
+        """Create DSpace metadata from the item's source metadata.
+
+        A metadata mapping is a dict with the format seen below:
+
+        {
+            "dc.contributor": {
+                "source_field_name": "contributor",
+                "language": "<language>",
+                "delimiter": "<delimiting character>",
+                "required": true | false
+            }
+        }
+
+        When setting up the metadata mapping JSON file, "language" and "delimiter"
+        can be omitted from the file if not applicable. Required fields ("item_identifier"
+        and "title") must be set as required (true); if "required" is not listed as a
+        a config, the field defaults as not required (false).
+
+        Args:
+            item_metadata: Item metadata from which the DSpace metadata will be derived.
+            metadata_mapping: A mapping of DSpace metadata fields to source metadata
+            fields.
+        """
+        metadata_entries = []
+        for field_name, field_mapping in metadata_mapping.items():
+            if field_name not in ["item_identifier"]:
+
+                field_value = item_metadata.get(field_mapping["source_field_name"])
+                if not field_value and field_mapping.get("required", False):
+                    raise ItemMetadatMissingRequiredFieldError(
+                        "Item metadata missing required field: '"
+                        f"{field_mapping["source_field_name"]}'"
+                    )
+
+                if field_value:
+                    if isinstance(field_value, list):
+                        field_values = field_value
+                    elif delimiter := field_mapping.get("delimiter"):
+                        field_values = field_value.split(delimiter)
+                    else:
+                        field_values = [field_value]
+
+                    metadata_entries.extend(
+                        [
+                            {
+                                "key": field_name,
+                                "value": value,
+                                "language": field_mapping.get("language"),
+                            }
+                            for value in field_values
+                        ]
+                    )
+        self.dspace_metadata = {"metadata": metadata_entries}
+
+    def validate_dspace_metadata(self) -> bool:
+        """Validate that DSpace metadata follows the expected format for DSpace 6.x.
+
+        Args:
+            dspace_metadata: DSpace metadata to be validated.
+        """
+        valid = False
+        if self.dspace_metadata and self.dspace_metadata.get("metadata") is not None:
+            for element in self.dspace_metadata["metadata"]:
+                if element.get("key") is not None and element.get("value") is not None:
+                    valid = True
+            logger.debug("Valid DSpace metadata created")
+        else:
+            raise InvalidDSpaceMetadataError(
+                f"Invalid DSpace metadata created: {self.dspace_metadata} ",
+            )
+        return valid
+
     def upload_dspace_metadata(self, bucket: str, prefix: str) -> None:
         """Upload DSpace metadata to S3 using the specified bucket and keyname.
 
@@ -168,12 +260,11 @@ class ItemSubmission:
                 file_content=json.dumps(self.dspace_metadata),
             )
         except Exception as exception:
-            logger.exception("Failed to upload DSpace metadata for item.")
-            self.status = ItemSubmissionStatus.SUBMIT_FAILED
-            self.status_details = str(exception)
-            self.submit_attempts += 1
-            self.update_db()
-            raise
+            message = (
+                f"Failed to upload DSpace metadata for item '{self.item_identifier}'"
+            )
+            logger.exception(message)
+            raise DSpaceMetadataUploadError(f"{message}': {exception}") from exception
 
         metadata_s3_uri = f"s3://{bucket}/{metadata_s3_key}"
         logger.info(f"Metadata uploaded to S3: {metadata_s3_uri}")
@@ -218,14 +309,9 @@ class ItemSubmission:
         try:
             response = sqs_client.send(message_attributes, message_body)
         except ClientError as exception:
-            logger.error(  # noqa: TRY400
+            message = (
                 f"Failed to send submission message for item: {self.item_identifier}. "
-                f"{exception}"
             )
-
-            self.status = ItemSubmissionStatus.SUBMIT_FAILED
-            self.status_details = str(exception)
-            self.submit_attempts += 1
-            self.update_db()
-            raise
+            logger.exception(message)
+            raise SQSMessageSendError(f"{message} {exception}") from exception
         return response

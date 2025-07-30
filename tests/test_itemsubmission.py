@@ -7,6 +7,12 @@ from botocore.exceptions import ClientError
 from freezegun import freeze_time
 
 from dsc.db.models import ItemSubmissionDB, ItemSubmissionStatus
+from dsc.exceptions import (
+    DSpaceMetadataUploadError,
+    InvalidDSpaceMetadataError,
+    ItemMetadatMissingRequiredFieldError,
+    SQSMessageSendError,
+)
 from dsc.item_submission import ItemSubmission
 
 
@@ -185,6 +191,57 @@ def test_ready_to_submit_with_ingest_failed(item_submission_instance):
     assert item_submission_instance.ready_to_submit() is True
 
 
+def test_create_dspace_metadata_success(
+    item_submission_instance, item_metadata, metadata_mapping
+):
+    item_metadata["topics"] = [
+        "Topic Header - Topic Subheading - Topic Name",
+        "Topic Header 2 - Topic Subheading 2 - Topic Name 2",
+    ]
+    item_submission_instance.create_dspace_metadata(item_metadata, metadata_mapping)
+    assert item_submission_instance.dspace_metadata == {
+        "metadata": [
+            {"key": "dc.title", "language": "en_US", "value": "Title"},
+            {"key": "dc.contributor", "language": None, "value": "Author 1"},
+            {"key": "dc.contributor", "language": None, "value": "Author 2"},
+            {
+                "key": "dc.subject",
+                "language": None,
+                "value": "Topic Header - Topic Subheading - Topic Name",
+            },
+            {
+                "key": "dc.subject",
+                "language": None,
+                "value": "Topic Header 2 - Topic Subheading 2 - Topic Name 2",
+            },
+        ]
+    }
+
+
+def test_create_dspace_metadata_required_field_missing_raises_exception(
+    item_submission_instance, item_metadata, metadata_mapping
+):
+    item_metadata.pop("title")
+    with pytest.raises(ItemMetadatMissingRequiredFieldError):
+        item_submission_instance.create_dspace_metadata(item_metadata, metadata_mapping)
+
+
+def test_validate_dspace_metadata_success(
+    item_submission_instance,
+    dspace_metadata,
+):
+    item_submission_instance.dspace_metadata = dspace_metadata
+    assert item_submission_instance.validate_dspace_metadata()
+
+
+def test_base_workflow_validate_dspace_metadata_invalid_raises_exception(
+    item_submission_instance,
+):
+    item_submission_instance.dspace_metadata = {}
+    with pytest.raises(InvalidDSpaceMetadataError):
+        item_submission_instance.validate_dspace_metadata()
+
+
 def test_upload_dspace_metadata_success(mocked_s3, item_submission_instance, s3_client):
     item_submission_instance.upload_dspace_metadata("dsc", "workflow/folder/")
     assert (
@@ -198,7 +255,7 @@ def test_upload_dspace_metadata_success(mocked_s3, item_submission_instance, s3_
 
 
 @patch("dsc.utilities.aws.s3.S3Client.put_file")
-def test_upload_dspace_metadata_handles_exception(
+def test_upload_dspace_metadata_raises_custom_exception(
     mock_put_file, item_submission_instance, mocked_item_submission_db
 ):
     mock_put_file.side_effect = ClientError(
@@ -210,17 +267,12 @@ def test_upload_dspace_metadata_handles_exception(
             }
         },
     )
-    with pytest.raises(ClientError):
+    with pytest.raises(
+        DSpaceMetadataUploadError, match="The specified bucket does not exist"
+    ):
         item_submission_instance.upload_dspace_metadata(
             bucket="dsc", prefix="test/batch-bbb/"
         )
-
-    assert item_submission_instance.status == ItemSubmissionStatus.SUBMIT_FAILED
-    assert (
-        "The specified bucket does not exist" in item_submission_instance.status_details
-    )
-    assert item_submission_instance.submit_attempts == 1
-    assert item_submission_instance.metadata_s3_uri == ""
 
 
 def test_send_submission_message(
@@ -259,7 +311,7 @@ def test_send_submission_message_raises_value_error(
         )
 
 
-def test_send_submission_message_handles_exception(
+def test_send_submission_message_raises_custom_exception(
     mocked_sqs_input,
     mocked_sqs_output,
     mocked_item_submission_db,
@@ -282,11 +334,9 @@ def test_send_submission_message_handles_exception(
                 }
             },
         )
-        with pytest.raises(ClientError):
+        with pytest.raises(
+            SQSMessageSendError, match="The specified queue does not exist"
+        ):
             item_submission_instance.send_submission_message(
                 "workflow", "mock-output-queue", "DSpace@MIT", "1234/5678"
             )
-
-    assert item_submission_instance.status == ItemSubmissionStatus.SUBMIT_FAILED
-    assert "The specified queue does not exist" in item_submission_instance.status_details
-    assert item_submission_instance.submit_attempts == 1

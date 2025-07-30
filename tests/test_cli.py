@@ -91,6 +91,7 @@ def test_submit_success(
     base_workflow_instance,
     s3_client,
 ):
+    caplog.set_level("DEBUG")
     s3_client.put_file(file_content="", bucket="dsc", key="test/batch-aaa/123_01.pdf")
     s3_client.put_file(file_content="", bucket="dsc", key="test/batch-aaa/123_02.jpg")
     s3_client.put_file(file_content="", bucket="dsc", key="test/batch-aaa/789_01.pdf")

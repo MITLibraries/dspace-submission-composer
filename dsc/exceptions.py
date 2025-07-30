@@ -1,3 +1,7 @@
+class DSpaceMetadataUploadError(Exception):
+    pass
+
+
 class InvalidDSpaceMetadataError(Exception):
     pass
 
@@ -11,6 +15,10 @@ class InvalidWorkflowNameError(Exception):
 
 
 class ItemMetadatMissingRequiredFieldError(Exception):
+    pass
+
+
+class SQSMessageSendError(Exception):
     pass
 
 

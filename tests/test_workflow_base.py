@@ -1,5 +1,4 @@
 import json
-from datetime import UTC, datetime
 from unittest.mock import patch
 
 import pytest
@@ -7,12 +6,9 @@ from botocore.exceptions import ClientError
 
 from dsc.db.models import ItemSubmissionDB, ItemSubmissionStatus
 from dsc.exceptions import (
-    InvalidDSpaceMetadataError,
     InvalidSQSMessageError,
     InvalidWorkflowNameError,
-    ItemMetadatMissingRequiredFieldError,
 )
-from dsc.item_submission import ItemSubmission
 from dsc.reports import FinalizeReport
 from dsc.workflows.base import Workflow
 
@@ -85,34 +81,6 @@ def test_base_workflow_submit_items_success(
     expected_submission_summary = {"total": 2, "submitted": 2, "skipped": 0, "errors": 0}
 
     assert len(items) == 2  # noqa: PLR2004
-    assert json.dumps(expected_submission_summary) in caplog.text
-
-
-def test_base_workflow_submit_items_missing_row_raises_warning(
-    caplog,
-    base_workflow_instance,
-    mocked_s3,
-    mocked_sqs_input,
-    mocked_sqs_output,
-    mocked_item_submission_db,
-):
-    caplog.set_level("DEBUG")
-    ItemSubmissionDB.create(
-        item_identifier="123",
-        batch_id="batch-aaa",
-        workflow_name="test",
-        status=ItemSubmissionStatus.RECONCILE_SUCCESS,
-    )
-    items = base_workflow_instance.submit_items(collection_handle="123.4/5678")
-
-    expected_submission_summary = {"total": 2, "submitted": 1, "skipped": 1, "errors": 0}
-
-    assert len(items) == 1
-    assert (
-        "Record with primary keys batch_id=batch-aaa (hash key) and "
-        "item_identifier=789 (range key)not found. Verify that it been reconciled."
-        in caplog.text
-    )
     assert json.dumps(expected_submission_summary) in caplog.text
 
 
@@ -191,85 +159,6 @@ def test_base_workflow_submit_items_exceptions_handled(
     assert len(items) == 1
     assert items == [{"item_identifier": "123", "message_id": "abcd"}]
     assert json.dumps(expected_submission_summary) in caplog.text
-
-
-def test_base_workflow_item_submission_iter_success(
-    base_workflow_instance, mocked_item_submission_db
-):
-    ItemSubmissionDB.create(
-        item_identifier="123",
-        batch_id="batch-aaa",
-        workflow_name="test",
-        status=ItemSubmissionStatus.RECONCILE_SUCCESS,
-    )
-    assert next(base_workflow_instance.item_submissions_iter()) == ItemSubmission(
-        batch_id="batch-aaa",
-        workflow_name="test",
-        dspace_metadata={
-            "metadata": [
-                {"key": "dc.title", "value": "Title", "language": "en_US"},
-                {"key": "dc.contributor", "value": "Author 1", "language": None},
-                {"key": "dc.contributor", "value": "Author 2", "language": None},
-            ]
-        },
-        bitstream_s3_uris=[
-            "s3://dsc/test/batch-aaa/123_01.pdf",
-            "s3://dsc/test/batch-aaa/123_02.pdf",
-        ],
-        item_identifier="123",
-        status=ItemSubmissionStatus.RECONCILE_SUCCESS,
-        last_run_date=datetime(2025, 1, 1, 9, 0, tzinfo=UTC),
-    )
-
-
-def test_base_workflow_create_dspace_metadata_success(
-    base_workflow_instance,
-    item_metadata,
-):
-    item_metadata["topics"] = [
-        "Topic Header - Topic Subheading - Topic Name",
-        "Topic Header 2 - Topic Subheading 2 - Topic Name 2",
-    ]
-    assert base_workflow_instance.create_dspace_metadata(item_metadata) == {
-        "metadata": [
-            {"key": "dc.title", "language": "en_US", "value": "Title"},
-            {"key": "dc.contributor", "language": None, "value": "Author 1"},
-            {"key": "dc.contributor", "language": None, "value": "Author 2"},
-            {
-                "key": "dc.subject",
-                "language": None,
-                "value": "Topic Header - Topic Subheading - Topic Name",
-            },
-            {
-                "key": "dc.subject",
-                "language": None,
-                "value": "Topic Header 2 - Topic Subheading 2 - Topic Name 2",
-            },
-        ]
-    }
-
-
-def test_base_workflow_create_dspace_metadata_required_field_missing_raises_exception(
-    base_workflow_instance,
-    item_metadata,
-):
-    item_metadata.pop("title")
-    with pytest.raises(ItemMetadatMissingRequiredFieldError):
-        base_workflow_instance.create_dspace_metadata(item_metadata)
-
-
-def test_base_workflow_validate_dspace_metadata_success(
-    base_workflow_instance,
-    dspace_metadata,
-):
-    assert base_workflow_instance.validate_dspace_metadata(dspace_metadata)
-
-
-def test_base_workflow_validate_dspace_metadata_invalid_raises_exception(
-    base_workflow_instance,
-):
-    with pytest.raises(InvalidDSpaceMetadataError):
-        base_workflow_instance.validate_dspace_metadata({})
 
 
 @patch("dsc.db.models.ItemSubmissionDB.get")

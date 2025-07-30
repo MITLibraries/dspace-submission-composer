@@ -90,14 +90,14 @@ class ItemSubmissionDB(Model):
     item_identifier = UnicodeAttribute(range_key=True)
     workflow_name = UnicodeAttribute()
     collection_handle = UnicodeAttribute(null=True)
-    dspace_handle = UnicodeAttribute(null=True)
-    status = UnicodeAttribute(null=True)
-    status_details = UnicodeAttribute(null=True)
-    ingest_date = UTCDateTimeAttribute(null=True)
-    last_result_message = JSONAttribute(null=True)
     last_run_date = UTCDateTimeAttribute(null=True)
     submit_attempts = NumberAttribute(default_for_new=0)
     ingest_attempts = NumberAttribute(default_for_new=0)
+    ingest_date = UTCDateTimeAttribute(null=True)
+    last_result_message = JSONAttribute(null=True)
+    dspace_handle = UnicodeAttribute(null=True)
+    status = UnicodeAttribute(null=True)
+    status_details = UnicodeAttribute(null=True)
 
     @classmethod
     def set_table_name(cls, table_name: str) -> None:
@@ -194,15 +194,6 @@ class ItemSubmissionDB(Model):
             )
 
         return item
-
-    @classmethod
-    def get_batch_items(cls, batch_id: str) -> list["ItemSubmissionDB"]:
-        """Get all items in a batch.
-
-        Args:
-            batch_id: The unique identifier for the workflow run.
-        """
-        return list(cls.query(batch_id))
 
     def to_dict(self, *attributes: str) -> dict:
         """Create dict representing an item submission.
