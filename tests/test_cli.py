@@ -210,6 +210,7 @@ def test_sync_success(caplog, runner, monkeypatch, moto_server, config_instance)
     """Run sync using moto stand-alone server."""
     monkeypatch.setenv("S3_BUCKET_SUBMISSION_ASSETS", "destination")
     monkeypatch.setenv("S3_BUCKET_SYNC_SOURCE", "source")
+    monkeypatch.setenv("AWS_ENDPOINT_URL", moto_server)
 
     # set fake AWS credentials
     monkeypatch.setenv("AWS_ACCESS_KEY_ID", "testing")
@@ -234,16 +235,7 @@ def test_sync_success(caplog, runner, monkeypatch, moto_server, config_instance)
 
     result = runner.invoke(
         main,
-        [
-            "--verbose",
-            "--workflow-name",
-            "test",
-            "--batch-id",
-            "batch-aaa",
-            "sync",
-            "--endpoint-url",
-            moto_server,
-        ],
+        ["--verbose", "--workflow-name", "test", "--batch-id", "batch-aaa", "sync"],
     )
 
     assert result.exit_code == 0

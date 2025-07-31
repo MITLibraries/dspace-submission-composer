@@ -51,7 +51,10 @@ class Config:
 
     @property
     def s3_bucket_sync_source(self) -> str | None:
-        return os.getenv("S3_BUCKET_SYNC_SOURCE")
+        value = os.getenv("S3_BUCKET_SYNC_SOURCE")
+        if not value:
+            raise OSError("Env var 'S3_BUCKET_SUBMISSION_ASSETS' must be defined")
+        return value
 
     @property
     def source_email(self) -> str:

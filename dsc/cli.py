@@ -162,13 +162,6 @@ def finalize(ctx: click.Context, email_recipients: str) -> None:
     ),
 )
 @click.option(
-    "--endpoint-url",
-    help=(
-        "Specifies a custom endpoint URL to which which the AWS CLI sends S3 requests "
-        "instead of the default AWS S3 service endpoint"
-    ),
-)
-@click.option(
     "--dry-run",
     is_flag=True,
     help=(
@@ -180,7 +173,6 @@ def sync(
     ctx: click.Context,
     source: str | None = None,
     destination: str | None = None,
-    endpoint_url: str | None = None,
     *,
     dry_run: bool = False,
 ) -> None:
@@ -221,13 +213,9 @@ def sync(
         "dspace_metadata/*",
     ]
 
-    optional_args = []
+    # add optional args
     if dry_run:
-        optional_args.append("--dryrun")
-    if endpoint_url:
-        optional_args.extend(["--endpoint-url", endpoint_url])
-
-    args.extend(optional_args)
+        args.append("--dryrun")
 
     process = subprocess.Popen(  # noqa: S603
         args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
