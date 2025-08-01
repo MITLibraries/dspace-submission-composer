@@ -1,5 +1,6 @@
 import csv
 import json
+import time
 import uuid
 from io import StringIO
 
@@ -101,7 +102,7 @@ def _test_env(monkeypatch):
     monkeypatch.setenv("SQS_QUEUE_DSS_INPUT", "mock-input-queue")
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture
 def moto_server():
     """Fixture to run a mocked AWS server for testing."""
     # Note: pass `port=0` to get a random free port.
@@ -110,6 +111,7 @@ def moto_server():
     host, port = server.get_host_and_port()
     yield f"http://{host}:{port}"
     server.stop()
+    time.sleep(0.5)
 
 
 @pytest.fixture

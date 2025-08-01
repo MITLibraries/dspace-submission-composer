@@ -195,10 +195,15 @@ def sync(
     """
     if source and destination:
         logger.info(f"Using provided source={source} and destination={destination}")
-    else:
+    elif CONFIG.s3_bucket_sync_source:
         workflow = ctx.obj["workflow"]
         source = f"s3://{CONFIG.s3_bucket_sync_source}/{workflow.batch_path}"
         destination = f"s3://{CONFIG.s3_bucket_submission_assets}/{workflow.batch_path}"
+    else:
+        raise click.UsageError(
+            "Either provide '--source / -s' and '--destination / -d' "
+            "or set the S3_BUCKET_SYNC_SOURCE environment variable"
+        )
 
     logger.info(f"Syncing data from {source} to {destination}")
 
