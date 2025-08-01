@@ -27,6 +27,10 @@ class SimpleCSV(Workflow):
 
     workflow_name: str = "simple_csv"
 
+    @property
+    def item_identifier_column_names(self) -> list[str]:
+        return ["item_identifier"]
+
     def reconcile_bitstreams_and_metadata(
         self, metadata_file: str = "metadata.csv"
     ) -> bool:
@@ -128,7 +132,7 @@ class SimpleCSV(Workflow):
         item_identifiers = set()
         item_identifiers.update(
             [
-                self.get_item_identifier(item_metadata)
+                item_metadata["item_identifier"]
                 for item_metadata in self.item_metadata_iter(metadata_file)
             ]
         )
@@ -150,7 +154,31 @@ class SimpleCSV(Workflow):
             f"s3://{self.s3_bucket}/{self.batch_path}{metadata_file}",
         ) as csvfile:
             metadata_df = pd.read_csv(csvfile, dtype="str")
+
+            # set column names to lowercase
+            metadata_df = metadata_df.rename(columns=str.lower)
+
+            # explicitly rename column with item identifier as 'item_identifier'
+            if col_names := set(self.item_identifier_column_names).intersection(
+                metadata_df.columns
+            ):
+                logger.warning(
+                    f"Renaming multiple columns as 'item_identifier': {col_names}"
+                )
+
+            metadata_df = metadata_df.rename(
+                columns={
+                    col: "item_identifier"
+                    for col in metadata_df.columns
+                    if col in self.item_identifier_column_names
+                    and col != "item_identifier"
+                }
+            )
+
+            # drop any rows where all values are missing
             metadata_df = metadata_df.dropna(how="all")
+
+            # replace all NaN values with None
             metadata_df = metadata_df.where(pd.notna(metadata_df), None)
 
             for _, row in metadata_df.iterrows():
@@ -183,12 +211,3 @@ class SimpleCSV(Workflow):
                 exclude_prefixes=self.exclude_prefixes,
             )
         )
-
-    @staticmethod
-    def get_item_identifier(item_metadata: dict[str, Any]) -> str:
-        """Get 'item_identifier' from item metadata entry.
-
-        This method expects a column labeled 'item_identifier' in the
-        source metadata file.
-        """
-        return item_metadata["item_identifier"]

@@ -14,6 +14,7 @@ def test_reconcile_simple_csv_success(
     caplog,
     runner,
     simple_csv_workflow_instance,
+    mocked_item_submission_db,
     mocked_s3_simple_csv,
 ):
     mock_s3_client_files_iter.return_value = [

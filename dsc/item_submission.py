@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
 from botocore.exceptions import ClientError
+from pynamodb.exceptions import DoesNotExist
 
 from dsc.config import Config
 from dsc.db.models import ITEM_SUBMISSION_LOG_STR, ItemSubmissionDB, ItemSubmissionStatus
@@ -19,6 +20,7 @@ from dsc.utilities.aws.s3 import S3Client
 from dsc.utilities.aws.sqs import SQSClient
 
 if TYPE_CHECKING:  # pragma: no cover
+    from collections.abc import Iterator
     from datetime import datetime
 
     from mypy_boto3_sqs.type_defs import SendMessageResultTypeDef
@@ -29,7 +31,19 @@ CONFIG = Config()
 
 @dataclass
 class ItemSubmission:
-    """A class to store the required values for a DSpace submission."""
+    """Domain class that stores both persistence and business logic for item submissions.
+
+    This class maintains two types of attributes:
+
+    1. Persisted attributes: Mapped directly to ItemSubmissionDB columns
+       and persisted in the database
+    2. Processing attributes: Temporary data used during submission processing
+       but not persisted
+
+    This class provides high-level methods for managing item submissions while abstracting
+    the underlying database operations. It wraps the dsc.db.models.ItemSubmissionDB model,
+    providing intuitive CRUD-like methods (get, create, upsert) for data persistence.
+    """
 
     # persisted attributes
     batch_id: str
@@ -51,48 +65,70 @@ class ItemSubmission:
     metadata_s3_uri: str = ""
 
     @classmethod
-    def from_metadata(
-        cls, batch_id: str, item_metadata: dict, workflow_name: str
-    ) -> ItemSubmission:
-        """Create an ItemSubmission instance from metadata."""
-        return cls(
-            batch_id=batch_id,
-            item_identifier=item_metadata["item_identifier"],
-            workflow_name=workflow_name,
-        )
+    def get(
+        cls, batch_id: str | None, item_identifier: str | None
+    ) -> ItemSubmission | None:
+        """Get an ItemSubmission with data from its associated record in DynamoDB.
+
+        If there is no corresponding record in DynamoDB, the method returns None.
+        """
+        try:
+            item_submission_db = ItemSubmissionDB.get(batch_id, item_identifier)
+        except DoesNotExist:
+            return None
+
+        return cls._from_db(item_submission_db)
 
     @classmethod
-    def from_batch_id_and_item_identifier(
-        cls, batch_id: str, item_identifier: str
-    ) -> ItemSubmission:
-        item_submission_db = ItemSubmissionDB.get(batch_id, item_identifier)
-        return cls.from_db(item_submission_db)
+    def get_batch(cls, batch_id: str) -> Iterator[ItemSubmission]:
+        """Yield instances of ItemSubmission for a given batch.
+
+        This method will first query the item submissions DynamoDB table for all
+        records with matching 'batch_id'. The yielded ItemSubmissionDB records
+        are then used to create instances of the ItemSubmission domain class,
+        hydrated with data from the corresponding record in DynamoDB.
+        """
+        for item_submission_db in ItemSubmissionDB.query(batch_id):
+            yield cls._from_db(item_submission_db)
 
     @classmethod
-    def from_db(cls, item_submission_db: ItemSubmissionDB) -> ItemSubmission:
-        """Populate instance attributes from a DynamoDB record."""
-        instance = cls(
+    def create(
+        cls, batch_id: str, item_identifier: str, workflow_name: str
+    ) -> ItemSubmission:
+        """Create an ItemSubmission."""
+        return cls(batch_id, item_identifier, workflow_name)
+
+    @classmethod
+    def _from_db(cls, item_submission_db: ItemSubmissionDB) -> ItemSubmission:
+        """Hydrate the ItemSubmission with data from DynamoDB.
+
+        This is intended as a 'private' method, in an effort to encapsulate any
+        database interactions as part of the ItemSubmission domain class and abstract
+        away any PynamoDB logic.
+        """
+        item_submission = cls(
             batch_id=item_submission_db.batch_id,
             item_identifier=item_submission_db.item_identifier,
             workflow_name=item_submission_db.workflow_name,
         )
-        for attr in ItemSubmissionDB.get_attributes():
+        for attr in item_submission_db.get_attributes():
             if hasattr(item_submission_db, attr):
                 value = getattr(item_submission_db, attr)
-                setattr(instance, attr, value)
+                setattr(item_submission, attr, value)
         logger.debug(
             f"Populated record {ITEM_SUBMISSION_LOG_STR.format(
-                batch_id=instance.batch_id,
-                item_identifier=instance.item_identifier
+                batch_id=item_submission_db.batch_id,
+                item_identifier=item_submission_db.item_identifier
             )}"
         )
-        return instance
+        return item_submission
 
-    def update_db(self) -> None:
-        """Update DynamoDB with instance attributes.
+    def upsert_db(self) -> None:
+        """Upsert a record in DynamoDB from ItemSubmission.
 
-        Update associated ItemSubmissionDB instance in DynamoDB with attributes
-        from this ItemSubmission instance.
+        This will either update the associated record in the item submissions DynamoDB
+        table using the content of ItemSubmission if it already exists, or
+        insert a new record to the table using the content of the ItemSubmission
         """
         item_submission_record = ItemSubmissionDB(
             **{attr: getattr(self, attr) for attr in ItemSubmissionDB.get_attributes()}

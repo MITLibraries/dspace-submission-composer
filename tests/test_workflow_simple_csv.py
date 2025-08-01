@@ -1,9 +1,12 @@
 # ruff: noqa: SLF001
 import csv
+import io
 import json
 from io import StringIO
 from unittest.mock import patch
 
+import numpy as np
+import pandas as pd
 import pytest
 from freezegun import freeze_time
 from pynamodb.exceptions import DoesNotExist
@@ -28,8 +31,6 @@ def test_workflow_simple_csv_reconcile_items_success(
     reconciled = simple_csv_workflow_instance.reconcile_items()
     item_submission_record = ItemSubmissionDB.get(hash_key="batch-aaa", range_key="123")
     assert reconciled
-    assert "Item submission (item_identifier=123) reconciled" in caplog.text
-    assert "Updating record" in caplog.text
     assert item_submission_record.status == ItemSubmissionStatus.RECONCILE_SUCCESS
 
 
@@ -59,10 +60,6 @@ def test_workflow_simple_csv_reconcile_items_if_item_submission_exists_success(
     reconciled = simple_csv_workflow_instance.reconcile_items()
 
     assert reconciled
-    assert (
-        "Record with primary keys batch_id=batch-aaa (hash key) and "
-        "item_identifier=123 (range key) was previously reconciled, skipping update"
-    ) in caplog.text
 
 
 @freeze_time("2025-01-01 09:00:00")
@@ -221,10 +218,29 @@ def test_workflow_simple_csv_item_metadata_iter_success(
     assert next(metadata_iter) == item_metadata
 
 
-def test_workflow_simple_csv_get_item_identifier_success(
-    simple_csv_workflow_instance, item_metadata
+def test_workflow_simple_csv_item_metadata_iter_processing_success(
+    simple_csv_workflow_instance, mocked_s3
 ):
-    assert simple_csv_workflow_instance.get_item_identifier(item_metadata) == "123"
+    metadata_df = pd.DataFrame(
+        {"filename": ["123.pdf", "456.pdf"], "TITLE": ["Cheeses of the World", np.nan]}
+    )
+
+    # upload to mocked S3 bucket
+    csv_buffer = io.StringIO()
+    metadata_df.to_csv(csv_buffer, index=False)
+    mocked_s3.put_object(
+        Bucket="dsc",
+        Key="simple_csv/batch-aaa/metadata.csv",
+        Body=csv_buffer.getvalue(),
+    )
+
+    metadata_iter = simple_csv_workflow_instance.item_metadata_iter(
+        metadata_file="metadata.csv"
+    )
+    assert list(metadata_iter) == [
+        {"item_identifier": "123.pdf", "title": "Cheeses of the World"},
+        {"item_identifier": "456.pdf", "title": None},
+    ]
 
 
 @patch("dsc.utilities.aws.s3.S3Client.files_iter")

@@ -213,10 +213,6 @@ class OpenCourseWare(Workflow):
         topics_list = [" - ".join(topic_terms) for topic_terms in topics]
         return list(filter(None, topics_list))
 
-    def get_item_identifier(self, item_metadata: dict[str, Any]) -> str:
-        """Get 'item_identifier' from item metadata entry."""
-        return item_metadata["item_identifier"]
-
     def parse_item_identifier(self, file: str) -> str:
         """Parse item identifier from bitstream zip file."""
         return file.split("/")[-1].removesuffix(".zip")
