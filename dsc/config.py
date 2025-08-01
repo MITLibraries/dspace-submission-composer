@@ -17,7 +17,7 @@ class Config:
         "SQS_QUEUE_DSS_INPUT",
     ]
 
-    OPTIONAL_ENV_VARS: Iterable[str] = ["WARNING_ONLY_LOGGERS"]
+    OPTIONAL_ENV_VARS: Iterable[str] = ["S3_BUCKET_SYNC_SOURCE", "WARNING_ONLY_LOGGERS"]
 
     @property
     def workspace(self) -> str:
@@ -48,6 +48,10 @@ class Config:
         if not value:
             raise OSError("Env var 'S3_BUCKET_SUBMISSION_ASSETS' must be defined")
         return value
+
+    @property
+    def s3_bucket_sync_source(self) -> str | None:
+        return os.getenv("S3_BUCKET_SYNC_SOURCE")
 
     @property
     def source_email(self) -> str:
