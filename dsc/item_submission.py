@@ -146,6 +146,8 @@ class ItemSubmission:
         """Check if the item submission is ready to be submitted."""
         ready_to_submit = False
 
+        self._exceeded_retry_threshold()
+
         match self.status:
             case ItemSubmissionStatus.INGEST_SUCCESS:
                 logger.info(
@@ -190,6 +192,14 @@ class ItemSubmission:
                 ready_to_submit = True
 
         return ready_to_submit
+
+    def _exceeded_retry_threshold(self) -> None:
+        """Check whether ingest attempts have exceeded retry threshold.
+
+        If exceeded, set status to MAX_RETRIES_REACHED.
+        """
+        if self.ingest_attempts > CONFIG.retry_threshold:
+            self.status = ItemSubmissionStatus.MAX_RETRIES_REACHED
 
     def prepare_dspace_metadata(
         self, metadata_mapping: dict, item_metadata: dict, s3_bucket: str, batch_path: str
