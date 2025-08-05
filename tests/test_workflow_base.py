@@ -169,7 +169,7 @@ def test_base_workflow_process_result_messages_success(
     mocked_item_submission_db,
     mocked_sqs_output,
     result_message_attributes,
-    result_message_body,
+    result_message_body_success,
     sqs_client,
 ):
     caplog.set_level("DEBUG")
@@ -180,7 +180,6 @@ def test_base_workflow_process_result_messages_success(
 
     sqs_client.send(
         message_attributes=result_message_attributes,
-        message_body=result_message_body,
     )
 
     expected_processing_summary = {
@@ -337,7 +336,9 @@ def test_base_workflow_parse_result_message_attrs_if_json_schema_validation_fail
 
 
 def test_base_workflow_parse_result_message_body_success(
-    base_workflow_instance, result_message_valid, result_message_body
+    base_workflow_instance,
+    result_message_valid,
+    result_message_body_success,
 ):
     message_body = result_message_valid["Body"]
     valid_message_body = (
@@ -346,7 +347,7 @@ def test_base_workflow_parse_result_message_body_success(
         )
     )
 
-    assert valid_message_body == json.loads(result_message_body)
+    assert valid_message_body == json.loads(result_message_body_success)
 
 
 def test_base_workflow_parse_result_message_body_if_json_schema_validation_fails(

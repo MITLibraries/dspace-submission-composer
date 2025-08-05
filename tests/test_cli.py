@@ -159,7 +159,7 @@ def test_finalize_success(
     base_workflow_instance,
     sqs_client,
     result_message_attributes,
-    result_message_body,
+    result_message_body_success,
 ):
     caplog.set_level("DEBUG")
 
@@ -169,7 +169,7 @@ def test_finalize_success(
 
     sqs_client.send(
         message_attributes=result_message_attributes,
-        message_body=result_message_body,
+        message_body=result_message_body_success,
     )
 
     expected_processing_summary = {

@@ -283,7 +283,7 @@ def result_message_attributes():
 
 
 @pytest.fixture
-def result_message_body():
+def result_message_body_success():
     return json.dumps(
         {
             "ResultType": "success",
@@ -304,10 +304,26 @@ def result_message_body():
 
 
 @pytest.fixture
-def result_message_valid(result_message_attributes, result_message_body):
+def result_message_body_error():
+    return json.dumps(
+        {
+            "DSpaceResponse": "none",
+            "ErrorInfo": "Failure during ingest",
+            "ErrorTimestamp": "Thu Sep 09 17:56:39 UTC 2021",
+            "ExceptionTraceback": [
+                "Traceback...",
+            ],
+            "ItemHandle": None,
+            "ResultType": "error",
+        }
+    )
+
+
+@pytest.fixture
+def result_message_valid(result_message_attributes, result_message_body_success):
     return {
         "ReceiptHandle": "lvpqxcxlmyaowrhbvxadosldaghhidsdralddmejhdrnrfeyfuphzs",
-        "Body": result_message_body,
+        "Body": result_message_body_success,
         "MessageAttributes": result_message_attributes,
         "MessageId": uuid.uuid4(),
     }
@@ -385,7 +401,7 @@ def workflow_events_submit():
 
 
 @pytest.fixture
-def workflow_events_finalize(result_message_body):
+def workflow_events_finalize(result_message_body_success):
     return WorkflowEvents(
         processed_items=[
             {
@@ -393,7 +409,7 @@ def workflow_events_finalize(result_message_body):
                 "ingested": True,
                 "dspace_handle": None,
                 "error": None,
-                "result_message_body": json.loads(result_message_body),
+                "result_message_body": json.loads(result_message_body_success),
             }
         ]
     )
