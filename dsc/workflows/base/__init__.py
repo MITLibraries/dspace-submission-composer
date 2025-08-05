@@ -9,13 +9,12 @@ from typing import TYPE_CHECKING, Any, final
 
 import jsonschema
 import jsonschema.exceptions
-from pynamodb.exceptions import DoesNotExist
 
 from dsc.config import Config
 from dsc.db.models import ItemSubmissionDB, ItemSubmissionStatus
 from dsc.exceptions import InvalidSQSMessageError, InvalidWorkflowNameError
 from dsc.item_submission import ItemSubmission
-from dsc.utilities.aws import SESClient, SQSClient
+from dsc.utilities.aws import SESClient
 from dsc.utilities.validate.schemas import RESULT_MESSAGE_ATTRIBUTES, RESULT_MESSAGE_BODY
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -316,7 +315,6 @@ class Workflow(ABC):
 
         Must NOT be overridden by workflow subclasses.
         """
-        self.process_result_messages()
         self.workflow_specific_processing()
 
         # update WorkflowEvents with batch-level ingest results
@@ -330,158 +328,6 @@ class Workflow(ABC):
                     "last_result_message",
                 )
             )
-
-    def process_result_messages(self) -> None:
-        """Process DSS result messages from the output queue.
-
-        This method receives result messages from the output queue, parsing the content
-        of each message to determine whether an item was ingested into DSpace.
-
-        The following steps are executed for every result message:
-
-        1. Parse and validate the content of 'MessageAttributes'.
-           - If the content is invalid, log an error message, delete
-             the message from the output queue, and skip remaining steps.
-        2. Get the 'item_identifier' from the result message
-           and track ID in list.
-        3. Get the record for the item submission from DynamoDB and identify the
-           current status.
-        4. Parse and validate the content of 'Body'.
-
-           - If the content is invalid, log an error message and track the new status as
-             ItemSubmissionStatus.INGEST_UNKNOWN.
-           - If the content is valid, check whether item was ingested based on
-             'ResultType'.
-             - If the item was ingested, get DSpace handle (if available) and track the
-               new status as ItemSubmissionStatus.INGEST_SUCCESS.
-             - If the item failed ingest, track the new status as
-               ItemSubmissionStatus.INGEST_FAILED.
-        5. Update the record in DynamoDB with details then delete the message from the
-           output queue.
-
-        May be overridden by workflow subclasses.
-        """
-        logger.info(
-            f"Processing DSS result messages from the output queue '{self.output_queue}'"
-        )
-        sqs_results_summary = {
-            "received_messages": 0,
-            "ingest_success": 0,
-            "ingest_failed": 0,
-            "ingest_unknown": 0,
-        }
-
-        sqs_client = SQSClient(
-            region=CONFIG.aws_region_name, queue_name=self.output_queue
-        )
-
-        for sqs_message in sqs_client.receive():
-            sqs_results_summary["received_messages"] += 1
-
-            message_id = sqs_message["MessageId"]
-            message_body = sqs_message["Body"]
-            receipt_handle = sqs_message["ReceiptHandle"]
-
-            logger.debug(f"Processing result message: {message_id}")
-
-            try:
-                message_attributes = self._parse_result_message_attrs(
-                    sqs_message["MessageAttributes"]
-                )
-            except InvalidSQSMessageError as exception:
-                logger.error(  # noqa: TRY400
-                    f"Failed to parse 'MessageAttributes' from {message_id}: {exception}"
-                )
-                sqs_results_summary["ingest_unknown"] += 1
-
-                # delete message from the queue
-                sqs_client.delete(
-                    receipt_handle=receipt_handle,
-                    message_id=message_id,
-                )
-                continue
-
-            item_identifier = message_attributes["PackageID"]["StringValue"]
-
-            # get record from ItemSubmissionDB
-            try:
-                item_submission_record = ItemSubmissionDB.get(
-                    hash_key=self.batch_id, range_key=item_identifier
-                )
-            except DoesNotExist:
-                logger.warning(
-                    "Record "
-                    f"{ITEM_SUBMISSION_LOG_STR.format(batch_id=self.batch_id,
-                                      item_identifier=item_identifier)}"
-                    "not found. Verify that it been reconciled."
-                )
-                continue
-
-            current_status = item_submission_record.status
-
-            logger.info(
-                "Received result message for record "
-                f"{ITEM_SUBMISSION_LOG_STR.format(batch_id=item_submission_record.batch_id,
-                                      item_identifier=item_submission_record.item_identifier)}"
-            )
-
-            try:
-                parsed_message_body = self._parse_result_message_body(message_body)
-            except InvalidSQSMessageError as exception:
-                logger.error(  # noqa: TRY400
-                    f"Failed to parse 'Body' from {message_id}:{exception}"
-                )
-                sqs_results_summary["ingest_unknown"] += 1
-
-                new_status = ItemSubmissionStatus.INGEST_UNKNOWN
-
-                item_submission_record.update(
-                    actions=[ItemSubmissionDB.status_details.set(str(exception))]
-                )
-                logger.info("Unable to determine ingest status for item.")
-            else:
-                if bool(parsed_message_body["ResultType"] == "success"):
-                    new_status = ItemSubmissionStatus.INGEST_SUCCESS
-                    sqs_results_summary["ingest_success"] += 1
-
-                    if dspace_handle := parsed_message_body.get("ItemHandle"):
-                        item_submission_record.update(
-                            actions=[
-                                ItemSubmissionDB.dspace_handle.set(dspace_handle),
-                            ]
-                        )
-                    logger.info("Item was ingested.")
-                else:
-                    new_status = ItemSubmissionStatus.INGEST_FAILED
-                    sqs_results_summary["ingest_failed"] += 1
-                    logger.info("Item failed ingest.")
-
-            item_submission_record.update(
-                actions=[
-                    ItemSubmissionDB.status.set(new_status),
-                    ItemSubmissionDB.last_result_message.set(message_body),
-                    ItemSubmissionDB.last_run_date.set(self.run_date),
-                    ItemSubmissionDB.ingest_attempts.add(1),
-                ]
-            )
-
-            logger.info(
-                "Updated record "
-                f"{ITEM_SUBMISSION_LOG_STR.format(batch_id=item_submission_record.batch_id,
-                                      item_identifier=item_submission_record.item_identifier)}"
-            )
-            logger.info(f"Status updated: '{current_status}' -> '{new_status}'")
-
-            # delete message from the queue
-            sqs_client.delete(
-                receipt_handle=receipt_handle,
-                message_id=message_id,
-            )
-
-        logger.info(
-            f"Processed DSS result messages from the output queue '{self.output_queue}': "
-            f"{json.dumps(sqs_results_summary)}"
-        )
 
     @final
     @staticmethod
