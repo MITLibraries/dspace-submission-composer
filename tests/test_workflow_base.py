@@ -161,6 +161,204 @@ def test_base_workflow_submit_items_exceptions_handled(
     assert json.dumps(expected_submission_summary) in caplog.text
 
 
+def test_base_workflow_finalize_items_success(
+    caplog,
+    base_workflow_instance,
+    item_submission_instance,
+    mocked_item_submission_db,
+    mocked_sqs_output,
+    result_message_attributes,
+    result_message_body_success,
+    result_message_body_error,
+    sqs_client,
+):
+    caplog.set_level("DEBUG")
+
+    ItemSubmissionDB.create(
+        item_identifier="10.1002/term.3131",
+        batch_id="batch-aaa",
+        workflow_name="test",
+        status=ItemSubmissionStatus.SUBMIT_SUCCESS,
+    )
+    ItemSubmissionDB.create(
+        item_identifier="10.1002/term.4242",
+        batch_id="batch-aaa",
+        workflow_name="test",
+        status=ItemSubmissionStatus.SUBMIT_SUCCESS,
+    )
+
+    sqs_client.send(
+        message_attributes=result_message_attributes,
+        message_body=result_message_body_success,
+    )
+
+    # create error result message
+    result_message_attributes["PackageID"]["StringValue"] = "10.1002/term.4242"
+    sqs_client.send(
+        message_attributes=result_message_attributes,
+        message_body=result_message_body_error,
+    )
+
+    expected_processing_summary = {
+        "received_messages": 2,
+        "ingest_success": 1,
+        "ingest_failed": 1,
+        "ingest_unknown": 0,
+    }
+
+    base_workflow_instance.finalize_items()
+
+    assert (
+        "Record with primary keys batch_id=batch-aaa (hash key) and item_identifier="
+        "10.1002/term.3131 (range key) was ingested" in caplog.text
+    )
+    record_1 = ItemSubmissionDB.get("batch-aaa", "10.1002/term.3131")
+    assert record_1.status == ItemSubmissionStatus.INGEST_SUCCESS
+    assert record_1.ingest_attempts == 1
+
+    assert (
+        "Record with primary keys batch_id=batch-aaa (hash key) and "
+        "item_identifier=10.1002/term.4242 (range key) failed to ingest" in caplog.text
+    )
+    record_2 = ItemSubmissionDB.get("batch-aaa", "10.1002/term.4242")
+    assert record_2.status == ItemSubmissionStatus.INGEST_FAILED
+    assert record_2.ingest_attempts == 1
+
+    assert json.dumps(expected_processing_summary) in caplog.text
+
+
+def test_base_workflow_finalize_items_already_ingested_item_skipped(
+    caplog,
+    base_workflow_instance,
+    mocked_item_submission_db,
+    mocked_sqs_output,
+    result_message_attributes,
+    result_message_body_success,
+    sqs_client,
+):
+    caplog.set_level("DEBUG")
+
+    ItemSubmissionDB.create(
+        item_identifier="10.1002/term.3131",
+        batch_id="batch-aaa",
+        workflow_name="test",
+        status=ItemSubmissionStatus.INGEST_SUCCESS,
+    )
+
+    sqs_client.send(
+        message_attributes=result_message_attributes,
+        message_body=result_message_body_success,
+    )
+
+    expected_processing_summary = {
+        "received_messages": 1,
+        "ingest_success": 0,
+        "ingest_failed": 0,
+        "ingest_unknown": 0,
+    }
+
+    base_workflow_instance.finalize_items()
+    assert (
+        "Record with primary keys batch_id=batch-aaa (hash key) and "
+        "item_identifier=10.1002/term.3131 (range key) already ingested, skipping"
+        in caplog.text
+    )
+    assert json.dumps(expected_processing_summary) in caplog.text
+
+
+def test_base_workflow_finalize_items_missing_result_message_skipped(
+    caplog,
+    base_workflow_instance,
+    mocked_item_submission_db,
+    mocked_sqs_output,
+    result_message_attributes,
+    result_message_body_success,
+    sqs_client,
+):
+    caplog.set_level("DEBUG")
+
+    ItemSubmissionDB.create(
+        item_identifier="10.1002/term.4242",
+        batch_id="batch-aaa",
+        workflow_name="test",
+        status=ItemSubmissionStatus.SUBMIT_SUCCESS,
+    )
+
+    sqs_client.send(
+        message_attributes=result_message_attributes,
+        message_body=result_message_body_success,
+    )
+
+    expected_processing_summary = {
+        "received_messages": 1,
+        "ingest_success": 0,
+        "ingest_failed": 0,
+        "ingest_unknown": 1,
+    }
+
+    base_workflow_instance.finalize_items()
+    assert (
+        "Unable to determine ingest status for record with primary keys "
+        "batch_id=batch-aaa (hash key) and item_identifier=10.1002/term.4242 (range key)"
+        in caplog.text
+    )
+    assert json.dumps(expected_processing_summary) in caplog.text
+    record = ItemSubmissionDB.get("batch-aaa", "10.1002/term.4242")
+    assert record.status == ItemSubmissionStatus.INGEST_UNKNOWN
+    assert record.ingest_attempts == 1
+
+
+def test_base_workflow_finalize_items_with_unknown_ingest_result(
+    caplog,
+    base_workflow_instance,
+    mocked_item_submission_db,
+    mocked_sqs_output,
+    result_message_attributes,
+    result_message_body_error,
+    sqs_client,
+):
+    caplog.set_level("DEBUG")
+
+    ItemSubmissionDB.create(
+        item_identifier="10.1002/term.4242",
+        batch_id="batch-aaa",
+        workflow_name="test",
+        status=ItemSubmissionStatus.SUBMIT_SUCCESS,
+    )
+    result_message_attributes["PackageID"]["StringValue"] = "10.1002/term.4242"
+    result_message_body_error = json.loads(result_message_body_error)
+    result_message_body_error["ResultType"] = "false"
+
+    sqs_client.send(
+        message_attributes=result_message_attributes,
+        message_body=json.dumps(result_message_body_error),
+    )
+
+    base_workflow_instance.finalize_items()
+
+    record = ItemSubmissionDB.get("batch-aaa", "10.1002/term.4242")
+    assert record.status == ItemSubmissionStatus.INGEST_UNKNOWN
+    assert record.ingest_attempts == 1
+
+    expected_summary = {
+        "received_messages": 1,
+        "ingest_success": 0,
+        "ingest_failed": 0,
+        "ingest_unknown": 1,
+    }
+    assert json.dumps(expected_summary) in caplog.text
+
+
+def test_base_workflow_validate_result_message_success(
+    base_workflow_instance, result_message_valid
+):
+    assert base_workflow_instance.validate_result_message(result_message_valid)
+
+
+def test_base_workflow_validate_result_message_failed(base_workflow_instance):
+    assert not base_workflow_instance.validate_result_message({})
+
+
 def test_base_workflow_parse_result_message_attrs_success(
     base_workflow_instance, result_message_valid
 ):

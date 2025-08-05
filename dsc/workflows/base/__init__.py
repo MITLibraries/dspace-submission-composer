@@ -14,11 +14,13 @@ from dsc.config import Config
 from dsc.db.models import ItemSubmissionDB, ItemSubmissionStatus
 from dsc.exceptions import InvalidSQSMessageError, InvalidWorkflowNameError
 from dsc.item_submission import ItemSubmission
-from dsc.utilities.aws import SESClient
+from dsc.utilities.aws import SESClient, SQSClient
 from dsc.utilities.validate.schemas import RESULT_MESSAGE_ATTRIBUTES, RESULT_MESSAGE_BODY
 
 if TYPE_CHECKING:  # pragma: no cover
     from collections.abc import Iterator
+
+    from mypy_boto3_sqs.type_defs import MessageTypeDef
 
     from dsc.reports import Report
 
@@ -315,6 +317,85 @@ class Workflow(ABC):
 
         Must NOT be overridden by workflow subclasses.
         """
+        logger.info(
+            f"Processing DSS result messages from the output queue '{self.output_queue}'"
+        )
+        sqs_results_summary = {
+            "received_messages": 0,
+            "ingest_success": 0,
+            "ingest_failed": 0,
+            "ingest_unknown": 0,
+        }
+
+        # retrieve and create map of result messages
+        sqs_client = SQSClient(
+            region=CONFIG.aws_region_name, queue_name=self.output_queue
+        )
+        logger.info(
+            f"Processing DSS result messages from the output queue '{self.output_queue}'"
+        )
+        result_message_map = {}
+        for message in sqs_client.receive():
+            try:
+                self.validate_result_message(message)
+                item_identifier = message["MessageAttributes"]["PackageID"]["StringValue"]
+                result_message_map[item_identifier] = message
+            except InvalidSQSMessageError:
+                logger.exception(f"Failure parsing message '{message["MessageId"]}'")
+                continue
+
+        sqs_results_summary["received_messages"] = len(result_message_map)
+
+        # retrieve item submissions from batch
+        for item_submission in ItemSubmission.get_batch(self.batch_id):
+            log_str = ITEM_SUBMISSION_LOG_STR.format(
+                batch_id=self.batch_id, item_identifier=item_submission.item_identifier
+            )
+            if item_submission.status == ItemSubmissionStatus.INGEST_SUCCESS:
+                logger.debug(f"Record {log_str} already ingested, skipping")
+                continue
+
+            item_submission.ingest_attempts += 1
+
+            result_message = result_message_map.get(item_submission.item_identifier)
+
+            # set status to ingest_unknown if no message exists with item_identifier
+            if not result_message:
+                item_submission.status = ItemSubmissionStatus.INGEST_UNKNOWN
+                sqs_results_summary["ingest_unknown"] += 1
+                item_submission.upsert_db()
+                logger.info(f"Unable to determine ingest status for record {log_str}")
+                continue
+
+            # update item submission status based on ingest result
+            result_message_body = json.loads(result_message["Body"])
+            ingest_result = result_message_body["ResultType"]
+
+            if ingest_result == "success":
+                item_submission.status = ItemSubmissionStatus.INGEST_SUCCESS
+                item_submission.dspace_handle = result_message_body["ItemHandle"]
+                sqs_results_summary["ingest_success"] += 1
+                logger.debug(f"Record {log_str} was ingested")
+            elif ingest_result == "error":
+                item_submission.status = ItemSubmissionStatus.INGEST_FAILED
+                item_submission.status_details = result_message_body.get(
+                    "ErrorInfo", "Unknown error"
+                )
+                sqs_results_summary["ingest_failed"] += 1
+                logger.debug(f"Record {log_str} failed to ingest")
+            else:
+                item_submission.status = ItemSubmissionStatus.INGEST_UNKNOWN
+                sqs_results_summary["ingest_unknown"] += 1
+                logger.info(f"Unable to determine ingest status for record {log_str}")
+
+            item_submission.last_result_message = str(result_message)
+            item_submission.last_run_date = self.run_date
+            item_submission.upsert_db()
+            sqs_client.delete(
+                receipt_handle=result_message["ReceiptHandle"],
+                message_id=result_message["MessageId"],
+            )
+
         self.workflow_specific_processing()
 
         # update WorkflowEvents with batch-level ingest results
@@ -329,7 +410,25 @@ class Workflow(ABC):
                 )
             )
 
-    @final
+        logger.info(
+            f"Processed DSS result messages from the output queue '{self.output_queue}': "
+            f"{json.dumps(sqs_results_summary)}"
+        )
+
+    def validate_result_message(self, message: MessageTypeDef) -> bool:
+        """Validate the content of a result message.
+
+        This method checks whether the message contains the required attributes
+        and body, and whether they pass schema validation.
+        """
+        valid = False
+        if "MessageAttributes" in message and "Body" in message:  # noqa: SIM102
+            if self._parse_result_message_attrs(
+                message["MessageAttributes"]
+            ) and self._parse_result_message_body(message["Body"]):
+                valid = True
+        return valid
+
     @staticmethod
     def _parse_result_message_attrs(message_attributes: dict) -> dict:
         """Parse and validate content of 'MessageAttributes' in result message.
@@ -339,7 +438,6 @@ class Workflow(ABC):
         Raises:
             InvalidSQSMessageError
         """
-        # validate content of 'MessageAttributes'
         try:
             jsonschema.validate(
                 instance=message_attributes,
@@ -362,7 +460,6 @@ class Workflow(ABC):
         Raises:
             InvalidSQSMessageError
         """
-        # validate content of 'Body'
         try:
             parsed_message_body = json.loads(message_body)
             jsonschema.validate(instance=parsed_message_body, schema=RESULT_MESSAGE_BODY)
