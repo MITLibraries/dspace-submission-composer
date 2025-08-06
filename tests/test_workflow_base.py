@@ -6,7 +6,6 @@ from botocore.exceptions import ClientError
 
 from dsc.db.models import ItemSubmissionDB, ItemSubmissionStatus
 from dsc.exceptions import (
-    InvalidSQSMessageError,
     InvalidWorkflowNameError,
 )
 from dsc.reports import FinalizeReport
@@ -349,81 +348,31 @@ def test_base_workflow_finalize_items_with_unknown_ingest_result(
     assert json.dumps(expected_summary) in caplog.text
 
 
-def test_base_workflow_validate_result_message_success(
-    base_workflow_instance, result_message_valid
-):
-    assert base_workflow_instance.validate_result_message(result_message_valid)
-
-
-def test_base_workflow_validate_result_message_failed(base_workflow_instance):
-    assert not base_workflow_instance.validate_result_message({})
-
-
-def test_base_workflow_parse_result_message_attrs_success(
-    base_workflow_instance, result_message_valid
-):
-    message_attributes = result_message_valid["MessageAttributes"]
-    valid_message_attributes = (
-        base_workflow_instance._parse_result_message_attrs(  # noqa: SLF001
-            message_attributes=message_attributes
-        )
-    )
-
-    assert valid_message_attributes == message_attributes
-
-
-def test_base_workflow_parse_result_message_attrs_if_json_schema_validation_fails(
-    base_workflow_instance, result_message_valid
-):
-    message_attributes = result_message_valid["MessageAttributes"]
-
-    # modify content of 'MessageAttributes'
-    del message_attributes["SubmissionSource"]
-
-    with pytest.raises(
-        InvalidSQSMessageError,
-        match="Content of 'MessageAttributes' failed schema validation",
-    ):
-        base_workflow_instance._parse_result_message_attrs(  # noqa: SLF001
-            message_attributes=message_attributes
-        )
-
-
-def test_base_workflow_parse_result_message_body_success(
+def test_base_workflow_finalize_items_exception_handled_and_logged(
+    caplog,
     base_workflow_instance,
-    result_message_valid,
+    mocked_item_submission_db,
+    mocked_sqs_output,
+    result_message_attributes,
     result_message_body_success,
+    sqs_client,
 ):
-    message_body = result_message_valid["Body"]
-    valid_message_body = (
-        base_workflow_instance._parse_result_message_body(  # noqa: SLF001
-            message_body=message_body
-        )
+    caplog.set_level("DEBUG")
+    sqs_client.send(
+        message_attributes=result_message_attributes,
+        message_body='{"fail": "fail"}',
     )
 
-    assert valid_message_body == json.loads(result_message_body_success)
+    base_workflow_instance.finalize_items()
 
-
-def test_base_workflow_parse_result_message_body_if_json_schema_validation_fails(
-    base_workflow_instance, result_message_valid
-):
-    original_message_body = result_message_valid["Body"]
-
-    # modify content of 'Body'
-    modified_message_body = json.loads(original_message_body)
-    del modified_message_body["Bitstreams"]
-
-    with pytest.raises(
-        InvalidSQSMessageError, match="Content of 'Body' failed schema validation"
-    ):
-        base_workflow_instance._parse_result_message_body(  # noqa: SLF001
-            message_body=json.dumps(modified_message_body),
-        )
-
-
-def test_base_workflow_parse_result_message_body_if_invalid_json(base_workflow_instance):
-    with pytest.raises(InvalidSQSMessageError, match="Failed to parse content of 'Body'"):
-        base_workflow_instance._parse_result_message_body(message_body="")  # noqa: SLF001
+    expected_summary = {
+        "received_messages": 0,
+        "ingest_success": 0,
+        "ingest_failed": 0,
+        "ingest_unknown": 0,
+    }
+    assert "Failure parsing message" in caplog.text
+    assert json.dumps(expected_summary) in caplog.text
 
 
 def test_base_workflow_workflow_specific_processing_success(

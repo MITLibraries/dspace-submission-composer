@@ -34,6 +34,65 @@ ITEM_SUBMISSION_LOG_STR = (
 
 
 @dataclass
+class DSSResultMessage:
+    """Represents a parsed DSpace Submission Service result message."""
+
+    item_identifier: str
+    submission_source: str
+    result_type: str
+    dspace_handle: str | None
+    last_modified: str | None
+    error_info: str | None
+    error_timestamp: str | None
+    dspace_response: str | None
+    exception_traceback: list[str] | None
+    message_id: str
+    receipt_handle: str
+    raw_message: MessageTypeDef
+
+    @classmethod
+    def from_result_message(cls, message: MessageTypeDef) -> DSSResultMessage:
+        """Create instance from result message.
+
+        Args:
+            message: A result message from the DSS output queue
+
+        Raises:
+            InvalidSQSMessageError: If message fails validation
+        """
+        try:
+            attrs = message.get("MessageAttributes", {})
+            jsonschema.validate(instance=attrs, schema=RESULT_MESSAGE_ATTRIBUTES)
+
+            body = json.loads(message.get("Body", "{}"))
+            jsonschema.validate(instance=body, schema=RESULT_MESSAGE_BODY)
+
+            return cls(
+                item_identifier=attrs["PackageID"]["StringValue"],
+                submission_source=attrs["SubmissionSource"]["StringValue"],
+                result_type=body["ResultType"],
+                dspace_handle=body.get("ItemHandle"),
+                last_modified=body.get("lastModified"),
+                error_info=body.get("ErrorInfo", "Unknown error"),
+                error_timestamp=body.get("ErrorTimestamp"),
+                dspace_response=body.get("DSpaceResponse"),
+                exception_traceback=body.get("ExceptionTraceback"),
+                message_id=message["MessageId"],
+                receipt_handle=message["ReceiptHandle"],
+                raw_message=message,
+            )
+
+        except (KeyError, json.JSONDecodeError) as exception:
+            raise InvalidSQSMessageError(
+                f"Failed to parse result message: {exception}"
+            ) from exception
+        except jsonschema.exceptions.ValidationError as exception:
+            raise InvalidSQSMessageError(
+                f"Result message failed schema validation: {exception}"
+            ) from exception
+
+
+@dataclass
 class WorkflowEvents:
     """Record of events during the execution of Workflow methods.
 
@@ -334,14 +393,13 @@ class Workflow(ABC):
         logger.info(
             f"Processing DSS result messages from the output queue '{self.output_queue}'"
         )
-        result_message_map = {}
+        result_message_map: dict[str, DSSResultMessage] = {}
         for message in sqs_client.receive():
             try:
-                self.validate_result_message(message)
-                item_identifier = message["MessageAttributes"]["PackageID"]["StringValue"]
-                result_message_map[item_identifier] = message
+                result_message = DSSResultMessage.from_result_message(message)
+                result_message_map[result_message.item_identifier] = result_message
             except InvalidSQSMessageError:
-                logger.exception(f"Failure parsing message '{message["MessageId"]}'")
+                logger.exception(f"Failure parsing message '{message}'")
                 continue
 
         sqs_results_summary["received_messages"] = len(result_message_map)
@@ -357,10 +415,10 @@ class Workflow(ABC):
 
             item_submission.ingest_attempts += 1
 
-            result_message = result_message_map.get(item_submission.item_identifier)
+            result_message = result_message_map.get(item_submission.item_identifier)  # type: ignore[assignment]
 
             # set status to ingest_unknown if no message exists with item_identifier
-            if not result_message:
+            if not isinstance(result_message, DSSResultMessage):
                 item_submission.status = ItemSubmissionStatus.INGEST_UNKNOWN
                 sqs_results_summary["ingest_unknown"] += 1
                 item_submission.upsert_db()
@@ -368,34 +426,29 @@ class Workflow(ABC):
                 continue
 
             # update item submission status based on ingest result
-            result_message_body = json.loads(result_message["Body"])
-            ingest_result = result_message_body["ResultType"]
-
-            if ingest_result == "success":
+            if result_message.result_type == "success":
                 item_submission.status = ItemSubmissionStatus.INGEST_SUCCESS
-                item_submission.dspace_handle = result_message_body["ItemHandle"]
+                item_submission.dspace_handle = result_message.dspace_handle
                 sqs_results_summary["ingest_success"] += 1
                 logger.debug(f"Record {log_str} was ingested")
-            elif ingest_result == "error":
+            elif result_message.result_type == "error":
                 item_submission.status = ItemSubmissionStatus.INGEST_FAILED
-                item_submission.status_details = result_message_body.get(
-                    "ErrorInfo", "Unknown error"
-                )
+                item_submission.status_details = result_message.error_info
                 sqs_results_summary["ingest_failed"] += 1
                 logger.debug(f"Record {log_str} failed to ingest")
             else:
                 item_submission.status = ItemSubmissionStatus.INGEST_UNKNOWN
                 sqs_results_summary["ingest_unknown"] += 1
-                logger.info(f"Unable to determine ingest status for record {log_str}")
-
-            item_submission.last_result_message = str(result_message)
+                logger.debug(f"Unable to determine ingest status for record {log_str}")
+            item_submission.last_result_message = str(result_message.raw_message)
             item_submission.last_run_date = self.run_date
             item_submission.upsert_db()
             sqs_client.delete(
-                receipt_handle=result_message["ReceiptHandle"],
-                message_id=result_message["MessageId"],
+                receipt_handle=result_message.receipt_handle,
+                message_id=result_message.message_id,
             )
 
+        # optional method used for some workflows
         self.workflow_specific_processing()
 
         # update WorkflowEvents with batch-level ingest results
@@ -414,64 +467,6 @@ class Workflow(ABC):
             f"Processed DSS result messages from the output queue '{self.output_queue}': "
             f"{json.dumps(sqs_results_summary)}"
         )
-
-    def validate_result_message(self, message: MessageTypeDef) -> bool:
-        """Validate the content of a result message.
-
-        This method checks whether the message contains the required attributes
-        and body, and whether they pass schema validation.
-        """
-        valid = False
-        if "MessageAttributes" in message and "Body" in message:  # noqa: SIM102
-            if self._parse_result_message_attrs(
-                message["MessageAttributes"]
-            ) and self._parse_result_message_body(message["Body"]):
-                valid = True
-        return valid
-
-    @staticmethod
-    def _parse_result_message_attrs(message_attributes: dict) -> dict:
-        """Parse and validate content of 'MessageAttributes' in result message.
-
-        If the content passes schema validation, the content is returned.
-
-        Raises:
-            InvalidSQSMessageError
-        """
-        try:
-            jsonschema.validate(
-                instance=message_attributes,
-                schema=RESULT_MESSAGE_ATTRIBUTES,
-            )
-        except jsonschema.exceptions.ValidationError as exception:
-            raise InvalidSQSMessageError(
-                "Content of 'MessageAttributes' failed schema validation"
-            ) from exception
-        return message_attributes
-
-    @final
-    @staticmethod
-    def _parse_result_message_body(message_body: str) -> dict:
-        """Parse and validate content of 'Body' in result message.
-
-        If the JSON string can be deserialized to a Python dictionary
-        and it passes schema validation, the parsed content is returned.
-
-        Raises:
-            InvalidSQSMessageError
-        """
-        try:
-            parsed_message_body = json.loads(message_body)
-            jsonschema.validate(instance=parsed_message_body, schema=RESULT_MESSAGE_BODY)
-        except json.JSONDecodeError as exception:
-            raise InvalidSQSMessageError(
-                "Failed to parse content of 'Body'"
-            ) from exception
-        except jsonschema.exceptions.ValidationError as exception:
-            raise InvalidSQSMessageError(
-                "Content of 'Body' failed schema validation"
-            ) from exception
-        return parsed_message_body
 
     def workflow_specific_processing(self) -> None:
         logger.info(
