@@ -275,7 +275,12 @@ def test_base_workflow_finalize_items_missing_result_message_skipped(
     sqs_client,
 ):
     caplog.set_level("DEBUG")
-
+    ItemSubmissionDB.create(
+        item_identifier="10.1002/term.3131",
+        batch_id="batch-aaa",
+        workflow_name="test",
+        status=ItemSubmissionStatus.SUBMIT_SUCCESS,
+    )
     ItemSubmissionDB.create(
         item_identifier="10.1002/term.4242",
         batch_id="batch-aaa",
@@ -290,21 +295,21 @@ def test_base_workflow_finalize_items_missing_result_message_skipped(
 
     expected_processing_summary = {
         "received_messages": 1,
-        "ingest_success": 0,
+        "ingest_success": 1,
         "ingest_failed": 0,
-        "ingest_unknown": 1,
+        "ingest_unknown": 0,
     }
 
     base_workflow_instance.finalize_items()
-    assert (
-        "Unable to determine ingest status for record with primary keys "
-        "batch_id=batch-aaa (hash key) and item_identifier=10.1002/term.4242 (range key)"
-        in caplog.text
-    )
     assert json.dumps(expected_processing_summary) in caplog.text
-    record = ItemSubmissionDB.get("batch-aaa", "10.1002/term.4242")
-    assert record.status == ItemSubmissionStatus.INGEST_UNKNOWN
-    assert record.ingest_attempts == 1
+
+    record_1 = ItemSubmissionDB.get("batch-aaa", "10.1002/term.3131")
+    assert record_1.status == ItemSubmissionStatus.INGEST_SUCCESS
+    assert record_1.ingest_attempts == 1
+
+    record_2 = ItemSubmissionDB.get("batch-aaa", "10.1002/term.4242")
+    assert record_2.status == ItemSubmissionStatus.SUBMIT_SUCCESS
+    assert record_2.ingest_attempts == 0
 
 
 def test_base_workflow_finalize_items_with_unknown_ingest_result(

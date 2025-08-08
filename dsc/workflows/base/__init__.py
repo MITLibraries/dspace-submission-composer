@@ -396,8 +396,10 @@ class Workflow(ABC):
         result_message_map: dict[str, DSSResultMessage] = {}
         for message in sqs_client.receive():
             try:
-                result_message = DSSResultMessage.from_result_message(message)
-                result_message_map[result_message.item_identifier] = result_message
+                result_message_object = DSSResultMessage.from_result_message(message)
+                result_message_map[result_message_object.item_identifier] = (
+                    result_message_object
+                )
             except InvalidSQSMessageError:
                 logger.exception(f"Failure parsing message '{message}'")
                 continue
@@ -415,14 +417,10 @@ class Workflow(ABC):
 
             item_submission.ingest_attempts += 1
 
-            result_message = result_message_map.get(item_submission.item_identifier)  # type: ignore[assignment]
+            result_message = result_message_map.get(item_submission.item_identifier)
 
             # set status to ingest_unknown if no message exists with item_identifier
-            if not isinstance(result_message, DSSResultMessage):
-                item_submission.status = ItemSubmissionStatus.INGEST_UNKNOWN
-                sqs_results_summary["ingest_unknown"] += 1
-                item_submission.upsert_db()
-                logger.info(f"Unable to determine ingest status for record {log_str}")
+            if not result_message:
                 continue
 
             # update item submission status based on ingest result
@@ -448,9 +446,6 @@ class Workflow(ABC):
                 message_id=result_message.message_id,
             )
 
-        # optional method used for some workflows
-        self.workflow_specific_processing()
-
         # update WorkflowEvents with batch-level ingest results
         for item_submission_record in ItemSubmissionDB.query(self.batch_id):
             self.workflow_events.processed_items.append(
@@ -462,6 +457,9 @@ class Workflow(ABC):
                     "last_result_message",
                 )
             )
+
+        # optional method used for some workflows
+        self.workflow_specific_processing()
 
         logger.info(
             f"Processed DSS result messages from the output queue '{self.output_queue}': "
