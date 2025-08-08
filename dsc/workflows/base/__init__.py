@@ -419,7 +419,7 @@ class Workflow(ABC):
 
             result_message = result_message_map.get(item_submission.item_identifier)
 
-            # set status to ingest_unknown if no message exists with item_identifier
+            # skip item submission if result message is not found
             if not result_message:
                 continue
 
