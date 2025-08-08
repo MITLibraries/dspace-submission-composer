@@ -96,6 +96,20 @@ def test_itemsubmission_upsert_db_excludes_metadata_and_bitstreams(
     assert hasattr(record, "bitstream_s3_uris") is False
 
 
+def test_exceeded_retry_threshold_false(item_submission_instance):
+    item_submission_instance.ingest_attempts = 17
+    item_submission_instance.status = ItemSubmissionStatus.SUBMIT_SUCCESS
+    item_submission_instance._exceeded_retry_threshold()  # noqa: SLF001
+    assert item_submission_instance.status == ItemSubmissionStatus.SUBMIT_SUCCESS
+
+
+def test_exceeded_retry_threshold_true(item_submission_instance):
+    item_submission_instance.ingest_attempts = 21
+    item_submission_instance.status = ItemSubmissionStatus.SUBMIT_SUCCESS
+    item_submission_instance._exceeded_retry_threshold()  # noqa: SLF001
+    assert item_submission_instance.status == ItemSubmissionStatus.MAX_RETRIES_REACHED
+
+
 def test_itemsubmission_ready_to_submit_with_none_status(item_submission_instance):
     item_submission_instance.status = None
     assert item_submission_instance.ready_to_submit() is False

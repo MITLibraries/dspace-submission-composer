@@ -6,7 +6,6 @@ from botocore.exceptions import ClientError
 
 from dsc.db.models import ItemSubmissionDB, ItemSubmissionStatus
 from dsc.exceptions import (
-    InvalidSQSMessageError,
     InvalidWorkflowNameError,
 )
 from dsc.reports import FinalizeReport
@@ -161,26 +160,137 @@ def test_base_workflow_submit_items_exceptions_handled(
     assert json.dumps(expected_submission_summary) in caplog.text
 
 
-@patch("dsc.db.models.ItemSubmissionDB.get")
-def test_base_workflow_process_result_messages_success(
-    mock_item_submission_db_get,
+def test_base_workflow_finalize_items_success(
+    caplog,
+    base_workflow_instance,
+    item_submission_instance,
+    mocked_item_submission_db,
+    mocked_sqs_output,
+    result_message_attributes,
+    result_message_body_success,
+    result_message_body_error,
+    sqs_client,
+):
+    caplog.set_level("DEBUG")
+
+    ItemSubmissionDB.create(
+        item_identifier="10.1002/term.3131",
+        batch_id="batch-aaa",
+        workflow_name="test",
+        status=ItemSubmissionStatus.SUBMIT_SUCCESS,
+    )
+    ItemSubmissionDB.create(
+        item_identifier="10.1002/term.4242",
+        batch_id="batch-aaa",
+        workflow_name="test",
+        status=ItemSubmissionStatus.SUBMIT_SUCCESS,
+    )
+
+    sqs_client.send(
+        message_attributes=result_message_attributes,
+        message_body=result_message_body_success,
+    )
+
+    # create error result message
+    result_message_attributes["PackageID"]["StringValue"] = "10.1002/term.4242"
+    sqs_client.send(
+        message_attributes=result_message_attributes,
+        message_body=result_message_body_error,
+    )
+
+    expected_processing_summary = {
+        "received_messages": 2,
+        "ingest_success": 1,
+        "ingest_failed": 1,
+        "ingest_unknown": 0,
+    }
+
+    base_workflow_instance.finalize_items()
+
+    assert (
+        "Record with primary keys batch_id=batch-aaa (hash key) and item_identifier="
+        "10.1002/term.3131 (range key) was ingested" in caplog.text
+    )
+    record_1 = ItemSubmissionDB.get("batch-aaa", "10.1002/term.3131")
+    assert record_1.status == ItemSubmissionStatus.INGEST_SUCCESS
+    assert record_1.ingest_attempts == 1
+
+    assert (
+        "Record with primary keys batch_id=batch-aaa (hash key) and "
+        "item_identifier=10.1002/term.4242 (range key) failed to ingest" in caplog.text
+    )
+    record_2 = ItemSubmissionDB.get("batch-aaa", "10.1002/term.4242")
+    assert record_2.status == ItemSubmissionStatus.INGEST_FAILED
+    assert record_2.ingest_attempts == 1
+
+    assert json.dumps(expected_processing_summary) in caplog.text
+
+
+def test_base_workflow_finalize_items_already_ingested_item_skipped(
     caplog,
     base_workflow_instance,
     mocked_item_submission_db,
     mocked_sqs_output,
     result_message_attributes,
-    result_message_body,
+    result_message_body_success,
     sqs_client,
 ):
     caplog.set_level("DEBUG")
 
-    mock_item_submission_db_get.return_value = ItemSubmissionDB(
-        batch_id="batch-aaa", item_identifier="10.1002/term.3131", workflow_name="test"
+    ItemSubmissionDB.create(
+        item_identifier="10.1002/term.3131",
+        batch_id="batch-aaa",
+        workflow_name="test",
+        status=ItemSubmissionStatus.INGEST_SUCCESS,
     )
 
     sqs_client.send(
         message_attributes=result_message_attributes,
-        message_body=result_message_body,
+        message_body=result_message_body_success,
+    )
+
+    expected_processing_summary = {
+        "received_messages": 1,
+        "ingest_success": 0,
+        "ingest_failed": 0,
+        "ingest_unknown": 0,
+    }
+
+    base_workflow_instance.finalize_items()
+    assert (
+        "Record with primary keys batch_id=batch-aaa (hash key) and "
+        "item_identifier=10.1002/term.3131 (range key) already ingested, skipping"
+        in caplog.text
+    )
+    assert json.dumps(expected_processing_summary) in caplog.text
+
+
+def test_base_workflow_finalize_items_missing_result_message_skipped(
+    caplog,
+    base_workflow_instance,
+    mocked_item_submission_db,
+    mocked_sqs_output,
+    result_message_attributes,
+    result_message_body_success,
+    sqs_client,
+):
+    caplog.set_level("DEBUG")
+    ItemSubmissionDB.create(
+        item_identifier="10.1002/term.3131",
+        batch_id="batch-aaa",
+        workflow_name="test",
+        status=ItemSubmissionStatus.SUBMIT_SUCCESS,
+    )
+    ItemSubmissionDB.create(
+        item_identifier="10.1002/term.4242",
+        batch_id="batch-aaa",
+        workflow_name="test",
+        status=ItemSubmissionStatus.SUBMIT_SUCCESS,
+    )
+
+    sqs_client.send(
+        message_attributes=result_message_attributes,
+        message_body=result_message_body_success,
     )
 
     expected_processing_summary = {
@@ -190,185 +300,84 @@ def test_base_workflow_process_result_messages_success(
         "ingest_unknown": 0,
     }
 
-    base_workflow_instance.process_result_messages()
-
-    assert "Item was ingested" in caplog.text
+    base_workflow_instance.finalize_items()
     assert json.dumps(expected_processing_summary) in caplog.text
 
+    record_1 = ItemSubmissionDB.get("batch-aaa", "10.1002/term.3131")
+    assert record_1.status == ItemSubmissionStatus.INGEST_SUCCESS
+    assert record_1.ingest_attempts == 1
 
-def test_base_workflow_process_result_messages_if_invalid_msg_attrs_log(
-    caplog,
-    base_workflow_instance,
-    mocked_sqs_output,
-    sqs_client,
-):
-    caplog.set_level("DEBUG")
-
-    # send message with invalid 'MessageAttributes' to 'mock-output-queue'
-    invalid_result_message_attrs = {
-        "SubmissionSource": {"DataType": "String", "StringValue": "Submission system"},
-    }
-    sqs_client.send(
-        message_attributes=invalid_result_message_attrs,
-        message_body="",
-    )
-
-    expected_processing_summary = {
-        "received_messages": 1,
-        "ingest_success": 0,
-        "ingest_failed": 0,
-        "ingest_unknown": 1,
-    }
-    base_workflow_instance.process_result_messages()
-
-    assert "Failed to parse 'MessageAttributes'" in caplog.text
-    assert json.dumps(expected_processing_summary) in caplog.text
+    record_2 = ItemSubmissionDB.get("batch-aaa", "10.1002/term.4242")
+    assert record_2.status == ItemSubmissionStatus.SUBMIT_SUCCESS
+    assert record_2.ingest_attempts == 0
 
 
-@patch("dsc.db.models.ItemSubmissionDB.get")
-def test_base_workflow_process_result_messages_if_invalid_msg_body_log_and_capture(
-    mock_item_submission_db_get,
+def test_base_workflow_finalize_items_with_unknown_ingest_result(
     caplog,
     base_workflow_instance,
     mocked_item_submission_db,
     mocked_sqs_output,
     result_message_attributes,
+    result_message_body_error,
     sqs_client,
 ):
     caplog.set_level("DEBUG")
 
-    mock_item_submission_db_get.return_value = ItemSubmissionDB(
-        batch_id="batch-aaa", item_identifier="10.1002/term.3131", workflow_name="test"
+    ItemSubmissionDB.create(
+        item_identifier="10.1002/term.4242",
+        batch_id="batch-aaa",
+        workflow_name="test",
+        status=ItemSubmissionStatus.SUBMIT_SUCCESS,
     )
+    result_message_attributes["PackageID"]["StringValue"] = "10.1002/term.4242"
+    result_message_body_error = json.loads(result_message_body_error)
+    result_message_body_error["ResultType"] = "false"
 
-    # send message with invalid 'Body' to 'mock-output-queue'
     sqs_client.send(
         message_attributes=result_message_attributes,
-        message_body="",
+        message_body=json.dumps(result_message_body_error),
     )
 
-    expected_processing_summary = {
+    base_workflow_instance.finalize_items()
+
+    record = ItemSubmissionDB.get("batch-aaa", "10.1002/term.4242")
+    assert record.status == ItemSubmissionStatus.INGEST_UNKNOWN
+    assert record.ingest_attempts == 1
+
+    expected_summary = {
         "received_messages": 1,
         "ingest_success": 0,
         "ingest_failed": 0,
         "ingest_unknown": 1,
     }
-    base_workflow_instance.process_result_messages()
-
-    assert "Failed to parse content of 'Body'" in caplog.text
-    assert json.dumps(expected_processing_summary) in caplog.text
+    assert json.dumps(expected_summary) in caplog.text
 
 
-@patch("dsc.db.models.ItemSubmissionDB.get")
-@patch("dsc.workflows.Workflow._parse_result_message_body")
-def test_base_workflow_process_result_messages_if_ingest_failed_log_and_capture(
-    mock_workflow_parse_result_message_body,
-    mock_item_submission_db_get,
+def test_base_workflow_finalize_items_exception_handled_and_logged(
     caplog,
     base_workflow_instance,
     mocked_item_submission_db,
     mocked_sqs_output,
     result_message_attributes,
+    result_message_body_success,
     sqs_client,
 ):
     caplog.set_level("DEBUG")
-
-    # mock "Body" for failed ingest
-    ingest_failed_result_message_body = {
-        "ResultType": "error",
-        "ErrorTimestamp": "text",
-        "ErrorInfo": "text",
-        "DSpaceResponse": "text",
-        "ExceptionTraceback": ["text"],
-    }
-    mock_workflow_parse_result_message_body.return_value = (
-        ingest_failed_result_message_body
-    )
-
-    mock_item_submission_db_get.return_value = ItemSubmissionDB(
-        batch_id="batch-aaa", item_identifier="10.1002/term.3131", workflow_name="test"
-    )
-
     sqs_client.send(
         message_attributes=result_message_attributes,
-        message_body=json.dumps(ingest_failed_result_message_body),
+        message_body='{"fail": "fail"}',
     )
 
-    expected_processing_summary = {
-        "received_messages": 1,
+    base_workflow_instance.finalize_items()
+
+    expected_summary = {
+        "received_messages": 0,
         "ingest_success": 0,
-        "ingest_failed": 1,
+        "ingest_failed": 0,
         "ingest_unknown": 0,
     }
-    base_workflow_instance.process_result_messages()
-
-    assert "Item failed ingest" in caplog.text
-    assert json.dumps(expected_processing_summary) in caplog.text
-
-
-def test_base_workflow_parse_result_message_attrs_success(
-    base_workflow_instance, result_message_valid
-):
-    message_attributes = result_message_valid["MessageAttributes"]
-    valid_message_attributes = (
-        base_workflow_instance._parse_result_message_attrs(  # noqa: SLF001
-            message_attributes=message_attributes
-        )
-    )
-
-    assert valid_message_attributes == message_attributes
-
-
-def test_base_workflow_parse_result_message_attrs_if_json_schema_validation_fails(
-    base_workflow_instance, result_message_valid
-):
-    message_attributes = result_message_valid["MessageAttributes"]
-
-    # modify content of 'MessageAttributes'
-    del message_attributes["SubmissionSource"]
-
-    with pytest.raises(
-        InvalidSQSMessageError,
-        match="Content of 'MessageAttributes' failed schema validation",
-    ):
-        base_workflow_instance._parse_result_message_attrs(  # noqa: SLF001
-            message_attributes=message_attributes
-        )
-
-
-def test_base_workflow_parse_result_message_body_success(
-    base_workflow_instance, result_message_valid, result_message_body
-):
-    message_body = result_message_valid["Body"]
-    valid_message_body = (
-        base_workflow_instance._parse_result_message_body(  # noqa: SLF001
-            message_body=message_body
-        )
-    )
-
-    assert valid_message_body == json.loads(result_message_body)
-
-
-def test_base_workflow_parse_result_message_body_if_json_schema_validation_fails(
-    base_workflow_instance, result_message_valid
-):
-    original_message_body = result_message_valid["Body"]
-
-    # modify content of 'Body'
-    modified_message_body = json.loads(original_message_body)
-    del modified_message_body["Bitstreams"]
-
-    with pytest.raises(
-        InvalidSQSMessageError, match="Content of 'Body' failed schema validation"
-    ):
-        base_workflow_instance._parse_result_message_body(  # noqa: SLF001
-            message_body=json.dumps(modified_message_body),
-        )
-
-
-def test_base_workflow_parse_result_message_body_if_invalid_json(base_workflow_instance):
-    with pytest.raises(InvalidSQSMessageError, match="Failed to parse content of 'Body'"):
-        base_workflow_instance._parse_result_message_body(message_body="")  # noqa: SLF001
+    assert "Failure parsing message" in caplog.text
+    assert json.dumps(expected_summary) in caplog.text
 
 
 def test_base_workflow_workflow_specific_processing_success(

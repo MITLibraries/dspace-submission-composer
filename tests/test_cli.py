@@ -147,9 +147,7 @@ def test_submit_success(
     assert "Total time elapsed" in caplog.text
 
 
-@patch("dsc.db.models.ItemSubmissionDB.get")
 def test_finalize_success(
-    mock_item_submission_db_get,
     caplog,
     runner,
     mocked_item_submission_db,
@@ -159,17 +157,20 @@ def test_finalize_success(
     base_workflow_instance,
     sqs_client,
     result_message_attributes,
-    result_message_body,
+    result_message_body_success,
 ):
     caplog.set_level("DEBUG")
 
-    mock_item_submission_db_get.return_value = ItemSubmissionDB(
-        batch_id="batch-aaa", item_identifier="10.1002/term.3131", workflow_name="test"
+    ItemSubmissionDB.create(
+        item_identifier="10.1002/term.3131",
+        batch_id="batch-aaa",
+        workflow_name="test",
+        status=ItemSubmissionStatus.SUBMIT_SUCCESS,
     )
 
     sqs_client.send(
         message_attributes=result_message_attributes,
-        message_body=result_message_body,
+        message_body=result_message_body_success,
     )
 
     expected_processing_summary = {

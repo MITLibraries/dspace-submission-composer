@@ -27,11 +27,11 @@ def test_sqs_delete_success(
     mocked_sqs_output,
     sqs_client,
     result_message_attributes,
-    result_message_body,
+    result_message_body_success,
 ):
     sqs_client.send(
         message_attributes=result_message_attributes,
-        message_body=result_message_body,
+        message_body=result_message_body_success,
     )
     message = next(sqs_client.receive())
     response = sqs_client.delete(
@@ -84,15 +84,15 @@ def test_sqs_receive_success(
     mocked_sqs_output,
     sqs_client,
     result_message_attributes,
-    result_message_body,
+    result_message_body_success,
 ):
     sqs_client.send(
         message_attributes=result_message_attributes,
-        message_body=result_message_body,
+        message_body=result_message_body_success,
     )
     messages = sqs_client.receive()
     for message in messages:
-        assert message["Body"] == str(result_message_body)
+        assert message["Body"] == str(result_message_body_success)
         assert message["MessageAttributes"] == result_message_attributes
 
 
