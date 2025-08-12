@@ -2,6 +2,7 @@ import csv
 import json
 import time
 import uuid
+import zipfile
 from io import StringIO
 
 import boto3
@@ -129,6 +130,14 @@ def simple_csv_workflow_instance(metadata_mapping):
 @pytest.fixture
 def opencourseware_workflow_instance():
     return TestOpenCourseWare(batch_id="batch-aaa")
+
+
+@pytest.fixture
+def opencourseware_source_metadata_json():
+    with zipfile.ZipFile(
+        "tests/fixtures/opencourseware/14.02-fall-2004.zip", "r"
+    ) as zip_file, zip_file.open("data.json") as file:
+        return json.load(file)
 
 
 @pytest.fixture
