@@ -1,8 +1,8 @@
 from dsc.workflows.opencourseware import OpenCourseWareTransformer
 
 
-def test_opencourseware_transform_success(opencourseware_source_metadata_json):
-    assert OpenCourseWareTransformer.transform(opencourseware_source_metadata_json) == {
+def test_opencourseware_transform_success(opencourseware_source_metadata):
+    assert OpenCourseWareTransformer.transform(opencourseware_source_metadata) == {
         "dc.title": "14.02 Principles of Macroeconomics, Fall 2004",
         "dc.date.issued": "2004",
         "dc.description.abstract": (
@@ -33,80 +33,97 @@ def test_opencourseware_transform_success(opencourseware_source_metadata_json):
     }
 
 
-def test_opencourseware_dc_title_success(opencourseware_source_metadata_json):
-    assert OpenCourseWareTransformer.dc_title(opencourseware_source_metadata_json) == (
+def test_opencourseware_dc_title_success(opencourseware_source_metadata):
+    assert OpenCourseWareTransformer.dc_title(opencourseware_source_metadata) == (
         "14.02 Principles of Macroeconomics, Fall 2004"
     )
 
 
 def test_opencourseware_dc_title_if_multi_extra_course_numbers_success(
-    opencourseware_source_metadata_json,
+    opencourseware_source_metadata,
 ):
-    opencourseware_source_metadata_json["extra_course_numbers"] = "14.027J,14.006"
+    opencourseware_source_metadata["extra_course_numbers"] = "14.027J,14.006"
 
-    assert OpenCourseWareTransformer.dc_title(opencourseware_source_metadata_json) == (
+    assert OpenCourseWareTransformer.dc_title(opencourseware_source_metadata) == (
         "14.02 / 14.027J / 14.006 Principles of Macroeconomics, Fall 2004"
     )
 
 
-def test_opencourseware_dc_date_issued_success(opencourseware_source_metadata_json):
+def test_opencourseware_dc_date_issued_success(opencourseware_source_metadata):
     assert (
-        OpenCourseWareTransformer.dc_date_issued(opencourseware_source_metadata_json)
-        == "2004"
+        OpenCourseWareTransformer.dc_date_issued(opencourseware_source_metadata) == "2004"
     )
 
 
-def test_opencourseware_dc_description_abstract(opencourseware_source_metadata_json):
+def test_opencourseware_dc_description_abstract(opencourseware_source_metadata):
     assert isinstance(
-        OpenCourseWareTransformer.dc_description_abstract(
-            opencourseware_source_metadata_json
-        ),
+        OpenCourseWareTransformer.dc_description_abstract(opencourseware_source_metadata),
         str,
     )
 
 
 def test_opencourseware_dc_contributor_author_success(
-    opencourseware_source_metadata_json,
+    opencourseware_source_metadata,
 ):
     assert OpenCourseWareTransformer.dc_contributor_author(
-        opencourseware_source_metadata_json
+        opencourseware_source_metadata
     ) == ["Caballero, Ricardo"]
 
 
+def test_opencourseware_dc_contributor_author_if_any_names_empty_success(
+    opencourseware_source_metadata,
+):
+    # the first four entries in the list below result in an empty name ("")
+    # only the last entry is included
+    opencourseware_source_metadata["instructors"].extend(
+        [
+            {},  # all fields missing
+            {"middle_initial": "E."},  # all required fields missing
+            {"first_name": "Cheese", "middle_initial": "E."},  # "last_name" field missing
+            {"last_name": "Burger", "middle_initial": "E."},  # "first_name" field missing
+            {"first_name": "Cheese", "last_name": "Burger", "middle_initial": "E."},
+        ]
+    )
+    assert OpenCourseWareTransformer.dc_contributor_author(
+        opencourseware_source_metadata
+    ) == [
+        "Caballero, Ricardo",
+        "Burger, Cheese E.",
+    ]
+
+
 def test_opencourseware_creativework_learningresourcetype_success(
-    opencourseware_source_metadata_json,
+    opencourseware_source_metadata,
 ):
     assert OpenCourseWareTransformer.creativework_learningresourcetype(
-        opencourseware_source_metadata_json
+        opencourseware_source_metadata
     ) == ["Problem Sets with Solutions", "Exams with Solutions", "Lecture Notes"]
 
 
-def test_opencourseware_dc_subject_success(opencourseware_source_metadata_json):
-    assert OpenCourseWareTransformer.dc_subject(opencourseware_source_metadata_json) == [
+def test_opencourseware_dc_subject_success(opencourseware_source_metadata):
+    assert OpenCourseWareTransformer.dc_subject(opencourseware_source_metadata) == [
         "Social Science - Economics - International Economics",
         "Social Science - Economics - Macroeconomics",
     ]
 
 
-def test_opencourseware_dc_identifier_other_success(opencourseware_source_metadata_json):
+def test_opencourseware_dc_identifier_other_success(opencourseware_source_metadata):
     assert OpenCourseWareTransformer.dc_identifier_other(
-        opencourseware_source_metadata_json
+        opencourseware_source_metadata
     ) == ["14.02", "14.02-Fall2004"]
 
 
-def test_opencourseware_dc_coverage_temporal_success(opencourseware_source_metadata_json):
+def test_opencourseware_dc_coverage_temporal_success(opencourseware_source_metadata):
     assert (
-        OpenCourseWareTransformer.dc_coverage_temporal(
-            opencourseware_source_metadata_json
-        )
+        OpenCourseWareTransformer.dc_coverage_temporal(opencourseware_source_metadata)
         == "Fall 2004"
     )
 
 
-def test_opencourseware_dc_audience_educationlevel(opencourseware_source_metadata_json):
+def test_opencourseware_dc_audience_educationlevel(opencourseware_source_metadata):
     assert (
         OpenCourseWareTransformer.dc_audience_educationlevel(
-            opencourseware_source_metadata_json
+            opencourseware_source_metadata
         )
         == "Undergraduate"
     )

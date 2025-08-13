@@ -251,7 +251,7 @@ class OpenCourseWare(Workflow):
     """
 
     workflow_name: str = "opencourseware"
-    metadata_transformer: OpenCourseWareTransformer = OpenCourseWareTransformer()
+    metadata_transformer = OpenCourseWareTransformer
 
     @property
     def metadata_mapping_path(self) -> str:
@@ -286,7 +286,7 @@ class OpenCourseWare(Workflow):
             item_identifier = self.parse_item_identifier(file)
 
             try:
-                self._extract_metadata_from_zip_file(file)
+                self._read_metadata_from_zip_file(file)
             except FileNotFoundError:
                 bitstreams_without_metadata.append(item_identifier)
             else:
@@ -333,11 +333,13 @@ class OpenCourseWare(Workflow):
         ):
             yield {
                 "item_identifier": self.parse_item_identifier(file),
-                **self._extract_metadata_from_zip_file(file),
+                **self.metadata_transformer.transform(
+                    source_metadata=self._read_metadata_from_zip_file(file)
+                ),
             }
 
-    def _extract_metadata_from_zip_file(self, file: str) -> dict[str, str]:
-        """Yield source metadata from metadata JSON file in zip archive.
+    def _read_metadata_from_zip_file(self, file: str) -> dict[str, str]:
+        """Read source metadata JSON file in zip archive.
 
         This method expects a JSON file called "data.json" at the root
         level of the the zip file.
@@ -347,101 +349,11 @@ class OpenCourseWare(Workflow):
                 path from the S3 bucket to the file.
                 Given an S3 URI "s3://dsc/opencourseware/batch-00/123.zip",
                 then file = "opencourseware/batch-00/123.zip".
-
-            item_identifier: Item identifier, used to find and read the metadata
-                JSON file for the associated bitstream zip file.
         """
         with smart_open.open(file, "rb") as file_input, zipfile.ZipFile(
             file_input
-        ) as zip_file:
-            for filename in zip_file.namelist():
-                if filename == "data.json":
-                    return self._read_metadata_json_file(zip_file)
-            raise FileNotFoundError(
-                "The required file 'data.json' file was not found in the zip file: "
-                f"{file}"
-            )
-
-    def _read_metadata_json_file(self, zip_file: zipfile.ZipFile) -> dict[str, str]:
-        """Read source metadata JSON file."""
-        with zip_file.open("data.json") as file:
-            source_metadata = json.load(file)
-            source_metadata["instructors"] = self._get_instructors_list(
-                source_metadata["instructors"]
-            )
-            source_metadata["topics"] = self._get_topics_list(source_metadata["topics"])
-            return source_metadata
-
-    def _get_instructors_list(self, instructors: list[dict[str, str]]) -> list[str]:
-        """Get delimited string of 'instructors' from source metadata JSON file.
-
-        Source metadata JSON files stored in OCW zip files contain an 'instructors'
-        property, which contains an array of objects representing an instructor's
-        credentials:
-
-            [
-                {
-                    "first_name": "Kerry",
-                    "last_name": "Oki",
-                    "middle_initial": "",
-                    "salutation": "Prof.",
-                    "title": "Prof. Kerry Oki"
-                },
-                {
-                    "first_name": "Earl",
-                    "last_name": "Bird",
-                    "middle_initial": "E.",
-                    "salutation": "Prof.",
-                    "title": "Prof. Earl E. Bird"
-                }
-            ]
-
-        Given these credentials, this method will construct a pipe-delimited ("|")
-        string with the following format: "<last_name>, <first_name> <middle_initial>".
-
-            Example output:
-                ["Oki, Kerry", "Bird, Earl E."]
-
-        """
-        return [
-            instructor_name
-            for instructor in instructors
-            if (instructor_name := self._construct_instructor_name(instructor))
-        ]
-
-    @staticmethod
-    def _construct_instructor_name(instructor: dict[str, str]) -> str:
-        """Given a dictionary of name fields, derive instructor name."""
-        if not (last_name := instructor.get("last_name")) or not (
-            first_name := instructor.get("first_name")
-        ):
-            return ""
-        return f"{last_name}, {first_name} {instructor.get("middle_initial", "")}".strip()
-
-    def _get_topics_list(self, topics: list[list[str]]) -> list[str]:
-        """Get list of concatenated 'topics' from source metadata JSON file.
-
-        Source metadata JSON files stored in OCW zip files contain a 'topics'
-        property, which contains an array of arrays with string values
-        representing topics:
-
-            [
-                ["Social Science","Economics","International Economics"],
-                ["Social Science","Economics","Macroeconomics"]
-            ]
-
-        Given a list of topic terms (also stored as a list), this method will
-        conctenate each set of topic terms, using a dash to separate each term
-        with the following format: "<topic 1> - <topic 2> - <topic 3>".
-
-            Example output:
-                [
-                    "Social Science - Economics - International Economics",
-                    "Social Science - Economics - Macroeconomics"
-                ]
-        """
-        topics_list = [" - ".join(topic_terms) for topic_terms in topics]
-        return list(filter(None, topics_list))
+        ) as zip_file, zip_file.open("data.json") as json_file:
+            return json.load(json_file)
 
     def parse_item_identifier(self, file: str) -> str:
         """Parse item identifier from bitstream zip file."""
