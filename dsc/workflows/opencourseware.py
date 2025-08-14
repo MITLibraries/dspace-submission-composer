@@ -1,7 +1,8 @@
+import inspect
 import json
 import logging
 import zipfile
-from collections.abc import Iterator
+from collections.abc import Iterable, Iterator
 from typing import Any
 
 import smart_open
@@ -13,6 +14,234 @@ from dsc.workflows.base import Workflow
 logger = logging.getLogger(__name__)
 
 
+class OpenCourseWareTransformer:
+    """Transformer for OpenCourseWare (OCW) source metadata."""
+
+    fields: Iterable[str] = [
+        # fields with derived values
+        "dc_title",
+        "dc_date_issued",
+        "dc_description_abstract",
+        "dc_contributor_author",
+        "creativework_learningresourcetype",
+        "dc_subject",
+        "dc_identifier_other",
+        "dc_coverage_temporal",
+        "dc_audience_educationlevel",
+        # fields with static values
+        "dc_type",
+        "dc_rights",
+        "dc_rights_uri",
+        "dc_language_iso",
+    ]
+
+    @classmethod
+    def transform(cls, source_metadata: dict) -> dict:
+        """Transform source metadata."""
+        transformed_metadata = {}
+        for field in cls.fields:
+            field_method = getattr(cls, field)
+            formatted_field_name = field.replace("_", ".")
+
+            # check if 'source_metadata' is in signature
+            signature = inspect.signature(field_method)
+            if "source_metadata" in signature.parameters:
+                transformed_metadata[formatted_field_name] = field_method(source_metadata)
+            else:
+                transformed_metadata[formatted_field_name] = field_method()
+
+        return transformed_metadata
+
+    @classmethod
+    def dc_title(cls, source_metadata: dict) -> str:
+        """Build a title string from course numbers, title, and term year.
+
+        Examples:
+            1. Field 'extra_course_numbers' contains single value
+                Input:
+                    {
+                        "primary_course_number": "6.001",
+                        "extra_course_numbers": "18.01",
+                        "course_title": "Introduction to Computer Science",
+                        "term_year": "2023"
+                    }
+                Output:
+                    "6.001 / 18.01 Introduction to Computer Science, 2023"
+
+
+            2. Field 'extra_course_numbers' contains multiple values
+                Input:
+                    {
+                        "primary_course_number": "8.01",
+                        "extra_course_numbers": "18.01,6.042",
+                        "course_title": "Physics I",
+                        "term_year": "2021"
+                    }
+                Output:
+                    "8.01 / 18.01 / 6.042 Physics I, 2021"
+        """
+        title = ""
+
+        # get list of course numbers
+        course_numbers: list[str] = []
+        course_numbers.append(source_metadata.get("primary_course_number", ""))
+        if extra_course_numbers := source_metadata.get("extra_course_numbers", ""):
+            course_numbers.extend(extra_course_numbers.split(","))
+        course_numbers = [
+            course_number for course_number in course_numbers if course_number
+        ]
+
+        if course_numbers:
+            title += " / ".join(course_numbers)
+        if course_title := source_metadata.get("course_title"):
+            title += f" {course_title}"
+        if term := source_metadata.get("term"):
+            title += f", {term}"
+        if year := source_metadata.get("year"):
+            title += f" {year}"
+
+        return title
+
+    @classmethod
+    def dc_date_issued(cls, source_metadata: dict) -> str:
+        """Return the year of issue from the source metadata.
+
+        Example:
+            Input: {"year": "2022"}
+            Output: "2022"
+        """
+        return source_metadata["year"]
+
+    @classmethod
+    def dc_description_abstract(cls, source_metadata: dict) -> str:
+        """Return the course description from the source metadata.
+
+        Example:
+            Input: {"course_description": "An introduction to algorithms."}
+            Output: "An introduction to algorithms."
+        """
+        return source_metadata["course_description"]
+
+    @classmethod
+    def dc_contributor_author(cls, source_metadata: dict) -> list[str]:
+        """Return a list of formatted instructor names.
+
+        Example:
+            Input: {"instructors": [{
+                        "first_name": "Jane",
+                         "last_name": "Doe",
+                         "middle_initial": "A."
+                        }]
+                    }
+            Output: ["Doe, Jane A."]
+        """
+        return [
+            instructor_name
+            for instructor_details in source_metadata["instructors"]
+            if (instructor_name := cls._format_instructor_name(instructor_details))
+        ]
+
+    @classmethod
+    def _format_instructor_name(cls, instructor_details: dict[str, str]) -> str:
+        """Format instructor name as 'Last, First Middle'.
+
+        Example:
+            Input: {"first_name": "Jane", "last_name": "Doe", "middle_initial": "A."}
+            Output: "Doe, Jane A."
+        """
+        if not (last_name := instructor_details.get("last_name")) or not (
+            first_name := instructor_details.get("first_name")
+        ):
+            return ""
+        instructor_name = (
+            f"{last_name}, {first_name} {instructor_details.get("middle_initial", "")}"
+        )
+        return instructor_name.strip()
+
+    @classmethod
+    def creativework_learningresourcetype(cls, source_metadata: dict) -> list[str]:
+        """Return the list of learning resource types.
+
+        Example:
+            Input: {"learning_resource_types": ["Lecture Notes", "Exams"]}
+            Output: ["Lecture Notes", "Exams"]
+        """
+        return source_metadata["learning_resource_types"]
+
+    @classmethod
+    def dc_subject(cls, source_metadata: dict) -> list[str]:
+        """Concatenate topic arrays into dash-separated strings.
+
+        Example:
+            Input: {"topics": [["Math", "Algebra"], ["Science", "Physics"]]}
+            Output: ["Math - Algebra", "Science - Physics"]
+        """
+        topics_list = [
+            " - ".join(topic_terms) for topic_terms in source_metadata["topics"]
+        ]
+        return list(filter(None, topics_list))
+
+    @classmethod
+    def dc_identifier_other(cls, source_metadata: dict) -> list[str]:
+        """Return a list of course identifiers, including formatted term/year.
+
+        Example:
+            Input: {
+                "primary_course_number": "6.001",
+                "extra_course_numbers": "18.01",
+                "term": "Fall",
+                "year": "2023"
+            }
+            Output: ["6.001", "6.001-Fall2023", "18.01"]
+        """
+        identifier_other_list = []
+        if primary_course_number := source_metadata["primary_course_number"]:
+            identifier_other_list.append(primary_course_number)
+            # format primary_course_number with term and year
+            identifier_other_list.append(
+                f"{primary_course_number}-{source_metadata["term"]}{source_metadata["year"]}"
+            )
+        if extra_course_numbers := source_metadata["extra_course_numbers"]:
+            identifier_other_list.append(extra_course_numbers)
+        return identifier_other_list
+
+    @classmethod
+    def dc_coverage_temporal(cls, source_metadata: dict) -> str:
+        """Return a string combining term and year.
+
+        Example:
+            Input: {"term": "Spring", "year": "2024"}
+            Output: "Spring 2024"
+        """
+        return " ".join([source_metadata["term"], source_metadata["year"]])
+
+    @classmethod
+    def dc_audience_educationlevel(cls, source_metadata: dict) -> str:
+        """Return the education level from the source metadata.
+
+        Example:
+            Input: {"level": ["Undergraduate"]}
+            Output: "Undergraduate"
+        """
+        return source_metadata["level"][0]
+
+    @classmethod
+    def dc_type(cls) -> str:
+        return "Learning Object"
+
+    @classmethod
+    def dc_rights(cls) -> str:
+        return "Attribution-NonCommercial-NoDerivs 4.0 United States"
+
+    @classmethod
+    def dc_rights_uri(cls) -> str:
+        return "https://creativecommons.org/licenses/by-nc-nd/4.0/deed.en"
+
+    @classmethod
+    def dc_language_iso(cls) -> str:
+        return "en_US"
+
+
 class OpenCourseWare(Workflow):
     """Workflow for OpenCourseWare (OCW) deposits.
 
@@ -22,6 +251,7 @@ class OpenCourseWare(Workflow):
     """
 
     workflow_name: str = "opencourseware"
+    metadata_transformer = OpenCourseWareTransformer
 
     @property
     def metadata_mapping_path(self) -> str:
@@ -56,7 +286,7 @@ class OpenCourseWare(Workflow):
             item_identifier = self.parse_item_identifier(file)
 
             try:
-                self._extract_metadata_from_zip_file(file)
+                self._read_metadata_from_zip_file(file)
             except FileNotFoundError:
                 bitstreams_without_metadata.append(item_identifier)
             else:
@@ -103,11 +333,13 @@ class OpenCourseWare(Workflow):
         ):
             yield {
                 "item_identifier": self.parse_item_identifier(file),
-                **self._extract_metadata_from_zip_file(file),
+                **self.metadata_transformer.transform(
+                    source_metadata=self._read_metadata_from_zip_file(file)
+                ),
             }
 
-    def _extract_metadata_from_zip_file(self, file: str) -> dict[str, str]:
-        """Yield source metadata from metadata JSON file in zip archive.
+    def _read_metadata_from_zip_file(self, file: str) -> dict[str, str]:
+        """Read source metadata JSON file in zip archive.
 
         This method expects a JSON file called "data.json" at the root
         level of the the zip file.
@@ -117,101 +349,11 @@ class OpenCourseWare(Workflow):
                 path from the S3 bucket to the file.
                 Given an S3 URI "s3://dsc/opencourseware/batch-00/123.zip",
                 then file = "opencourseware/batch-00/123.zip".
-
-            item_identifier: Item identifier, used to find and read the metadata
-                JSON file for the associated bitstream zip file.
         """
         with smart_open.open(file, "rb") as file_input, zipfile.ZipFile(
             file_input
-        ) as zip_file:
-            for filename in zip_file.namelist():
-                if filename == "data.json":
-                    return self._read_metadata_json_file(zip_file)
-            raise FileNotFoundError(
-                "The required file 'data.json' file was not found in the zip file: "
-                f"{file}"
-            )
-
-    def _read_metadata_json_file(self, zip_file: zipfile.ZipFile) -> dict[str, str]:
-        """Read source metadata JSON file."""
-        with zip_file.open("data.json") as file:
-            source_metadata = json.load(file)
-            source_metadata["instructors"] = self._get_instructors_list(
-                source_metadata["instructors"]
-            )
-            source_metadata["topics"] = self._get_topics_list(source_metadata["topics"])
-            return source_metadata
-
-    def _get_instructors_list(self, instructors: list[dict[str, str]]) -> list[str]:
-        """Get delimited string of 'instructors' from source metadata JSON file.
-
-        Source metadata JSON files stored in OCW zip files contain an 'instructors'
-        property, which contains an array of objects representing an instructor's
-        credentials:
-
-            [
-                {
-                    "first_name": "Kerry",
-                    "last_name": "Oki",
-                    "middle_initial": "",
-                    "salutation": "Prof.",
-                    "title": "Prof. Kerry Oki"
-                },
-                {
-                    "first_name": "Earl",
-                    "last_name": "Bird",
-                    "middle_initial": "E.",
-                    "salutation": "Prof.",
-                    "title": "Prof. Earl E. Bird"
-                }
-            ]
-
-        Given these credentials, this method will construct a pipe-delimited ("|")
-        string with the following format: "<last_name>, <first_name> <middle_initial>".
-
-            Example output:
-                ["Oki, Kerry", "Bird, Earl E."]
-
-        """
-        return [
-            instructor_name
-            for instructor in instructors
-            if (instructor_name := self._construct_instructor_name(instructor))
-        ]
-
-    @staticmethod
-    def _construct_instructor_name(instructor: dict[str, str]) -> str:
-        """Given a dictionary of name fields, derive instructor name."""
-        if not (last_name := instructor.get("last_name")) or not (
-            first_name := instructor.get("first_name")
-        ):
-            return ""
-        return f"{last_name}, {first_name} {instructor.get("middle_initial", "")}".strip()
-
-    def _get_topics_list(self, topics: list[list[str]]) -> list[str]:
-        """Get list of concatenated 'topics' from source metadata JSON file.
-
-        Source metadata JSON files stored in OCW zip files contain a 'topics'
-        property, which contains an array of arrays with string values
-        representing topics:
-
-            [
-                ["Social Science","Economics","International Economics"],
-                ["Social Science","Economics","Macroeconomics"]
-            ]
-
-        Given a list of topic terms (also stored as a list), this method will
-        conctenate each set of topic terms, using a dash to separate each term
-        with the following format: "<topic 1> - <topic 2> - <topic 3>".
-
-            Example output:
-                [
-                    "Social Science - Economics - International Economics",
-                    "Social Science - Economics - Macroeconomics"
-                ]
-        """
-        topics_list = [" - ".join(topic_terms) for topic_terms in topics]
-        return list(filter(None, topics_list))
+        ) as zip_file, zip_file.open("data.json") as json_file:
+            return json.load(json_file)
 
     def parse_item_identifier(self, file: str) -> str:
         """Parse item identifier from bitstream zip file."""

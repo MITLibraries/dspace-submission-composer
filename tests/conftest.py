@@ -2,6 +2,7 @@ import csv
 import json
 import time
 import uuid
+import zipfile
 from io import StringIO
 
 import boto3
@@ -133,27 +134,10 @@ def opencourseware_workflow_instance():
 
 @pytest.fixture
 def opencourseware_source_metadata():
-    return {
-        "course_title": "Matrix Calculus for Machine Learning and Beyond",
-        "course_description": "We all know that calculus courses.",
-        "site_uid": "2318fd9f-1b5c-4a48-8a04-9c56d902a1f8",
-        "instructors": [
-            {
-                "first_name": "Alan",
-                "last_name": "Edelman",
-                "middle_initial": "",
-                "salutation": "Prof.",
-                "title": "Prof. Alan Edelman",
-            },
-            {
-                "first_name": "Steven",
-                "last_name": "Johnson",
-                "middle_initial": "G.",
-                "salutation": "Prof.",
-                "title": "Prof. Steven G. Johnson",
-            },
-        ],
-    }
+    with zipfile.ZipFile(
+        "tests/fixtures/opencourseware/123.zip", "r"
+    ) as zip_file, zip_file.open("data.json") as file:
+        return json.load(file)
 
 
 @pytest.fixture
