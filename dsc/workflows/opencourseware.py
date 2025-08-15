@@ -3,7 +3,7 @@ import json
 import logging
 import zipfile
 from collections.abc import Iterable, Iterator
-from typing import Any
+from typing import Any, ClassVar
 
 import smart_open
 
@@ -23,6 +23,7 @@ class OpenCourseWareTransformer:
         "dc_date_issued",
         "dc_description_abstract",
         "dc_contributor_author",
+        "dc_contributor_department",
         "creativework_learningresourcetype",
         "dc_subject",
         "dc_identifier_other",
@@ -34,6 +35,46 @@ class OpenCourseWareTransformer:
         "dc_rights_uri",
         "dc_language_iso",
     ]
+
+    department_mappings: ClassVar = {
+        "1": "Massachusetts Institute of Technology. Department of Civil and Environmental Engineering",  # noqa: E501
+        "2": "Massachusetts Institute of Technology. Department of Mechanical Engineering",  # noqa: E501
+        "3": "Massachusetts Institute of Technology. Department of Materials Science and Engineering",  # noqa: E501
+        "4": "Massachusetts Institute of Technology. Department of Architecture",
+        "5": "Massachusetts Institute of Technology. Department of Chemistry",
+        "6": "Massachusetts Institute of Technology. Department of Electrical Engineering and Computer Science",  # noqa: E501
+        "7": "Massachusetts Institute of Technology. Department of Biology",
+        "8": "Massachusetts Institute of Technology. Department of Physics",
+        "9": "Massachusetts Institute of Technology. Department of Brain and Cognitive Sciences",  # noqa: E501
+        "10": "Massachusetts Institute of Technology. Department of Chemical Engineering",
+        "11": "Massachusetts Institute of Technology. Department of Urban Studies and Planning",  # noqa: E501
+        "12": "Massachusetts Institute of Technology. Department of Earth, Atmospheric, and Planetary Sciences",  # noqa: E501
+        "14": "Massachusetts Institute of Technology. Department of Economics",
+        "15": "Sloan School of Management",
+        "16": "Massachusetts Institute of Technology. Department of Aeronautics and Astronautics",  # noqa: E501
+        "17": "Massachusetts Institute of Technology. Department of Political Science",
+        "18": "Massachusetts Institute of Technology. Department of Mathematics",
+        "20": "Massachusetts Institute of Technology. Department of Biological Engineering",  # noqa: E501
+        "21": "Massachusetts Institute of Technology. Department of Humanities",
+        "22": "Massachusetts Institute of Technology. Department of Nuclear Science and Engineering",  # noqa: E501
+        "24": "Massachusetts Institute of Technology. Department of Linguistics and Philosophy",  # noqa: E501
+        "21A": "MIT Anthropology",
+        "21E/21S": "Massachusetts Institute of Technology. Department of Humanities and Engineering",  # noqa: E501
+        "21G": "MIT Global Languages",
+        "21H": "Massachusetts Institute of Technology. History Section",
+        "21L": "Massachusetts Institute of Technology. Literature Section",
+        "21M": "Massachusetts Institute of Technology. Music and Theater Arts Section",
+        "21W": "Massachusetts Institute of Technology. Program in Comparative Media Studies/Writing",  # noqa: E501
+        "CMS": "Massachusetts Institute of Technology. Program in Comparative Media Studies/Writing",  # noqa: E501
+        "HST": "Harvard University--MIT Division of Health Sciences and Technology",
+        "IDS": "Massachusetts Institute of Technology. Institute for Data, Systems, and Society",  # noqa: E501
+        "MAS": "Program in Media Arts and Sciences (Massachusetts Institute of Technology)",  # noqa: E501
+        "STS": "Massachusetts Institute of Technology. Program in Science, Technology and Society",  # noqa: E501
+        "ESD": "Massachusetts Institute of Technology. Engineering Systems Division",
+        "WGS": "MIT Program in Women's and Gender Studies",
+        "ESG": "MIT Experimental Study Group",
+        "EC": "Edgerton Center (Massachusetts Institute of Technology)",
+    }
 
     @classmethod
     def transform(cls, source_metadata: dict) -> dict:
@@ -157,6 +198,24 @@ class OpenCourseWareTransformer:
             f"{last_name}, {first_name} {instructor_details.get("middle_initial", "")}"
         )
         return instructor_name.strip()
+
+    @classmethod
+    def dc_contributor_department(cls, source_metadata: dict) -> list[str]:
+        """Return a list of department names mapped from department numbers.
+
+        Example:
+            Input: {"department_numbers": ["14", "", "18"]}
+            Output:
+                [
+                    "Massachusetts Institute of Technology. Department of Economics",
+                    "Massachusetts Institute of Technology. Department of Mathematics"
+                ]
+        """
+        department_names = [
+            cls.department_mappings.get(str(department_number), str(department_number))
+            for department_number in source_metadata["department_numbers"]
+        ]
+        return list(filter(None, department_names))
 
     @classmethod
     def creativework_learningresourcetype(cls, source_metadata: dict) -> list[str]:

@@ -14,6 +14,9 @@ def test_opencourseware_transform_success(opencourseware_source_metadata):
             "the United States and other economies.\n"
         ),
         "dc.contributor.author": ["Caballero, Ricardo"],
+        "dc.contributor.department": [
+            "Massachusetts Institute of Technology. Department of Economics"
+        ],
         "creativework.learningresourcetype": [
             "Problem Sets with Solutions",
             "Exams with Solutions",
@@ -90,6 +93,13 @@ def test_opencourseware_dc_contributor_author_if_any_names_empty_success(
         "Caballero, Ricardo",
         "Burger, Cheese E.",
     ]
+
+
+def test_opencourseware_dc_contributor_department_success(opencourseware_source_metadata):
+    assert opencourseware_source_metadata["department_numbers"] == ["14"]
+    assert OpenCourseWareTransformer.dc_contributor_department(
+        opencourseware_source_metadata
+    ) == ["Massachusetts Institute of Technology. Department of Economics"]
 
 
 def test_opencourseware_creativework_learningresourcetype_success(
