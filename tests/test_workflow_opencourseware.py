@@ -84,6 +84,9 @@ def test_workflow_ocw_item_metadata_iter_success(
             "the United States and other economies.\n"
         ),
         "dc.contributor.author": ["Caballero, Ricardo"],
+        "dc.contributor.department": [
+            "Massachusetts Institute of Technology. Department of Economics"
+        ],
         "creativework.learningresourcetype": [
             "Problem Sets with Solutions",
             "Exams with Solutions",
