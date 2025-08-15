@@ -212,7 +212,7 @@ class OpenCourseWareTransformer:
                 ]
         """
         department_names = [
-            cls.department_mappings.get(str(department_number))
+            cls.department_mappings.get(str(department_number), str(department_number))
             for department_number in source_metadata["department_numbers"]
         ]
         return list(filter(None, department_names))
