@@ -36,9 +36,9 @@ class TestWorkflow(Workflow):
     def output_queue(self) -> str:
         return "mock-output-queue"
 
-    def reconcile_bitstreams_and_metadata(self):
+    def reconcile_items(self):
         raise TypeError(
-            f"Method '{self.reconcile_bitstreams_and_metadata.__name__}' "
+            f"Method '{self.reconcile_items.__name__}' "
             f"not used by workflow '{self.__class__.__name__}'"
         )
 

@@ -191,66 +191,9 @@ class Workflow(ABC):
         MUST be overridden by workflow subclasses.
         """
 
-    @final
+    @abstractmethod
     def reconcile_items(self) -> bool:
         """Reconcile item submissions for a batch.
-
-        This method will first reconcile all bitstreams and metadata.
-        It will then iterate through the item metadata, creating instances
-        of the ItemSubmission class. For each instance, data will be loaded
-        in from the corresponding record in DynamoDB; if the record is not yet
-        recorded in DynamoDB, it will first create and save the record to the table.
-
-        Depending on the "current status" of the record in DynamoDB
-        (note that status=None for created records), the method will conditionally
-        update the records in the table with the status of the reconcile.
-
-        NOTE: This may not be the full set of item submissions in a batch
-        as there may be bitstreams (intended for item submissions)
-        for which an item identifier cannot be retrieved.
-        """
-        reconciled = self.reconcile_bitstreams_and_metadata()
-
-        # iterate over the results of the reconcile
-        # for all item submissions from the metadata
-        for item_metadata in self.item_metadata_iter():
-            # create or get existing ItemSubmission
-            item_submission = ItemSubmission.get(
-                batch_id=self.batch_id, item_identifier=item_metadata["item_identifier"]
-            )
-            if not item_submission:
-                item_submission = ItemSubmission.create(
-                    batch_id=self.batch_id,
-                    item_identifier=item_metadata["item_identifier"],
-                    workflow_name=self.workflow_name,
-                )
-
-            if item_submission.status not in [
-                None,
-                ItemSubmissionStatus.RECONCILE_FAILED,
-            ]:
-                continue
-
-            # update reconciliation status
-            item_submission.last_run_date = self.run_date
-            if item_submission.item_identifier in self.workflow_events.reconciled_items:
-                item_submission.status = ItemSubmissionStatus.RECONCILE_SUCCESS
-            else:
-                item_submission.status = ItemSubmissionStatus.RECONCILE_FAILED
-
-            logger.debug(
-                "Updating status for the item submission(item_identifier="
-                f"{item_submission.item_identifier}): {item_submission.status}"
-            )
-
-            # save status update
-            item_submission.upsert_db()
-
-        return reconciled
-
-    @abstractmethod
-    def reconcile_bitstreams_and_metadata(self) -> bool:
-        """Reconcile bitstreams against metadata.
 
         Items in DSpace represent a "work" and combine metadata and files,
         known as "bitstreams". For any given workflow, this method ensures
@@ -258,13 +201,16 @@ class Workflow(ABC):
         batch, verifying that all provided bitstreams can be linked to a
         metadata record and vice versa.
 
-        While this method is not needed for every workflow,
-        it MUST be overridden by all workflow subclasses.
-        If the workflow does not require this method, the override must
+        For each instance, data will be loaded in from the associated record in DynamoDB.
+        The method then conditionally updates the record in the table based on
+        its "current status". If the record is not yet recorded in DynamoDB, it will
+        first create and save the record to the table (status=None).
+
+        NOTE: If the workflow does not require this method, the override must
         raise the following exception:
 
         TypeError(
-            f"Method '{self.reconcile_bitstreams_and_metadata.__name__}' "
+            f"Method '{self.reconcile_items.__name__}' "
             f"not used by workflow '{self.__class__.__name__}'."
         )
         """
