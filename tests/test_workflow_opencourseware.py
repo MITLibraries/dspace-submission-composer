@@ -1,39 +1,85 @@
 # ruff: noqa: SLF001
 import json
-from unittest.mock import patch
+from unittest.mock import patch, PropertyMock
 
 import pytest
+
+from dsc.db.models import ItemSubmissionDB, ItemSubmissionStatus
 
 
 @patch("dsc.workflows.opencourseware.OpenCourseWare._read_metadata_from_zip_file")
 @patch("dsc.utilities.aws.s3.S3Client.files_iter")
-def test_workflow_ocw_reconcile_bitstreams_and_metadata_success(
+def test_workflow_ocw_reconcile_items_success(
     mock_s3_client_files_iter,
     mock_opencourseware_read_metadata_from_zip_file,
-    caplog,
-    opencourseware_source_metadata,
+    mocked_item_submission_db,
     opencourseware_workflow_instance,
+    opencourseware_source_metadata,
 ):
     mock_s3_client_files_iter.return_value = ["s3://dsc/simple_csv/batch-aaa/123.zip"]
     mock_opencourseware_read_metadata_from_zip_file.return_value = (
         opencourseware_source_metadata
     )
-    reconciled = opencourseware_workflow_instance.reconcile_bitstreams_and_metadata()
+    reconciled = opencourseware_workflow_instance.reconcile_items()
+    item_submission_record = ItemSubmissionDB.get(hash_key="batch-aaa", range_key="123")
 
     assert reconciled
-    assert (
-        "Successfully reconciled bitstreams and metadata for all 1 item(s)"
-    ) in caplog.text
+    assert item_submission_record.status == ItemSubmissionStatus.RECONCILE_SUCCESS
+    assert opencourseware_workflow_instance.reconcile_summary == {
+        "reconciled": 1,
+        "bitstreams_without_metadata": 0,
+        "metadata_without_bitstreams": 0,
+    }
+
+
+@patch("dsc.workflows.opencourseware.OpenCourseWare._read_metadata_from_zip_file")
+@patch("dsc.item_submission.ItemSubmission.bitstream_s3_uris", new_callable=PropertyMock)
+@patch("dsc.utilities.aws.s3.S3Client.files_iter")
+def test_workflow_ocw_reconcile_items_if_item_submission_exists_success(
+    mock_s3_client_files_iter,
+    mock_item_submission_bitstream_s3_uris,
+    mock_opencourseware_read_metadata_from_zip_file,
+    mocked_item_submission_db,
+    opencourseware_workflow_instance,
+    opencourseware_source_metadata,
+):
+    mock_s3_client_files_iter.return_value = ["s3://dsc/simple_csv/batch-aaa/123.zip"]
+    mock_opencourseware_read_metadata_from_zip_file.return_value = (
+        opencourseware_source_metadata
+    )
+    mock_item_submission_bitstream_s3_uris.return_value = [
+        "s3://dsc/simple_csv/batch-aaa/123_001.pdf",
+        "s3://dsc/simple_csv/batch-aaa/123_002.pdf",
+    ]
+
+    # create record to force raise dsc.db.exceptions ItemSubmissionExistsError
+    ItemSubmissionDB.create(
+        batch_id="batch-aaa",
+        item_identifier="123",
+        workflow_name=opencourseware_workflow_instance.workflow_name,
+        status=ItemSubmissionStatus.RECONCILE_SUCCESS,
+    )
+    item_submission_record = ItemSubmissionDB.get(hash_key="batch-aaa", range_key="123")
+
+    reconciled = opencourseware_workflow_instance.reconcile_items()
+
+    assert reconciled
+    assert item_submission_record.status == ItemSubmissionStatus.RECONCILE_SUCCESS
+    assert opencourseware_workflow_instance.reconcile_summary == {
+        "reconciled": 1,
+        "bitstreams_without_metadata": 0,
+        "metadata_without_bitstreams": 0,
+    }
 
 
 @patch("dsc.workflows.opencourseware.OpenCourseWare._read_metadata_from_zip_file")
 @patch("dsc.utilities.aws.s3.S3Client.files_iter")
-def test_workflow_ocw_reconcile_bitstreams_and_metadata_if_no_metadata_success(
+def test_workflow_ocw_reconcile_items_if_no_metadata_exclude_from_db(
     mock_s3_client_files_iter,
     mock_opencourseware_extract_metadata_from_zip_file,
-    caplog,
-    opencourseware_source_metadata,
+    mocked_item_submission_db,
     opencourseware_workflow_instance,
+    opencourseware_source_metadata,
 ):
     mock_s3_client_files_iter.return_value = [
         "s3://dsc/opencourseware/batch-aaa/123.zip",
@@ -43,17 +89,20 @@ def test_workflow_ocw_reconcile_bitstreams_and_metadata_if_no_metadata_success(
         opencourseware_source_metadata,
         FileNotFoundError,
     ]
-    expected_reconcile_summary = {
-        "reconciled": 1,
-        "bitstreams_without_metadata": 1,
-    }
 
-    reconciled = opencourseware_workflow_instance.reconcile_bitstreams_and_metadata()
+    reconciled = opencourseware_workflow_instance.reconcile_items()
 
     assert not reconciled
-    assert f"Reconcile results: {json.dumps(expected_reconcile_summary)}" in caplog.text
-    assert "Failed to reconcile bitstreams and metadata" in caplog.text
-    assert "Bitstreams without metadata: ['124']" in caplog.text
+    assert opencourseware_workflow_instance.reconcile_summary == {
+        "reconciled": 1,
+        "bitstreams_without_metadata": 1,
+        "metadata_without_bitstreams": 0,
+    }
+
+    # since item identifiers are retrieved from the bitstream filename
+    # bitstreams without metadata
+    # ARE written to the DynamoDB table
+    assert ItemSubmissionDB.get(hash_key="batch-aaa", range_key="124")
 
 
 @patch("dsc.workflows.opencourseware.OpenCourseWare._read_metadata_from_zip_file")
@@ -61,7 +110,6 @@ def test_workflow_ocw_reconcile_bitstreams_and_metadata_if_no_metadata_success(
 def test_workflow_ocw_item_metadata_iter_success(
     mock_s3_client_files_iter,
     mock_opencourseware_read_metadata_from_zip_file,
-    caplog,
     opencourseware_source_metadata,
     opencourseware_workflow_instance,
 ):

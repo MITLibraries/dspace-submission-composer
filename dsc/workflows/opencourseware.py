@@ -7,7 +7,9 @@ from typing import Any, ClassVar
 
 import smart_open
 
+from dsc.db.models import ItemSubmissionStatus
 from dsc.exceptions import ReconcileFoundBitstreamsWithoutMetadataWarning
+from dsc.item_submission import ItemSubmission
 from dsc.utilities.aws.s3 import S3Client
 from dsc.workflows.base import Workflow
 
@@ -316,50 +318,68 @@ class OpenCourseWare(Workflow):
     def metadata_mapping_path(self) -> str:
         return "dsc/workflows/metadata_mapping/opencourseware.json"
 
-    def reconcile_bitstreams_and_metadata(self) -> bool:
-        """Reconcile bitstreams against item metadata.
+    def reconcile_items(self) -> bool:
+        all_bitstreams = self._get_bitstreams_for_batch()
 
-        Generate a list of bitstreams without item metadata.
-
-        For OpenCourseWare deposits, the zip files are the bitstreams to be deposited
-        into DSpace, but they also must contain a 'data.json' file, representing the
-        metadata. As such, the 'reconcile' method only determines whether there are any
-        bitstreams without metadata (any zip files without a 'data.json').
-        Metadata without bitstreams is not calculated as for a 'data.json' file to
-        exist, the zip file must also exist.
-        """
-        logger.info(f"Reconciling bitstreams and metadata for batch '{self.batch_id}'")
-        reconciled: bool = False
-        reconcile_summary = {
-            "reconciled": 0,
-            "bitstreams_without_metadata": 0,
-        }
-
+        # get bitstreams linked to item identifiers from metadata
         reconciled_items = {}
         bitstreams_without_metadata = []
-        s3_client = S3Client()
+        for bitstream in all_bitstreams:
+            item_identifier = self.parse_item_identifier(bitstream)
 
-        for file in s3_client.files_iter(
-            bucket=self.s3_bucket, prefix=self.batch_path, file_type=".zip"
-        ):
-            item_identifier = self.parse_item_identifier(file)
+            # create or get existing ItemSubmission
+            item_submission = ItemSubmission.get(
+                batch_id=self.batch_id, item_identifier=item_identifier
+            )
+            if not item_submission:
+                item_submission = ItemSubmission.create(
+                    batch_id=self.batch_id,
+                    item_identifier=item_identifier,
+                    workflow_name=self.workflow_name,
+                )
+
+            if item_submission.status not in [
+                None,
+                ItemSubmissionStatus.RECONCILE_FAILED,
+                ItemSubmissionStatus.RECONCILE_SUCCESS,
+            ]:
+                continue
+
+            if item_submission.status == ItemSubmissionStatus.RECONCILE_SUCCESS:
+                reconciled_items[item_submission.item_identifier] = (
+                    item_submission.bitstream_s3_uris
+                )
+                self.reconcile_summary["reconciled"] += 1
+                continue
 
             try:
-                self._read_metadata_from_zip_file(file)
+                self._read_metadata_from_zip_file(bitstream)
             except FileNotFoundError:
-                bitstreams_without_metadata.append(item_identifier)
+                item_submission.status = ItemSubmissionStatus.RECONCILE_FAILED
+                self.reconcile_summary["bitstreams_without_metadata"] += 1
+                bitstreams_without_metadata.append(bitstream)
             else:
-                reconciled_items[item_identifier] = file
+                item_submission.status = ItemSubmissionStatus.RECONCILE_SUCCESS
+                self.reconcile_summary["reconciled"] += 1
+                reconciled_items[item_submission.item_identifier] = bitstream
 
+            logger.debug(
+                "Updating status for the item submission(item_identifier="
+                f"{item_submission.item_identifier}): {item_submission.status}"
+            )
+
+            # save status update
+            item_submission.upsert_db()
+
+        # update WorkflowEvents with batch-level reconcile results
         self.workflow_events.reconciled_items = reconciled_items
-        reconcile_summary.update(
-            {
-                "reconciled": len(reconciled_items),
-                "bitstreams_without_metadata": len(bitstreams_without_metadata),
-            }
+        self.workflow_events.reconcile_errors["bitstreams_without_metadata"] = (
+            bitstreams_without_metadata
         )
 
-        logger.info(f"Reconcile results: {json.dumps(reconcile_summary)}")
+        logger.info(
+            f"Ran reconcile for batch '{self.batch_id}: {json.dumps(self.reconcile_summary)}"
+        )
 
         if any(bitstreams_without_metadata):
             logger.warning("Failed to reconcile bitstreams and metadata")
@@ -371,14 +391,24 @@ class OpenCourseWare(Workflow):
             self.workflow_events.reconcile_errors["bitstreams_without_metadata"] = (
                 bitstreams_without_metadata
             )
+            return False
         else:
-            reconciled = True
             logger.info(
                 "Successfully reconciled bitstreams and metadata for all "
                 f"{len(reconciled_items)} item(s)"
             )
+            return True
 
-        return reconciled
+    def _get_bitstreams_for_batch(self) -> list[str]:
+        s3_client = S3Client()
+        return list(
+            s3_client.files_iter(
+                bucket=self.s3_bucket,
+                prefix=self.batch_path,
+                file_type=".zip",
+                exclude_prefixes=self.exclude_prefixes,
+            )
+        )
 
     def item_metadata_iter(self) -> Iterator[dict[str, Any]]:
         """Yield source metadata from metadata JSON file in the zip file.
@@ -388,7 +418,10 @@ class OpenCourseWare(Workflow):
         """
         s3_client = S3Client()
         for file in s3_client.files_iter(
-            bucket=self.s3_bucket, prefix=self.batch_path, file_type=".zip"
+            bucket=self.s3_bucket,
+            prefix=self.batch_path,
+            file_type=".zip",
+            exclude_prefixes=self.exclude_prefixes,
         ):
             yield {
                 "item_identifier": self.parse_item_identifier(file),
