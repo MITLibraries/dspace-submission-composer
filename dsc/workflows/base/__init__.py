@@ -129,6 +129,13 @@ class Workflow(ABC):
         self.workflow_events = WorkflowEvents()
         self.run_date = datetime.now(UTC)
         self.exclude_prefixes: list[str] = ["archived/", "dspace_metadata/"]
+
+        # capture high-level results of executed commands
+        self.reconcile_summary: dict[str, int] = {
+            "reconciled": 0,
+            "bitstreams_without_metadata": 0,
+            "metadata_without_bitstreams": 0,
+        }
         self.submission_summary: dict[str, int] = {
             "total": 0,
             "submitted": 0,

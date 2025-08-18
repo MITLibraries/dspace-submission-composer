@@ -8,10 +8,12 @@ from typing import Any
 import pandas as pd
 import smart_open
 
+from dsc.db.models import ItemSubmissionStatus
 from dsc.exceptions import (
     ReconcileFoundBitstreamsWithoutMetadataWarning,
     ReconcileFoundMetadataWithoutBitstreamsWarning,
 )
+from dsc.item_submission import ItemSubmission
 from dsc.utilities.aws import S3Client
 from dsc.workflows.base import Workflow
 
@@ -31,9 +33,7 @@ class SimpleCSV(Workflow):
     def item_identifier_column_names(self) -> list[str]:
         return ["item_identifier"]
 
-    def reconcile_bitstreams_and_metadata(
-        self, metadata_file: str = "metadata.csv"
-    ) -> bool:
+    def reconcile_items(self) -> bool:
         """Reconcile item metadata from metadata CSV file with bitstreams.
 
         For SimpleCSV workflows, bitstreams (files) and a metadata CSV file
@@ -41,48 +41,76 @@ class SimpleCSV(Workflow):
         ensures that every bitstream on S3 has metadata--a row in the metadata
         CSV file--associated with it and vice versa.
         """
-        logger.info(f"Reconciling bitstreams and metadata for batch '{self.batch_id}'")
-        reconciled: bool = False
-        reconcile_summary = {
-            "reconciled": 0,
-            "bitstreams_without_metadata": 0,
-            "metadata_without_bitstreams": 0,
-        }
+        all_bitstreams = self._get_bitstreams_for_batch()
 
-        # get metadata
-        metadata_item_identifiers = self._get_item_identifiers_from_metadata(
-            metadata_file
-        )
-
-        # get bitstreams
-        s3_client = S3Client()
-        bitstream_filenames = list(
-            s3_client.files_iter(
-                bucket=self.s3_bucket,
-                prefix=self.batch_path,
-                exclude_prefixes=["archived", metadata_file, "metadata.json"],
+        # get bitstreams linked to item identifiers from metadata
+        reconciled_items = {}
+        metadata_without_bitstreams = []
+        for item_metadata in self.item_metadata_iter():
+            # create or get existing ItemSubmission
+            item_submission = ItemSubmission.get(
+                batch_id=self.batch_id, item_identifier=item_metadata["item_identifier"]
             )
+            if not item_submission:
+                item_submission = ItemSubmission.create(
+                    batch_id=self.batch_id,
+                    item_identifier=item_metadata["item_identifier"],
+                    workflow_name=self.workflow_name,
+                )
+
+            if item_submission.status not in [
+                None,
+                ItemSubmissionStatus.RECONCILE_FAILED,
+                ItemSubmissionStatus.RECONCILE_SUCCESS,
+            ]:
+                continue
+
+            if item_submission.status == ItemSubmissionStatus.RECONCILE_SUCCESS:
+                reconciled_items[item_submission.item_identifier] = (
+                    item_submission.bitstream_s3_uris
+                )
+                self.reconcile_summary["reconciled"] += 1
+                continue
+
+            if bitstreams := self._get_bitstreams_for_item_submission(
+                all_bitstreams, item_identifier=item_submission.item_identifier
+            ):
+                item_submission.status = ItemSubmissionStatus.RECONCILE_SUCCESS
+                self.reconcile_summary["reconciled"] += 1
+                reconciled_items[item_submission.item_identifier] = bitstreams
+            else:
+                item_submission.status = ItemSubmissionStatus.RECONCILE_FAILED
+                metadata_without_bitstreams.append(item_submission.item_identifier)
+                self.reconcile_summary["metadata_without_bitstreams"] += 1
+
+            logger.debug(
+                "Updating status for the item submission(item_identifier="
+                f"{item_submission.item_identifier}): {item_submission.status}"
+            )
+
+            # save status update
+            item_submission.upsert_db()
+
+        # get bitstreams not linked to any item identifiers from metadata
+        bitstreams_without_metadata = self._get_bitstreams_without_metadata(
+            all_bitstreams, reconciled_items
+        )
+        self.reconcile_summary["bitstreams_without_metadata"] = len(
+            bitstreams_without_metadata
         )
 
-        reconciled_items = self._match_metadata_to_bitstreams(
-            metadata_item_identifiers, bitstream_filenames
-        )
+        # update WorkflowEvents with batch-level reconcile results
         self.workflow_events.reconciled_items = reconciled_items
+        self.workflow_events.reconcile_errors["metadata_without_bitstreams"] = (
+            metadata_without_bitstreams
+        )
+        self.workflow_events.reconcile_errors["bitstreams_without_metadata"] = (
+            bitstreams_without_metadata
+        )
 
-        bitstreams_without_metadata = list(
-            set(bitstream_filenames) - set(itertools.chain(*reconciled_items.values()))
+        logger.info(
+            f"Ran reconcile for batch '{self.batch_id}: {json.dumps(self.reconcile_summary)}"
         )
-        metadata_without_bitstreams = list(
-            metadata_item_identifiers - set(reconciled_items.keys())
-        )
-        reconcile_summary.update(
-            {
-                "reconciled": len(reconciled_items),
-                "bitstreams_without_metadata": len(bitstreams_without_metadata),
-                "metadata_without_bitstreams": len(metadata_without_bitstreams),
-            }
-        )
-        logger.info(f"Reconcile results: {json.dumps(reconcile_summary)}")
 
         if any((bitstreams_without_metadata, metadata_without_bitstreams)):
             logger.warning("Failed to reconcile bitstreams and metadata")
@@ -106,37 +134,35 @@ class SimpleCSV(Workflow):
                 self.workflow_events.reconcile_errors["metadata_without_bitstreams"] = (
                     metadata_without_bitstreams
                 )
+            return False
         else:
-            reconciled = True
             logger.info(
                 "Successfully reconciled bitstreams and metadata for all "
                 f"{len(reconciled_items)} item(s)"
             )
+            return True
 
-        return reconciled
-
-    def _match_metadata_to_bitstreams(
-        self, item_identifiers: set[str], bitstream_filenames: list[str]
-    ) -> dict:
-        metadata_with_bitstreams = defaultdict(list)
-        for item_identifier in item_identifiers:
-            for bitstream_filename in bitstream_filenames:
-                if item_identifier in bitstream_filename:
-                    metadata_with_bitstreams[item_identifier].append(bitstream_filename)
-        return metadata_with_bitstreams
-
-    def _get_item_identifiers_from_metadata(
-        self, metadata_file: str = "metadata.csv"
-    ) -> set[str]:
-        """Get set of item identifiers from metadata file."""
-        item_identifiers = set()
-        item_identifiers.update(
-            [
-                item_metadata["item_identifier"]
-                for item_metadata in self.item_metadata_iter(metadata_file)
-            ]
+    def _get_bitstreams_for_batch(self) -> list[str]:
+        s3_client = S3Client()
+        return list(
+            s3_client.files_iter(
+                bucket=self.s3_bucket,
+                prefix=self.batch_path,
+                exclude_prefixes=self.exclude_prefixes,
+            )
         )
-        return item_identifiers
+
+    @staticmethod
+    def _get_bitstreams_for_item_submission(
+        bitstreams: list[str], item_identifier: str
+    ) -> list[str]:
+        return [bitstream for bitstream in bitstreams if item_identifier in bitstream]
+
+    @staticmethod
+    def _get_bitstreams_without_metadata(
+        bitstreams: list[str], reconciled_items: dict[str, list[str]]
+    ) -> list[str]:
+        return list(set(bitstreams) - set(itertools.chain(*reconciled_items.values())))
 
     def item_metadata_iter(
         self, metadata_file: str = "metadata.csv"
