@@ -15,47 +15,39 @@ from dsc.db.models import ItemSubmissionDB, ItemSubmissionStatus
 
 
 @freeze_time("2025-01-01 09:00:00")
-@patch("dsc.utilities.aws.s3.S3Client.files_iter")
 def test_workflow_simple_csv_reconcile_items_success(
-    mock_s3_client_files_iter,
     mocked_item_submission_db,
     mocked_s3_simple_csv,
+    caplog,
     simple_csv_workflow_instance,
 ):
-    mock_s3_client_files_iter.return_value = [
-        "s3://dsc/simple_csv/batch-aaa/123_001.pdf",
-        "s3://dsc/simple_csv/batch-aaa/123_002.pdf",
-    ]
-    reconciled = simple_csv_workflow_instance.reconcile_items()
-    item_submission_record = ItemSubmissionDB.get(hash_key="batch-aaa", range_key="123")
-
-    assert reconciled
-    assert item_submission_record.status == ItemSubmissionStatus.RECONCILE_SUCCESS
-    assert simple_csv_workflow_instance.reconcile_summary == {
+    expected_summary = {
         "reconciled": 1,
         "bitstreams_without_metadata": 0,
         "metadata_without_bitstreams": 0,
     }
 
+    reconciled = simple_csv_workflow_instance.reconcile_items()
+    item_submission_record = ItemSubmissionDB.get(hash_key="batch-aaa", range_key="123")
+
+    assert reconciled
+    assert item_submission_record.status == ItemSubmissionStatus.RECONCILE_SUCCESS
+    assert json.dumps(expected_summary) in caplog.text
+
 
 @freeze_time("2025-01-01 09:00:00")
-@patch("dsc.item_submission.ItemSubmission.bitstream_s3_uris", new_callable=PropertyMock)
-@patch("dsc.utilities.aws.s3.S3Client.files_iter")
 def test_workflow_simple_csv_reconcile_items_if_item_submission_exists_success(
-    mock_s3_client_files_iter,
-    mock_item_submission_bitstream_s3_uris,
+    # mock_item_submission_bitstream_s3_uris,
     mocked_item_submission_db,
     mocked_s3_simple_csv,
+    caplog,
     simple_csv_workflow_instance,
 ):
-    mock_s3_client_files_iter.return_value = [
-        "s3://dsc/simple_csv/batch-aaa/123_001.pdf",
-        "s3://dsc/simple_csv/batch-aaa/123_002.pdf",
-    ]
-    mock_item_submission_bitstream_s3_uris.return_value = [
-        "s3://dsc/simple_csv/batch-aaa/123_001.pdf",
-        "s3://dsc/simple_csv/batch-aaa/123_002.pdf",
-    ]
+    expected_summary = {
+        "reconciled": 1,
+        "bitstreams_without_metadata": 0,
+        "metadata_without_bitstreams": 0,
+    }
 
     # create record to force raise dsc.db.exceptions ItemSubmissionExistsError
     ItemSubmissionDB.create(
@@ -70,22 +62,23 @@ def test_workflow_simple_csv_reconcile_items_if_item_submission_exists_success(
 
     assert reconciled
     assert item_submission_record.status == ItemSubmissionStatus.RECONCILE_SUCCESS
-    assert simple_csv_workflow_instance.reconcile_summary == {
-        "reconciled": 1,
-        "bitstreams_without_metadata": 0,
-        "metadata_without_bitstreams": 0,
-    }
+    assert json.dumps(expected_summary) in caplog.text
 
 
 @freeze_time("2025-01-01 09:00:00")
-@patch("dsc.utilities.aws.s3.S3Client.files_iter")
 def test_workflow_simple_csv_reconcile_items_if_no_metadata_exclude_from_db(
-    mock_s3_client_files_iter,
     mocked_item_submission_db,
     mocked_s3_simple_csv,
+    caplog,
     simple_csv_workflow_instance,
 ):
-    mock_s3_client_files_iter.return_value = [
+    expected_summary = {
+        "reconciled": 1,
+        "bitstreams_without_metadata": 1,
+        "metadata_without_bitstreams": 0,
+    }
+
+    simple_csv_workflow_instance.batch_bitstreams = [
         "s3://dsc/simple_csv/batch-aaa/123_001.pdf",
         "s3://dsc/simple_csv/batch-aaa/123_002.pdf",
         "s3://dsc/simple_csv/batch-aaa/456_003.pdf",
@@ -95,11 +88,7 @@ def test_workflow_simple_csv_reconcile_items_if_no_metadata_exclude_from_db(
     reconciled = simple_csv_workflow_instance.reconcile_items()
 
     assert not reconciled
-    assert simple_csv_workflow_instance.reconcile_summary == {
-        "reconciled": 1,
-        "bitstreams_without_metadata": 1,
-        "metadata_without_bitstreams": 0,
-    }
+    assert json.dumps(expected_summary) in caplog.text
 
     # since item identifiers are retrieved from SimpleCSV.item_metadata_iter
     # item identifiers associated with bitstreams without metadata are
@@ -109,19 +98,19 @@ def test_workflow_simple_csv_reconcile_items_if_no_metadata_exclude_from_db(
 
 
 @freeze_time("2025-01-01 09:00:00")
-@patch("dsc.utilities.aws.s3.S3Client.files_iter")
 def test_workflow_simple_csv_reconcile_items_if_no_bitstreams_include_in_db(
-    mock_s3_client_files_iter,
     mocked_item_submission_db,
     mocked_s3_simple_csv,
+    caplog,
     simple_csv_workflow_instance,
 ):
-    mock_s3_client_files_iter.return_value = [
-        "s3://dsc/simple_csv/batch-aaa/123_001.pdf",
-        "s3://dsc/simple_csv/batch-aaa/123_002.pdf",
-    ]
+    expected_summary = {
+        "reconciled": 1,
+        "bitstreams_without_metadata": 0,
+        "metadata_without_bitstreams": 1,
+    }
 
-    # update metadata CSV file
+    # create metadata CSV file where one entry represents metadata without bitstream
     csv_buffer = StringIO()
     writer = csv.DictWriter(
         csv_buffer, fieldnames=["title", "contributor", "item_identifier"]
@@ -155,11 +144,7 @@ def test_workflow_simple_csv_reconcile_items_if_no_bitstreams_include_in_db(
     reconciled = simple_csv_workflow_instance.reconcile_items()
 
     assert not reconciled
-    assert simple_csv_workflow_instance.reconcile_summary == {
-        "reconciled": 1,
-        "bitstreams_without_metadata": 0,
-        "metadata_without_bitstreams": 1,
-    }
+    assert json.dumps(expected_summary) in caplog.text
 
     # since item identifiers are retrieved from SimpleCSV.item_metadata_iter
     # item identifiers associated with metadata without bitstreams

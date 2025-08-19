@@ -7,8 +7,6 @@ from typing import Any, ClassVar
 
 import smart_open
 
-from dsc.db.models import ItemSubmissionStatus
-from dsc.exceptions import ReconcileFoundBitstreamsWithoutMetadataWarning
 from dsc.item_submission import ItemSubmission
 from dsc.utilities.aws.s3 import S3Client
 from dsc.workflows.base import Workflow
@@ -318,88 +316,7 @@ class OpenCourseWare(Workflow):
     def metadata_mapping_path(self) -> str:
         return "dsc/workflows/metadata_mapping/opencourseware.json"
 
-    def reconcile_items(self) -> bool:
-        all_bitstreams = self._get_bitstreams_for_batch()
-
-        # get bitstreams linked to item identifiers from metadata
-        reconciled_items = {}
-        bitstreams_without_metadata = []
-        for bitstream in all_bitstreams:
-            item_identifier = self.parse_item_identifier(bitstream)
-
-            # create or get existing ItemSubmission
-            item_submission = ItemSubmission.get(
-                batch_id=self.batch_id, item_identifier=item_identifier
-            )
-            if not item_submission:
-                item_submission = ItemSubmission.create(
-                    batch_id=self.batch_id,
-                    item_identifier=item_identifier,
-                    workflow_name=self.workflow_name,
-                )
-
-            if item_submission.status not in [
-                None,
-                ItemSubmissionStatus.RECONCILE_FAILED,
-                ItemSubmissionStatus.RECONCILE_SUCCESS,
-            ]:
-                continue
-
-            if item_submission.status == ItemSubmissionStatus.RECONCILE_SUCCESS:
-                reconciled_items[item_submission.item_identifier] = (
-                    item_submission.bitstream_s3_uris
-                )
-                self.reconcile_summary["reconciled"] += 1
-                continue
-
-            try:
-                self._read_metadata_from_zip_file(bitstream)
-            except FileNotFoundError:
-                item_submission.status = ItemSubmissionStatus.RECONCILE_FAILED
-                self.reconcile_summary["bitstreams_without_metadata"] += 1
-                bitstreams_without_metadata.append(bitstream)
-            else:
-                item_submission.status = ItemSubmissionStatus.RECONCILE_SUCCESS
-                self.reconcile_summary["reconciled"] += 1
-                reconciled_items[item_submission.item_identifier] = bitstream
-
-            logger.debug(
-                "Updating status for the item submission(item_identifier="
-                f"{item_submission.item_identifier}): {item_submission.status}"
-            )
-
-            # save status update
-            item_submission.upsert_db()
-
-        # update WorkflowEvents with batch-level reconcile results
-        self.workflow_events.reconciled_items = reconciled_items
-        self.workflow_events.reconcile_errors["bitstreams_without_metadata"] = (
-            bitstreams_without_metadata
-        )
-
-        logger.info(
-            f"Ran reconcile for batch '{self.batch_id}: {json.dumps(self.reconcile_summary)}"
-        )
-
-        if any(bitstreams_without_metadata):
-            logger.warning("Failed to reconcile bitstreams and metadata")
-            logger.warning(
-                ReconcileFoundBitstreamsWithoutMetadataWarning(
-                    bitstreams_without_metadata
-                )
-            )
-            self.workflow_events.reconcile_errors["bitstreams_without_metadata"] = (
-                bitstreams_without_metadata
-            )
-            return False
-        else:
-            logger.info(
-                "Successfully reconciled bitstreams and metadata for all "
-                f"{len(reconciled_items)} item(s)"
-            )
-            return True
-
-    def _get_bitstreams_for_batch(self) -> list[str]:
+    def get_batch_bitstreams(self) -> list[str]:
         s3_client = S3Client()
         return list(
             s3_client.files_iter(
@@ -415,19 +332,20 @@ class OpenCourseWare(Workflow):
 
         The item identifiers are retrieved from the filenames of the zip
         files, which follow the naming format "<item_identifier>.zip".
+
+        TODO: This method should return the source metadata (pre-transformation).
         """
-        s3_client = S3Client()
-        for file in s3_client.files_iter(
-            bucket=self.s3_bucket,
-            prefix=self.batch_path,
-            file_type=".zip",
-            exclude_prefixes=self.exclude_prefixes,
-        ):
+        for bitstream in self.batch_bitstreams:
+            try:
+                transformed_metadata = self.metadata_transformer.transform(
+                    source_metadata=self._read_metadata_from_zip_file(bitstream)
+                )
+            except FileNotFoundError:
+                transformed_metadata = {}
+
             yield {
-                "item_identifier": self.parse_item_identifier(file),
-                **self.metadata_transformer.transform(
-                    source_metadata=self._read_metadata_from_zip_file(file)
-                ),
+                "item_identifier": self._parse_item_identifier(bitstream),
+                **transformed_metadata,
             }
 
     def _read_metadata_from_zip_file(self, file: str) -> dict[str, str]:
@@ -447,9 +365,24 @@ class OpenCourseWare(Workflow):
         ) as zip_file, zip_file.open("data.json") as json_file:
             return json.load(json_file)
 
-    def parse_item_identifier(self, file: str) -> str:
+    def _parse_item_identifier(self, file: str) -> str:
         """Parse item identifier from bitstream zip file."""
         return file.split("/")[-1].removesuffix(".zip")
+
+    def reconcile_item(self, item_submission: ItemSubmission) -> tuple[bool, None | str]:
+        """Check whether OCW item submission includes metadata.
+
+        If the source metadata only includes the item identifier, this suggests
+        that metadata (data.json) was not provided in the OCW zip file
+        and is therefore not reconciled. Otherwise, the item is considered
+        as reconciled.
+        """
+        if (
+            len(item_submission.source_metadata) == 1
+            and "item_identifier" in item_submission.source_metadata
+        ):
+            return False, "missing metadata"
+        return True, None
 
     def get_bitstream_s3_uris(self, item_identifier: str) -> list[str]:
         s3_client = S3Client()

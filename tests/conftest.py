@@ -36,11 +36,17 @@ class TestWorkflow(Workflow):
     def output_queue(self) -> str:
         return "mock-output-queue"
 
+    def get_batch_bitstreams(self):
+        return super().get_batch_bitstreams()
+
     def reconcile_items(self):
         raise TypeError(
             f"Method '{self.reconcile_items.__name__}' "
             f"not used by workflow '{self.__class__.__name__}'"
         )
+
+    def reconcile_item(self, item_submission):
+        return super().reconcile_item(item_submission)
 
     def item_metadata_iter(self):
         yield from [
@@ -82,12 +88,21 @@ class TestSimpleCSV(SimpleCSV):
     def output_queue(self) -> str:
         return "mock-output-queue"
 
+    def get_batch_bitstreams(self) -> list[str]:
+        return [
+            "s3://dsc/simple_csv/batch-aaa/123_001.pdf",
+            "s3://dsc/simple_csv/batch-aaa/123_002.pdf",
+        ]
+
 
 class TestOpenCourseWare(OpenCourseWare):
 
     @property
     def output_queue(self) -> str:
         return "mock-output-queue"
+
+    def get_batch_bitstreams(self) -> list[str]:
+        return ["s3://dsc/opencourseware/batch-aaa/123.zip"]
 
 
 @pytest.fixture(autouse=True)

@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import itertools
 import json
 import logging
 from abc import ABC, abstractmethod
+from collections import defaultdict
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any, final
@@ -12,7 +14,12 @@ import jsonschema.exceptions
 
 from dsc.config import Config
 from dsc.db.models import ItemSubmissionDB, ItemSubmissionStatus
-from dsc.exceptions import InvalidSQSMessageError, InvalidWorkflowNameError
+from dsc.exceptions import (
+    InvalidSQSMessageError,
+    InvalidWorkflowNameError,
+    ReconcileFoundBitstreamsWithoutMetadataWarning,
+    ReconcileFoundMetadataWithoutBitstreamsWarning,
+)
 from dsc.item_submission import ItemSubmission
 from dsc.utilities.aws import SESClient, SQSClient
 from dsc.utilities.validate.schemas import RESULT_MESSAGE_ATTRIBUTES, RESULT_MESSAGE_BODY
@@ -130,12 +137,10 @@ class Workflow(ABC):
         self.run_date = datetime.now(UTC)
         self.exclude_prefixes: list[str] = ["archived/", "dspace_metadata/"]
 
+        # cache list of bitstream uris
+        self.batch_bitstreams = self.get_batch_bitstreams()
+
         # capture high-level results of executed commands
-        self.reconcile_summary: dict[str, int] = {
-            "reconciled": 0,
-            "bitstreams_without_metadata": 0,
-            "metadata_without_bitstreams": 0,
-        }
         self.submission_summary: dict[str, int] = {
             "total": 0,
             "submitted": 0,
@@ -192,14 +197,119 @@ class Workflow(ABC):
             yield subclass
 
     @abstractmethod
+    def get_batch_bitstreams(self) -> list[str]:
+        """Get all bitstreams for a batch"""
+
+    @final
+    def get_item_bitstreams(self, item_identifier: str) -> list[str]:
+        return [
+            bitstream
+            for bitstream in self.batch_bitstreams
+            if item_identifier in bitstream
+        ]
+
+    @abstractmethod
     def item_metadata_iter(self) -> Iterator[dict[str, Any]]:
         """Iterate through batch metadata to yield item metadata.
 
         MUST be overridden by workflow subclasses.
         """
 
+    def reconcile_items(self):
+        reconciled = {}  # dict where keys = item_identifier, values = bitstream uris
+        bitstreams_without_metadata = []
+        metadata_without_bitstreams = []
+
+        # loop through each item metadata
+        for item_metadata in self.item_metadata_iter():
+            item_submission = ItemSubmission.get_or_create(
+                batch_id=self.batch_id,
+                item_identifier=item_metadata["item_identifier"],
+                workflow_name=self.workflow_name,
+            )
+
+            # attach source metadata
+            item_submission.source_metadata = item_metadata
+
+            # get current reconcile status and status details
+            reconcile_status, status_details = self.reconcile_item(item_submission)
+            if reconcile_status:
+                status = ItemSubmissionStatus.RECONCILE_SUCCESS
+                reconciled[item_submission.item_identifier] = self.get_item_bitstreams(
+                    item_submission.item_identifier
+                )
+            else:
+                status = ItemSubmissionStatus.RECONCILE_FAILED
+                if status_details == "missing bitstreams":
+                    status = ItemSubmissionStatus.RECONCILE_FAILED
+                    metadata_without_bitstreams.append(item_submission.item_identifier)
+
+            # if the item was previously 'reconciled', skipping table updates
+            if item_submission.status not in [
+                None,
+                ItemSubmissionStatus.RECONCILE_FAILED,
+            ]:
+                continue
+
+            # update item submission in table
+            item_submission.last_run_date = self.run_date
+            item_submission.status = status
+            item_submission.status_details = status_details
+            item_submission.upsert_db()
+
+            logger.debug(
+                "Updated status for the item submission(item_identifier="
+                f"{item_submission.item_identifier}): {item_submission.status}"
+            )
+
+        # check for unmatched bitstreams
+        bitstreams_without_metadata.extend(
+            list(set(self.batch_bitstreams) - set(itertools.chain(*reconciled.values())))
+        )
+
+        reconcile_summary = {
+            "reconciled": len(reconciled),
+            "bitstreams_without_metadata": len(bitstreams_without_metadata),
+            "metadata_without_bitstreams": len(metadata_without_bitstreams),
+        }
+        logger.info(
+            f"Ran reconcile for batch '{self.batch_id}': {json.dumps(reconcile_summary)}"
+        )
+
+        # TODO: The code below can be simplified once reporting modules are updated
+        # so that it no longer rely on WorkflowEvents
+        if any((bitstreams_without_metadata, metadata_without_bitstreams)):
+            logger.warning("Failed to reconcile bitstreams and metadata")
+
+            if bitstreams_without_metadata:
+                logger.warning(
+                    ReconcileFoundBitstreamsWithoutMetadataWarning(
+                        bitstreams_without_metadata
+                    )
+                )
+                self.workflow_events.reconcile_errors["bitstreams_without_metadata"] = (
+                    bitstreams_without_metadata
+                )
+
+            if metadata_without_bitstreams:
+                logger.warning(
+                    ReconcileFoundMetadataWithoutBitstreamsWarning(
+                        metadata_without_bitstreams
+                    )
+                )
+                self.workflow_events.reconcile_errors["metadata_without_bitstreams"] = (
+                    metadata_without_bitstreams
+                )
+            return False
+        else:
+            logger.info(
+                "Successfully reconciled bitstreams and metadata for all "
+                f"{len(reconciled)} item(s)"
+            )
+            return True
+
     @abstractmethod
-    def reconcile_items(self) -> bool:
+    def reconcile_item(self, item_submission: ItemSubmission) -> tuple[bool, None | str]:
         """Reconcile item submissions for a batch.
 
         Items in DSpace represent a "work" and combine metadata and files,
