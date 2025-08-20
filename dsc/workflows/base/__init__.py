@@ -232,16 +232,11 @@ class Workflow(ABC):
         # iterate over the results of the reconcile
         # for all item submissions from the metadata
         for item_metadata in self.item_metadata_iter():
-            # create or get existing ItemSubmission
-            item_submission = ItemSubmission.get(
-                batch_id=self.batch_id, item_identifier=item_metadata["item_identifier"]
+            item_submission = ItemSubmission.get_or_create(
+                batch_id=self.batch_id,
+                item_identifier=item_metadata["item_identifier"],
+                workflow_name=self.workflow_name,
             )
-            if not item_submission:
-                item_submission = ItemSubmission.create(
-                    batch_id=self.batch_id,
-                    item_identifier=item_metadata["item_identifier"],
-                    workflow_name=self.workflow_name,
-                )
 
             if item_submission.status not in [
                 None,

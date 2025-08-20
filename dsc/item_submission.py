@@ -65,6 +65,19 @@ class ItemSubmission:
     metadata_s3_uri: str = ""
 
     @classmethod
+    def get_or_create(
+        cls, batch_id: str, item_identifier: str, workflow_name: str
+    ) -> ItemSubmission:
+        """Get or create an ItemSubmission.
+
+        The method hydrates the ItemSubmission with data from DynamoDB if it
+        finds a corresponding record.
+        """
+        return cls.get(batch_id, item_identifier) or cls.create(
+            batch_id, item_identifier, workflow_name
+        )
+
+    @classmethod
     def get(
         cls, batch_id: str | None, item_identifier: str | None
     ) -> ItemSubmission | None:
