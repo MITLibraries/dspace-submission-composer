@@ -36,6 +36,13 @@ class TestWorkflow(Workflow):
     def output_queue(self) -> str:
         return "mock-output-queue"
 
+    def get_batch_bitstream_uris(self) -> list[str]:
+        return [
+            "s3://dsc/test/batch-aaa/123_01.pdf",
+            "s3://dsc/test/batch-aaa/123_02.pdf",
+            "s3://dsc/test/batch-aaa/789_01.pdf",
+        ]
+
     def reconcile_bitstreams_and_metadata(self):
         raise TypeError(
             f"Method '{self.reconcile_bitstreams_and_metadata.__name__}' "

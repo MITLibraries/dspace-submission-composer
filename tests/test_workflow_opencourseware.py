@@ -259,5 +259,5 @@ def test_workflow_ocw_get_bitstreams_uris_success(
     ]
 
     assert opencourseware_workflow_instance.get_bitstream_s3_uris(
-        item_identifier="123.pdf"
+        item_identifier="123.zip"
     )

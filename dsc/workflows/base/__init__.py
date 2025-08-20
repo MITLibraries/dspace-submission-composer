@@ -136,6 +136,9 @@ class Workflow(ABC):
             "errors": 0,
         }
 
+        # cache list of bitstreams
+        self._batch_bitstream_uris: list[str] | None = None
+
     @property
     @abstractmethod
     def metadata_mapping_path(self) -> str:
@@ -161,6 +164,12 @@ class Workflow(ABC):
         return f"{self.workflow_name}/{self.batch_id}/"
 
     @property
+    def batch_bitstream_uris(self) -> list[str]:
+        if not self._batch_bitstream_uris:
+            self._batch_bitstream_uris = self.get_batch_bitstream_uris()
+        return self._batch_bitstream_uris
+
+    @property
     def retry_threshold(self) -> int:
         return CONFIG.retry_threshold
 
@@ -183,6 +192,10 @@ class Workflow(ABC):
         for subclass in cls.__subclasses__():
             yield from subclass._get_subclasses()  # noqa: SLF001
             yield subclass
+
+    @abstractmethod
+    def get_batch_bitstream_uris(self) -> list[str]:
+        """Get list of bitstream URIs for a batch."""
 
     @abstractmethod
     def item_metadata_iter(self) -> Iterator[dict[str, Any]]:
