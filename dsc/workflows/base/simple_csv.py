@@ -12,6 +12,7 @@ from dsc.exceptions import (
     ReconcileFoundBitstreamsWithoutMetadataWarning,
     ReconcileFoundMetadataWithoutBitstreamsWarning,
 )
+from dsc.item_submission import ItemSubmission
 from dsc.utilities.aws import S3Client
 from dsc.workflows.base import Workflow
 
@@ -39,6 +40,18 @@ class SimpleCSV(Workflow):
                 exclude_prefixes=self.exclude_prefixes,
             )
         )
+
+    def reconcile_item(self, item_submission: ItemSubmission) -> tuple[bool, None | str]:
+        """Check whether ItemSubmission is associated with any bitstreams.
+
+        This method will match bitstreams to an item submission by filtering the
+        list of URIs to those that include the item identifier as recorded
+        in the metadata CSV file. If it finds any matches, the item
+        submission is reconciled.
+        """
+        if not self.get_item_bitstream_uris(item_submission.item_identifier):
+            return False, "missing bitstreams"
+        return True, None
 
     def reconcile_bitstreams_and_metadata(
         self, metadata_file: str = "metadata.csv"

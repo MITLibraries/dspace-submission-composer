@@ -265,6 +265,17 @@ class Workflow(ABC):
         return reconciled
 
     @abstractmethod
+    def reconcile_item(self, item_submission: ItemSubmission) -> tuple[bool, None | str]:
+        """Reconcile bitstreams and metadata for an item.
+
+        Items in DSpace represent a "work" and combine metadata and files,
+        known as "bitstreams". For any given workflow, this method ensures
+        the existence of both bitstreams and metadata for each item in the
+        batch, verifying that all provided bitstreams can be linked to a
+        metadata record and vice versa.
+        """
+
+    @abstractmethod
     def reconcile_bitstreams_and_metadata(self) -> bool:
         """Reconcile bitstreams against metadata.
 

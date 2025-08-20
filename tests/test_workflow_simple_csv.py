@@ -12,6 +12,51 @@ from freezegun import freeze_time
 from pynamodb.exceptions import DoesNotExist
 
 from dsc.db.models import ItemSubmissionDB, ItemSubmissionStatus
+from dsc.item_submission import ItemSubmission
+
+
+@patch("dsc.utilities.aws.s3.S3Client.files_iter")
+def test_workflow_simple_csv_reconcile_item_success(
+    mock_s3_client_files_iter,
+    simple_csv_workflow_instance,
+    item_metadata,
+):
+    mock_s3_client_files_iter.return_value = [
+        "s3://dsc/simple_csv/batch-aaa/123_001.pdf",
+        "s3://dsc/simple_csv/batch-aaa/123_002.pdf",
+    ]
+
+    # create item submission and attach source metadata
+    item_submission = ItemSubmission.create(
+        batch_id="aaa", item_identifier="123", workflow_name="simple_csv"
+    )
+    item_submission.source_metadata = item_metadata
+
+    assert simple_csv_workflow_instance.reconcile_item(item_submission) == (
+        True,
+        None,
+    )
+
+
+@patch("dsc.utilities.aws.s3.S3Client.files_iter")
+def test_workflow_simple_csv_reconcile_item_if_no_bitstreams_success(
+    mock_s3_client_files_iter,
+    simple_csv_workflow_instance,
+):
+    mock_s3_client_files_iter.return_value = [
+        "s3://dsc/simple_csv/batch-aaa/123_001.pdf",
+        "s3://dsc/simple_csv/batch-aaa/123_002.pdf",
+    ]
+
+    # create item submission and attach source metadata
+    item_submission = ItemSubmission.create(
+        batch_id="aaa", item_identifier="124", workflow_name="simple_csv"
+    )
+
+    assert simple_csv_workflow_instance.reconcile_item(item_submission) == (
+        False,
+        "missing bitstreams",
+    )
 
 
 @freeze_time("2025-01-01 09:00:00")

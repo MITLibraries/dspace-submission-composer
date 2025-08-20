@@ -103,6 +103,63 @@ def test_workflow_ocw_metadata_mapping_dspace_metadata_success(
 
 @patch("dsc.workflows.opencourseware.OpenCourseWare._read_metadata_from_zip_file")
 @patch("dsc.utilities.aws.s3.S3Client.files_iter")
+def test_workflow_ocw_reconcile_item_success(
+    mock_s3_client_files_iter,
+    mock_opencourseware_read_metadata_from_zip_file,
+    opencourseware_source_metadata,
+    opencourseware_workflow_instance,
+):
+    mock_s3_client_files_iter.return_value = [
+        "s3://dsc/opencourseware/batch-aaa/123.zip",
+        "s3://dsc/opencourseware/batch-aaa/124.zip",
+    ]
+    mock_opencourseware_read_metadata_from_zip_file.side_effect = [
+        opencourseware_source_metadata,
+        FileNotFoundError,
+    ]
+
+    # create item submission and attach source metadata
+    item_submission = ItemSubmission.create(
+        batch_id="aaa", item_identifier="123", workflow_name="opencourseware"
+    )
+    item_submission.source_metadata = opencourseware_source_metadata
+
+    assert opencourseware_workflow_instance.reconcile_item(item_submission) == (
+        True,
+        None,
+    )
+
+
+@patch("dsc.workflows.opencourseware.OpenCourseWare._read_metadata_from_zip_file")
+@patch("dsc.utilities.aws.s3.S3Client.files_iter")
+def test_workflow_ocw_reconcile_item_if_no_metadata_success(
+    mock_s3_client_files_iter,
+    mock_opencourseware_read_metadata_from_zip_file,
+    opencourseware_source_metadata,
+    opencourseware_workflow_instance,
+):
+    mock_s3_client_files_iter.return_value = [
+        "s3://dsc/opencourseware/batch-aaa/123.zip",
+        "s3://dsc/opencourseware/batch-aaa/124.zip",
+    ]
+    mock_opencourseware_read_metadata_from_zip_file.side_effect = [
+        opencourseware_source_metadata,
+        FileNotFoundError,
+    ]
+
+    # create item submission without attaching source metadata
+    item_submission = ItemSubmission.create(
+        batch_id="aaa", item_identifier="123", workflow_name="opencourseware"
+    )
+
+    assert opencourseware_workflow_instance.reconcile_item(item_submission) == (
+        False,
+        "missing metadata",
+    )
+
+
+@patch("dsc.workflows.opencourseware.OpenCourseWare._read_metadata_from_zip_file")
+@patch("dsc.utilities.aws.s3.S3Client.files_iter")
 def test_workflow_ocw_reconcile_bitstreams_and_metadata_success(
     mock_s3_client_files_iter,
     mock_opencourseware_read_metadata_from_zip_file,
