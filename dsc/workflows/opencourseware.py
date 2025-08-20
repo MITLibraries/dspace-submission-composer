@@ -397,11 +397,11 @@ class OpenCourseWare(Workflow):
         ):
             try:
                 source_metadata = self._read_metadata_from_zip_file(file)
-                transformed_metadata = self.metadata_transformer.transform(
-                    source_metadata
-                )
+
             except FileNotFoundError:
-                transformed_metadata = {}
+                source_metadata = {}
+
+            transformed_metadata = self.metadata_transformer.transform(source_metadata)
 
             yield {
                 "item_identifier": self._parse_item_identifier(file),
