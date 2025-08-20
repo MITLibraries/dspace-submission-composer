@@ -31,6 +31,15 @@ class SimpleCSV(Workflow):
     def item_identifier_column_names(self) -> list[str]:
         return ["item_identifier"]
 
+    def get_batch_bitstream_uris(self) -> list[str]:
+        return list(
+            S3Client().files_iter(
+                bucket=self.s3_bucket,
+                prefix=self.batch_path,
+                exclude_prefixes=self.exclude_prefixes,
+            )
+        )
+
     def reconcile_bitstreams_and_metadata(
         self, metadata_file: str = "metadata.csv"
     ) -> bool:
@@ -54,23 +63,14 @@ class SimpleCSV(Workflow):
             metadata_file
         )
 
-        # get bitstreams
-        s3_client = S3Client()
-        bitstream_filenames = list(
-            s3_client.files_iter(
-                bucket=self.s3_bucket,
-                prefix=self.batch_path,
-                exclude_prefixes=["archived", metadata_file, "metadata.json"],
-            )
-        )
-
         reconciled_items = self._match_metadata_to_bitstreams(
-            metadata_item_identifiers, bitstream_filenames
+            metadata_item_identifiers, self.batch_bitstream_uris
         )
         self.workflow_events.reconciled_items = reconciled_items
 
         bitstreams_without_metadata = list(
-            set(bitstream_filenames) - set(itertools.chain(*reconciled_items.values()))
+            set(self.batch_bitstream_uris)
+            - set(itertools.chain(*reconciled_items.values()))
         )
         metadata_without_bitstreams = list(
             metadata_item_identifiers - set(reconciled_items.keys())
@@ -183,31 +183,3 @@ class SimpleCSV(Workflow):
 
             for _, row in metadata_df.iterrows():
                 yield row.to_dict()
-
-    def get_bitstream_s3_uris(self, item_identifier: str) -> list[str]:
-        """Get S3 URIs for bitstreams for a given item.
-
-        This method uses S3Client.files_iter to get a list of files
-        on S3 stored at s3://bucket/prefix/ and includes the 'item_identifier'
-        in the object key.
-
-        - If the exact filename is provided as 'item_identifier', only
-          one bitstream is retrieved.
-        - If a prefix is provided as 'item_identifier', one or more
-          bitstreams are retrieved.
-
-        Args:
-            item_identifier: Item identifier used to filter bitstreams.
-
-        Returns:
-            Bitstream URIs for a given item.
-        """
-        s3_client = S3Client()
-        return list(
-            s3_client.files_iter(
-                bucket=self.s3_bucket,
-                prefix=self.batch_path,
-                item_identifier=item_identifier,
-                exclude_prefixes=self.exclude_prefixes,
-            )
-        )

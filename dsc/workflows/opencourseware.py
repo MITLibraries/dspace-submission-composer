@@ -316,6 +316,18 @@ class OpenCourseWare(Workflow):
     def metadata_mapping_path(self) -> str:
         return "dsc/workflows/metadata_mapping/opencourseware.json"
 
+    def get_batch_bitstream_uris(self) -> list[str]:
+        """Get list of URIs for all zipfiles within the batch folder."""
+        s3_client = S3Client()
+        return list(
+            s3_client.files_iter(
+                bucket=self.s3_bucket,
+                prefix=self.batch_path,
+                file_type=".zip",
+                exclude_prefixes=self.exclude_prefixes,
+            )
+        )
+
     def reconcile_bitstreams_and_metadata(self) -> bool:
         """Reconcile bitstreams against item metadata.
 
@@ -337,11 +349,8 @@ class OpenCourseWare(Workflow):
 
         reconciled_items = {}
         bitstreams_without_metadata = []
-        s3_client = S3Client()
 
-        for file in s3_client.files_iter(
-            bucket=self.s3_bucket, prefix=self.batch_path, file_type=".zip"
-        ):
+        for file in self.batch_bitstream_uris:
             item_identifier = self._parse_item_identifier(file)
 
             try:
@@ -391,10 +400,7 @@ class OpenCourseWare(Workflow):
         NOTE: Item identifiers are retrieved from the filenames of the zip
         files, which follow the naming format "<item_identifier>.zip".
         """
-        s3_client = S3Client()
-        for file in s3_client.files_iter(
-            bucket=self.s3_bucket, prefix=self.batch_path, file_type=".zip"
-        ):
+        for file in self.batch_bitstream_uris:
             try:
                 source_metadata = self._read_metadata_from_zip_file(file)
 
@@ -428,15 +434,3 @@ class OpenCourseWare(Workflow):
     def _parse_item_identifier(self, file: str) -> str:
         """Parse item identifier from bitstream zip file."""
         return file.split("/")[-1].removesuffix(".zip")
-
-    def get_bitstream_s3_uris(self, item_identifier: str) -> list[str]:
-        s3_client = S3Client()
-        return list(
-            s3_client.files_iter(
-                bucket=self.s3_bucket,
-                prefix=self.batch_path,
-                item_identifier=item_identifier,
-                file_type=".zip",
-                exclude_prefixes=self.exclude_prefixes,
-            )
-        )

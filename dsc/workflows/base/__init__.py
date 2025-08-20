@@ -136,6 +136,9 @@ class Workflow(ABC):
             "errors": 0,
         }
 
+        # cache list of bitstreams
+        self._batch_bitstream_uris: list[str] | None = None
+
     @property
     @abstractmethod
     def metadata_mapping_path(self) -> str:
@@ -161,6 +164,12 @@ class Workflow(ABC):
         return f"{self.workflow_name}/{self.batch_id}/"
 
     @property
+    def batch_bitstream_uris(self) -> list[str]:
+        if not self._batch_bitstream_uris:
+            self._batch_bitstream_uris = self.get_batch_bitstream_uris()
+        return self._batch_bitstream_uris
+
+    @property
     def retry_threshold(self) -> int:
         return CONFIG.retry_threshold
 
@@ -183,6 +192,15 @@ class Workflow(ABC):
         for subclass in cls.__subclasses__():
             yield from subclass._get_subclasses()  # noqa: SLF001
             yield subclass
+
+    @abstractmethod
+    def get_batch_bitstream_uris(self) -> list[str]:
+        """Get list of bitstream URIs for a batch."""
+
+    @final
+    def get_item_bitstream_uris(self, item_identifier: str) -> list[str]:
+        """Get list of bitstreams URIs for an item."""
+        return [uri for uri in self.batch_bitstream_uris if item_identifier in uri]
 
     @abstractmethod
     def item_metadata_iter(self) -> Iterator[dict[str, Any]]:
@@ -312,7 +330,7 @@ class Workflow(ABC):
                     s3_bucket=self.s3_bucket,
                     batch_path=self.batch_path,
                 )
-                item_submission.bitstream_s3_uris = self.get_bitstream_s3_uris(
+                item_submission.bitstream_s3_uris = self.get_item_bitstream_uris(
                     item_identifier
                 )
 
@@ -353,16 +371,6 @@ class Workflow(ABC):
             f"for batch '{self.batch_id}': {json.dumps(self.submission_summary)}"
         )
         return items
-
-    @abstractmethod
-    def get_bitstream_s3_uris(self, item_identifier: str) -> list[str]:
-        """Get bitstreams for an item submission according to the workflow subclass.
-
-        MUST be overridden by workflow subclasses.
-
-        Args:
-            item_identifier: The identifier used for locating the item's bitstreams.
-        """
 
     @final
     def finalize_items(self) -> None:

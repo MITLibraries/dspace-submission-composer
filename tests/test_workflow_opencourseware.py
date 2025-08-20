@@ -250,7 +250,7 @@ def test_workflow_ocw_read_metadata_from_zip_file_without_metadata_raise_error(
 
 
 @patch("dsc.utilities.aws.s3.S3Client.files_iter")
-def test_workflow_ocw_get_bitstreams_uris_success(
+def test_workflow_ocw_get_item_bitstream_uris_success(
     mock_s3_client_files_iter, opencourseware_workflow_instance
 ):
     mock_s3_client_files_iter.return_value = [
@@ -258,6 +258,6 @@ def test_workflow_ocw_get_bitstreams_uris_success(
         "s3://dsc/opencourseware/batch-aaa/124.zip",
     ]
 
-    assert opencourseware_workflow_instance.get_bitstream_s3_uris(
-        item_identifier="123.pdf"
+    assert opencourseware_workflow_instance.get_item_bitstream_uris(
+        item_identifier="123.zip"
     )
