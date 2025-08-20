@@ -46,6 +46,7 @@ def test_reconcile_simple_csv_if_no_metadata_raise_error(
         "s3://dsc/simple_csv/batch-aaa/124_001.pdf",
     ]
 
+    # TODO: mock the reconcile command only
     with patch("dsc.cli.Workflow") as mock_workflow:
         mock_workflow.get_workflow.return_value = simple_csv_workflow_instance
         result = runner.invoke(

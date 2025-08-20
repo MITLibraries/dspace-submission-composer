@@ -138,7 +138,7 @@ class Workflow(ABC):
         self.exclude_prefixes: list[str] = ["archived/", "dspace_metadata/"]
 
         # cache list of bitstream uris
-        self.batch_bitstreams = self.get_batch_bitstreams()
+        self._batch_bitstreams = None  # self.get_batch_bitstreams()
 
         # capture high-level results of executed commands
         self.submission_summary: dict[str, int] = {
@@ -216,7 +216,9 @@ class Workflow(ABC):
         """
 
     def reconcile_items(self):
-        reconciled = {}  # dict where keys = item_identifier, values = bitstream uris
+        reconciled_items = (
+            {}
+        )  # dict where keys = item_identifier, values = bitstream uris
         bitstreams_without_metadata = []
         metadata_without_bitstreams = []
 
@@ -263,8 +265,9 @@ class Workflow(ABC):
             )
 
         # check for unmatched bitstreams
+        matched_bitstreams = reconciled.values()
         bitstreams_without_metadata.extend(
-            list(set(self.batch_bitstreams) - set(itertools.chain(*reconciled.values())))
+            list(set(self.batch_bitstreams) - set(itertools.chain(*matched_bitstreams)))
         )
 
         reconcile_summary = {
@@ -276,8 +279,30 @@ class Workflow(ABC):
             f"Ran reconcile for batch '{self.batch_id}': {json.dumps(reconcile_summary)}"
         )
 
+        # blah
+        self._report_reconcile_workflow_events(
+            reconciled, bitstreams_without_metadata, metadata_without_bitstreams
+        )
+
+        return any((bitstreams_without_metadata, metadata_without_bitstreams))
+
+    def _report_reconcile_workflow_events(
+        self,
+        reconciled: dict,
+        bitstreams_without_metadata: list[str],
+        metadata_without_bitstreams: list[str],
+    ) -> None:
+
         # TODO: The code below can be simplified once reporting modules are updated
         # so that it no longer rely on WorkflowEvents
+        self.workflow_events.reconciled_items = reconciled
+        self.workflow_events.reconcile_errors["bitstreams_without_metadata"] = (
+            bitstreams_without_metadata
+        )
+        self.workflow_events.reconcile_errors["metadata_without_bitstreams"] = (
+            metadata_without_bitstreams
+        )
+
         if any((bitstreams_without_metadata, metadata_without_bitstreams)):
             logger.warning("Failed to reconcile bitstreams and metadata")
 
@@ -287,9 +312,6 @@ class Workflow(ABC):
                         bitstreams_without_metadata
                     )
                 )
-                self.workflow_events.reconcile_errors["bitstreams_without_metadata"] = (
-                    bitstreams_without_metadata
-                )
 
             if metadata_without_bitstreams:
                 logger.warning(
@@ -297,16 +319,11 @@ class Workflow(ABC):
                         metadata_without_bitstreams
                     )
                 )
-                self.workflow_events.reconcile_errors["metadata_without_bitstreams"] = (
-                    metadata_without_bitstreams
-                )
-            return False
         else:
             logger.info(
                 "Successfully reconciled bitstreams and metadata for all "
                 f"{len(reconciled)} item(s)"
             )
-            return True
 
     @abstractmethod
     def reconcile_item(self, item_submission: ItemSubmission) -> tuple[bool, None | str]:
