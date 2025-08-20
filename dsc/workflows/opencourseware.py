@@ -342,7 +342,7 @@ class OpenCourseWare(Workflow):
         for file in s3_client.files_iter(
             bucket=self.s3_bucket, prefix=self.batch_path, file_type=".zip"
         ):
-            item_identifier = self.parse_item_identifier(file)
+            item_identifier = self._parse_item_identifier(file)
 
             try:
                 self._read_metadata_from_zip_file(file)
@@ -381,20 +381,31 @@ class OpenCourseWare(Workflow):
         return reconciled
 
     def item_metadata_iter(self) -> Iterator[dict[str, Any]]:
-        """Yield source metadata from metadata JSON file in the zip file.
+        """Yield item metadata from metadata JSON file in the zip file.
 
-        The item identifiers are retrieved from the filenames of the zip
+        If the zip file does not include a metadata JSON file (data.json),
+        this method yields a dict containing only the item identifier.
+        Otherwise, a dict containing the item identifier and transformed metadata
+        is yielded.
+
+        NOTE: Item identifiers are retrieved from the filenames of the zip
         files, which follow the naming format "<item_identifier>.zip".
         """
         s3_client = S3Client()
         for file in s3_client.files_iter(
             bucket=self.s3_bucket, prefix=self.batch_path, file_type=".zip"
         ):
+            try:
+                source_metadata = self._read_metadata_from_zip_file(file)
+                transformed_metadata = self.metadata_transformer.transform(
+                    source_metadata
+                )
+            except FileNotFoundError:
+                transformed_metadata = {}
+
             yield {
-                "item_identifier": self.parse_item_identifier(file),
-                **self.metadata_transformer.transform(
-                    source_metadata=self._read_metadata_from_zip_file(file)
-                ),
+                "item_identifier": self._parse_item_identifier(file),
+                **transformed_metadata,
             }
 
     def _read_metadata_from_zip_file(self, file: str) -> dict[str, str]:
@@ -414,7 +425,7 @@ class OpenCourseWare(Workflow):
         ) as zip_file, zip_file.open("data.json") as json_file:
             return json.load(json_file)
 
-    def parse_item_identifier(self, file: str) -> str:
+    def _parse_item_identifier(self, file: str) -> str:
         """Parse item identifier from bitstream zip file."""
         return file.split("/")[-1].removesuffix(".zip")
 
