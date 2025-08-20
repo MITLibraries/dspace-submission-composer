@@ -238,6 +238,9 @@ class Workflow(ABC):
                 workflow_name=self.workflow_name,
             )
 
+            # attach source metadata
+            item_submission.source_metadata = item_metadata
+
             if item_submission.status not in [
                 None,
                 ItemSubmissionStatus.RECONCILE_FAILED,

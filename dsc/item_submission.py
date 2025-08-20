@@ -60,6 +60,7 @@ class ItemSubmission:
     status_details: str | None = None
 
     # processing attributes
+    source_metadata: dict[str, Any] | None = None
     dspace_metadata: dict[str, Any] | None = None
     bitstream_s3_uris: list[str] | None = None
     metadata_s3_uri: str = ""
