@@ -183,23 +183,3 @@ class SimpleCSV(Workflow):
 
             for _, row in metadata_df.iterrows():
                 yield row.to_dict()
-
-    def get_bitstream_s3_uris(self, item_identifier: str) -> list[str]:
-        """Get S3 URIs for bitstreams for a given item.
-
-        This method uses S3Client.files_iter to get a list of files
-        on S3 stored at s3://bucket/prefix/ and includes the 'item_identifier'
-        in the object key.
-
-        - If the exact filename is provided as 'item_identifier', only
-          one bitstream is retrieved.
-        - If a prefix is provided as 'item_identifier', one or more
-          bitstreams are retrieved.
-
-        Args:
-            item_identifier: Item identifier used to filter bitstreams.
-
-        Returns:
-            Bitstream URIs for a given item.
-        """
-        return [uri for uri in self.batch_bitstreams if item_identifier in uri]

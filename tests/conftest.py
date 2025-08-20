@@ -63,14 +63,6 @@ class TestWorkflow(Workflow):
             },
         ]
 
-    def get_bitstream_s3_uris(self, item_identifier):
-        bitstreams = [
-            "s3://dsc/test/batch-aaa/123_01.pdf",
-            "s3://dsc/test/batch-aaa/123_02.pdf",
-            "s3://dsc/test/batch-aaa/789_01.pdf",
-        ]
-        return [bitstream for bitstream in bitstreams if item_identifier in bitstream]
-
 
 class TestSimpleCSV(SimpleCSV):
 

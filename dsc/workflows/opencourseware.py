@@ -434,6 +434,3 @@ class OpenCourseWare(Workflow):
     def _parse_item_identifier(self, file: str) -> str:
         """Parse item identifier from bitstream zip file."""
         return file.split("/")[-1].removesuffix(".zip")
-
-    def get_bitstream_s3_uris(self, item_identifier: str) -> list[str]:
-        return [uri for uri in self.batch_bitstreams if item_identifier in uri]
