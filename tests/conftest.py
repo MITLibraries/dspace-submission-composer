@@ -46,12 +46,6 @@ class TestWorkflow(Workflow):
     def reconcile_item(self, _item_submission):
         return True, None
 
-    def reconcile_bitstreams_and_metadata(self):
-        raise TypeError(
-            f"Method '{self.reconcile_bitstreams_and_metadata.__name__}' "
-            f"not used by workflow '{self.__class__.__name__}'"
-        )
-
     def item_metadata_iter(self):
         yield from [
             {
