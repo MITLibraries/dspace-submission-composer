@@ -7,7 +7,8 @@ from typing import Any, ClassVar
 
 import smart_open
 
-from dsc.exceptions import ReconcileFoundBitstreamsWithoutMetadataWarning
+from dsc.exceptions import ReconcileFailedMissingMetadataError
+from dsc.item_submission import ItemSubmission
 from dsc.utilities.aws.s3 import S3Client
 from dsc.workflows.base import Workflow
 
@@ -79,7 +80,11 @@ class OpenCourseWareTransformer:
     @classmethod
     def transform(cls, source_metadata: dict) -> dict:
         """Transform source metadata."""
-        transformed_metadata = {}
+        transformed_metadata: dict[str, Any] = {}
+
+        if not source_metadata:
+            return transformed_metadata
+
         for field in cls.fields:
             field_method = getattr(cls, field)
             formatted_field_name = field.replace("_", ".")
@@ -328,66 +333,20 @@ class OpenCourseWare(Workflow):
             )
         )
 
-    def reconcile_bitstreams_and_metadata(self) -> bool:
-        """Reconcile bitstreams against item metadata.
+    def reconcile_item(self, item_submission: ItemSubmission) -> bool:
+        """Check whether ItemSubmission includes metadata.
 
-        Generate a list of bitstreams without item metadata.
-
-        For OpenCourseWare deposits, the zip files are the bitstreams to be deposited
-        into DSpace, but they also must contain a 'data.json' file, representing the
-        metadata. As such, the 'reconcile' method only determines whether there are any
-        bitstreams without metadata (any zip files without a 'data.json').
-        Metadata without bitstreams is not calculated as for a 'data.json' file to
-        exist, the zip file must also exist.
+        If the source metadata only includes the item identifier, this suggests
+        that metadata (data.json) was not provided in the OCW zip file
+        and is therefore not reconciled. Otherwise, the item is reconciled.
         """
-        logger.info(f"Reconciling bitstreams and metadata for batch '{self.batch_id}'")
-        reconciled: bool = False
-        reconcile_summary = {
-            "reconciled": 0,
-            "bitstreams_without_metadata": 0,
-        }
-
-        reconciled_items = {}
-        bitstreams_without_metadata = []
-
-        for file in self.batch_bitstream_uris:
-            item_identifier = self._parse_item_identifier(file)
-
-            try:
-                self._read_metadata_from_zip_file(file)
-            except FileNotFoundError:
-                bitstreams_without_metadata.append(item_identifier)
-            else:
-                reconciled_items[item_identifier] = file
-
-        self.workflow_events.reconciled_items = reconciled_items
-        reconcile_summary.update(
-            {
-                "reconciled": len(reconciled_items),
-                "bitstreams_without_metadata": len(bitstreams_without_metadata),
-            }
-        )
-
-        logger.info(f"Reconcile results: {json.dumps(reconcile_summary)}")
-
-        if any(bitstreams_without_metadata):
-            logger.warning("Failed to reconcile bitstreams and metadata")
-            logger.warning(
-                ReconcileFoundBitstreamsWithoutMetadataWarning(
-                    bitstreams_without_metadata
-                )
-            )
-            self.workflow_events.reconcile_errors["bitstreams_without_metadata"] = (
-                bitstreams_without_metadata
-            )
-        else:
-            reconciled = True
-            logger.info(
-                "Successfully reconciled bitstreams and metadata for all "
-                f"{len(reconciled_items)} item(s)"
-            )
-
-        return reconciled
+        if not item_submission.source_metadata or (
+            item_submission
+            and len(item_submission.source_metadata) == 1
+            and "item_identifier" in item_submission.source_metadata
+        ):
+            raise ReconcileFailedMissingMetadataError
+        return True
 
     def item_metadata_iter(self) -> Iterator[dict[str, Any]]:
         """Yield item metadata from metadata JSON file in the zip file.

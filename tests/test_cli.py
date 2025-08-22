@@ -9,7 +9,7 @@ from dsc.db.models import ItemSubmissionDB, ItemSubmissionStatus
 
 
 @patch("dsc.utilities.aws.s3.S3Client.files_iter")
-def test_reconcile_simple_csv_success(
+def test_reconcile_success(
     mock_s3_client_files_iter,
     caplog,
     runner,
@@ -36,50 +36,6 @@ def test_reconcile_simple_csv_success(
         "Successfully reconciled bitstreams and metadata for all 1 item(s)" in caplog.text
     )
     assert "Total time elapsed" in caplog.text
-
-
-@patch("dsc.utilities.aws.s3.S3Client.files_iter")
-def test_reconcile_simple_csv_if_no_metadata_raise_error(
-    mock_s3_client_files_iter,
-    caplog,
-    runner,
-    simple_csv_workflow_instance,
-    mocked_s3_simple_csv,
-):
-    mock_s3_client_files_iter.return_value = [
-        "s3://dsc/simple_csv/batch-aaa/123_001.pdf",
-        "s3://dsc/simple_csv/batch-aaa/123_002.pdf",
-        "s3://dsc/simple_csv/batch-aaa/124_001.pdf",
-    ]
-    result = runner.invoke(
-        main,
-        [
-            "--workflow-name",
-            "simple_csv",
-            "--batch-id",
-            "batch-aaa",
-            "reconcile",
-        ],
-    )
-    assert result.exit_code == 1
-    assert "Failed to reconcile bitstreams and metadata" in caplog.text
-
-
-def test_reconcile_if_non_reconcile_workflow_raise_error(
-    caplog, runner, base_workflow_instance
-):
-    result = runner.invoke(
-        main,
-        [
-            "--workflow-name",
-            "test",
-            "--batch-id",
-            "batch-aaa",
-            "reconcile",
-        ],
-    )
-    assert result.exit_code == 1
-    assert isinstance(result.exception, TypeError)
 
 
 @freeze_time("2025-01-01 09:00:00")

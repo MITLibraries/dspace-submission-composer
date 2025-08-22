@@ -1,17 +1,12 @@
-import itertools
-import json
 import logging
-from collections import defaultdict
 from collections.abc import Iterator
 from typing import Any
 
 import pandas as pd
 import smart_open
 
-from dsc.exceptions import (
-    ReconcileFoundBitstreamsWithoutMetadataWarning,
-    ReconcileFoundMetadataWithoutBitstreamsWarning,
-)
+from dsc.exceptions import ReconcileFailedMissingBitstreamsError
+from dsc.item_submission import ItemSubmission
 from dsc.utilities.aws import S3Client
 from dsc.workflows.base import Workflow
 
@@ -40,103 +35,17 @@ class SimpleCSV(Workflow):
             )
         )
 
-    def reconcile_bitstreams_and_metadata(
-        self, metadata_file: str = "metadata.csv"
-    ) -> bool:
-        """Reconcile item metadata from metadata CSV file with bitstreams.
+    def reconcile_item(self, item_submission: ItemSubmission) -> bool:
+        """Check whether ItemSubmission is associated with any bitstreams.
 
-        For SimpleCSV workflows, bitstreams (files) and a metadata CSV file
-        are uploaded to a designated batch folder on S3. The reconcile method
-        ensures that every bitstream on S3 has metadata--a row in the metadata
-        CSV file--associated with it and vice versa.
+        This method will match bitstreams to an item submission by filtering the
+        list of URIs to those that include the item identifier as recorded
+        in the metadata CSV file. If it finds any matches, the item
+        submission is reconciled.
         """
-        logger.info(f"Reconciling bitstreams and metadata for batch '{self.batch_id}'")
-        reconciled: bool = False
-        reconcile_summary = {
-            "reconciled": 0,
-            "bitstreams_without_metadata": 0,
-            "metadata_without_bitstreams": 0,
-        }
-
-        # get metadata
-        metadata_item_identifiers = self._get_item_identifiers_from_metadata(
-            metadata_file
-        )
-
-        reconciled_items = self._match_metadata_to_bitstreams(
-            metadata_item_identifiers, self.batch_bitstream_uris
-        )
-        self.workflow_events.reconciled_items = reconciled_items
-
-        bitstreams_without_metadata = list(
-            set(self.batch_bitstream_uris)
-            - set(itertools.chain(*reconciled_items.values()))
-        )
-        metadata_without_bitstreams = list(
-            metadata_item_identifiers - set(reconciled_items.keys())
-        )
-        reconcile_summary.update(
-            {
-                "reconciled": len(reconciled_items),
-                "bitstreams_without_metadata": len(bitstreams_without_metadata),
-                "metadata_without_bitstreams": len(metadata_without_bitstreams),
-            }
-        )
-        logger.info(f"Reconcile results: {json.dumps(reconcile_summary)}")
-
-        if any((bitstreams_without_metadata, metadata_without_bitstreams)):
-            logger.warning("Failed to reconcile bitstreams and metadata")
-
-            if bitstreams_without_metadata:
-                logger.warning(
-                    ReconcileFoundBitstreamsWithoutMetadataWarning(
-                        bitstreams_without_metadata
-                    )
-                )
-                self.workflow_events.reconcile_errors["bitstreams_without_metadata"] = (
-                    bitstreams_without_metadata
-                )
-
-            if metadata_without_bitstreams:
-                logger.warning(
-                    ReconcileFoundMetadataWithoutBitstreamsWarning(
-                        metadata_without_bitstreams
-                    )
-                )
-                self.workflow_events.reconcile_errors["metadata_without_bitstreams"] = (
-                    metadata_without_bitstreams
-                )
-        else:
-            reconciled = True
-            logger.info(
-                "Successfully reconciled bitstreams and metadata for all "
-                f"{len(reconciled_items)} item(s)"
-            )
-
-        return reconciled
-
-    def _match_metadata_to_bitstreams(
-        self, item_identifiers: set[str], bitstream_filenames: list[str]
-    ) -> dict:
-        metadata_with_bitstreams = defaultdict(list)
-        for item_identifier in item_identifiers:
-            for bitstream_filename in bitstream_filenames:
-                if item_identifier in bitstream_filename:
-                    metadata_with_bitstreams[item_identifier].append(bitstream_filename)
-        return metadata_with_bitstreams
-
-    def _get_item_identifiers_from_metadata(
-        self, metadata_file: str = "metadata.csv"
-    ) -> set[str]:
-        """Get set of item identifiers from metadata file."""
-        item_identifiers = set()
-        item_identifiers.update(
-            [
-                item_metadata["item_identifier"]
-                for item_metadata in self.item_metadata_iter(metadata_file)
-            ]
-        )
-        return item_identifiers
+        if not self.get_item_bitstream_uris(item_submission.item_identifier):
+            raise ReconcileFailedMissingBitstreamsError
+        return True
 
     def item_metadata_iter(
         self, metadata_file: str = "metadata.csv"

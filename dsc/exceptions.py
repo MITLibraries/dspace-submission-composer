@@ -22,6 +22,20 @@ class SQSMessageSendError(Exception):
     pass
 
 
+class ReconcileFailedError(Exception):
+    pass
+
+
+class ReconcileFailedMissingMetadataError(ReconcileFailedError):
+    def __init__(self) -> None:
+        super().__init__("Reconcile failed due to missing metadata")
+
+
+class ReconcileFailedMissingBitstreamsError(ReconcileFailedError):
+    def __init__(self) -> None:
+        super().__init__("Reconcile failed due to missing bitstreams")
+
+
 class ReconcileFoundBitstreamsWithoutMetadataWarning(Warning):
     def __init__(self, bitstreams_without_metadata: list[str]):
         self.bitstreams_without_metadata = bitstreams_without_metadata
