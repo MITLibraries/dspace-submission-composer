@@ -56,8 +56,16 @@ def test_itemsubmission_get_batch_success(mocked_item_submission_db):
 
 def test_itemsubmission_create_success():
     assert ItemSubmission.create(
-        batch_id="batch-aaa", item_identifier="123", workflow_name="test"
-    ) == ItemSubmission(batch_id="batch-aaa", item_identifier="123", workflow_name="test")
+        batch_id="batch-aaa",
+        item_identifier="123",
+        workflow_name="test",
+        source_system_identifier="abcde",
+    ) == ItemSubmission(
+        batch_id="batch-aaa",
+        item_identifier="123",
+        workflow_name="test",
+        source_system_identifier="abcde",
+    )
 
 
 def test_itemsubmission_upsert_db_success(

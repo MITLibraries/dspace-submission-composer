@@ -19,6 +19,7 @@ from dsc.utilities.aws.s3 import S3Client
 from dsc.utilities.aws.ses import SESClient
 from dsc.utilities.aws.sqs import SQSClient
 from dsc.workflows import OpenCourseWare
+from dsc.workflows.archivesspace import ArchivesSpace
 from dsc.workflows.base import Workflow, WorkflowEvents
 from dsc.workflows.base.simple_csv import SimpleCSV
 
@@ -121,6 +122,12 @@ def base_workflow_instance(item_metadata, metadata_mapping, mocked_s3):
 @pytest.fixture
 def simple_csv_workflow_instance(metadata_mapping):
     return TestSimpleCSV(batch_id="batch-aaa")
+
+
+@pytest.fixture
+@freeze_time("2025-01-01 09:00:00")
+def archivesspace_workflow_instance(tmp_path):
+    return ArchivesSpace(batch_id="batch-aaa")
 
 
 @pytest.fixture

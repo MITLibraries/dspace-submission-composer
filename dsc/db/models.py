@@ -32,6 +32,7 @@ class ItemSubmissionStatus(StrEnum):
 
 
 class OptionalItemAttributes(TypedDict, total=False):
+    source_system_identifier: str
     collection_handle: str
     dspace_handle: str
     status: str
@@ -57,6 +58,8 @@ class ItemSubmissionDB(Model):
         item_identifier [sort key]: A unique identifier for an item submission
             in a batch.
         workflow_name: The name of the DSC workflow.
+        source_system_identifier: An identifier used to linked the ingested item to its
+        record in the source system.
         collection_handle: A persistent, globally unique identifier for a
             collection in DSpace. The handle is used in the DSS submission message.
         dspace_handle: A persistent, globally unique identifier for a digital object
@@ -89,6 +92,7 @@ class ItemSubmissionDB(Model):
     batch_id = UnicodeAttribute(hash_key=True)
     item_identifier = UnicodeAttribute(range_key=True)
     workflow_name = UnicodeAttribute()
+    source_system_identifier = UnicodeAttribute(null=True)
     collection_handle = UnicodeAttribute(null=True)
     last_run_date = UTCDateTimeAttribute(null=True)
     submit_attempts = NumberAttribute(default_for_new=0)
