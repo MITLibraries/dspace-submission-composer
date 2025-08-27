@@ -1,7 +1,6 @@
 {
   "dc.title": {
     "source_field_name": "title",
-    "language": "en_US"
   },
   "dc.contributor.author": {
     "source_field_name": "author",
