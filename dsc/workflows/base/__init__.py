@@ -248,6 +248,7 @@ class Workflow(ABC):
                 batch_id=self.batch_id,
                 item_identifier=item_metadata["item_identifier"],
                 workflow_name=self.workflow_name,
+                source_system_identifier=item_metadata.get("source_system_identifier"),
             )
 
             # attach source metadata

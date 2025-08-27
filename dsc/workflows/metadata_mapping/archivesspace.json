@@ -1,0 +1,20 @@
+{
+  "dc.title": {
+    "source_field_name": "title",
+  },
+  "dc.contributor.author": {
+    "source_field_name": "author",
+    "delimiter": "|"
+  },
+  "dc.description": {
+    "source_field_name": "description",
+    "language": "en_US"
+  },
+  "dc.rights": {
+    "source_field_name": "rights_statement",
+    "language": "en_US"
+  },
+  "dc.rights.uri": {
+    "source_field_name": "rights_uri"
+  }
+}

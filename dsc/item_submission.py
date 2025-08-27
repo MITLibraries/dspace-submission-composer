@@ -49,6 +49,7 @@ class ItemSubmission:
     batch_id: str
     item_identifier: str
     workflow_name: str
+    source_system_identifier: str | None = None
     collection_handle: str | None = None
     last_run_date: datetime | None = None
     submit_attempts: int = 0
@@ -67,7 +68,11 @@ class ItemSubmission:
 
     @classmethod
     def get_or_create(
-        cls, batch_id: str, item_identifier: str, workflow_name: str
+        cls,
+        batch_id: str,
+        item_identifier: str,
+        workflow_name: str,
+        source_system_identifier: str | None = None,
     ) -> ItemSubmission:
         """Get or create an ItemSubmission.
 
@@ -75,7 +80,10 @@ class ItemSubmission:
         finds a corresponding record.
         """
         return cls.get(batch_id, item_identifier) or cls.create(
-            batch_id, item_identifier, workflow_name
+            batch_id=batch_id,
+            item_identifier=item_identifier,
+            workflow_name=workflow_name,
+            source_system_identifier=source_system_identifier,
         )
 
     @classmethod
@@ -107,10 +115,19 @@ class ItemSubmission:
 
     @classmethod
     def create(
-        cls, batch_id: str, item_identifier: str, workflow_name: str
+        cls,
+        batch_id: str,
+        item_identifier: str,
+        workflow_name: str,
+        source_system_identifier: str | None = None,
     ) -> ItemSubmission:
         """Create an ItemSubmission."""
-        return cls(batch_id, item_identifier, workflow_name)
+        return cls(
+            batch_id=batch_id,
+            item_identifier=item_identifier,
+            workflow_name=workflow_name,
+            source_system_identifier=source_system_identifier,
+        )
 
     @classmethod
     def _from_db(cls, item_submission_db: ItemSubmissionDB) -> ItemSubmission:
