@@ -23,8 +23,8 @@ def test_workflow_simple_csv_reconcile_items_success(
     simple_csv_workflow_instance,
 ):
     mock_s3_client_files_iter.return_value = [
-        "s3://dsc/simple_csv/batch-aaa/123_001.pdf",
-        "s3://dsc/simple_csv/batch-aaa/123_002.pdf",
+        "s3://dsc/simple-csv/batch-aaa/123_001.pdf",
+        "s3://dsc/simple-csv/batch-aaa/123_002.pdf",
     ]
     expected_reconcile_summary = {
         "reconciled": 1,
@@ -50,9 +50,9 @@ def test_workflow_simple_csv_reconcile_items_if_not_reconciled_success(
     simple_csv_workflow_instance,
 ):
     mock_s3_client_files_iter.return_value = [
-        "s3://dsc/simple_csv/batch-aaa/123_001.pdf",
-        "s3://dsc/simple_csv/batch-aaa/123_002.pdf",
-        "s3://dsc/simple_csv/batch-aaa/456_003.pdf",
+        "s3://dsc/simple-csv/batch-aaa/123_001.pdf",
+        "s3://dsc/simple-csv/batch-aaa/123_002.pdf",
+        "s3://dsc/simple-csv/batch-aaa/456_003.pdf",
     ]
     expected_reconcile_summary = {
         "reconciled": 1,
@@ -81,13 +81,13 @@ def test_workflow_simple_csv_reconcile_item_success(
     item_metadata,
 ):
     mock_s3_client_files_iter.return_value = [
-        "s3://dsc/simple_csv/batch-aaa/123_001.pdf",
-        "s3://dsc/simple_csv/batch-aaa/123_002.pdf",
+        "s3://dsc/simple-csv/batch-aaa/123_001.pdf",
+        "s3://dsc/simple-csv/batch-aaa/123_002.pdf",
     ]
 
     # create item submission and attach source metadata
     item_submission = ItemSubmission.create(
-        batch_id="aaa", item_identifier="123", workflow_name="simple_csv"
+        batch_id="aaa", item_identifier="123", workflow_name="simple-csv"
     )
     item_submission.source_metadata = item_metadata
 
@@ -100,13 +100,13 @@ def test_workflow_simple_csv_reconcile_item_if_no_bitstreams_success(
     simple_csv_workflow_instance,
 ):
     mock_s3_client_files_iter.return_value = [
-        "s3://dsc/simple_csv/batch-aaa/123_001.pdf",
-        "s3://dsc/simple_csv/batch-aaa/123_002.pdf",
+        "s3://dsc/simple-csv/batch-aaa/123_001.pdf",
+        "s3://dsc/simple-csv/batch-aaa/123_002.pdf",
     ]
 
     # create item submission and attach source metadata
     item_submission = ItemSubmission.create(
-        batch_id="aaa", item_identifier="124", workflow_name="simple_csv"
+        batch_id="aaa", item_identifier="124", workflow_name="simple-csv"
     )
 
     with pytest.raises(ReconcileFailedMissingBitstreamsError):
@@ -134,7 +134,7 @@ def test_workflow_simple_csv_item_metadata_iter_processing_success(
     metadata_df.to_csv(csv_buffer, index=False)
     mocked_s3.put_object(
         Bucket="dsc",
-        Key="simple_csv/batch-aaa/metadata.csv",
+        Key="simple-csv/batch-aaa/metadata.csv",
         Body=csv_buffer.getvalue(),
     )
 
@@ -152,15 +152,15 @@ def test_workflow_simple_csv_get_item_bitstream_uris_if_prefix_id_success(
     mock_s3_client_files_iter, simple_csv_workflow_instance
 ):
     mock_s3_client_files_iter.return_value = [
-        "s3://dsc/simple_csv/batch-aaa/123_001.pdf",
-        "s3://dsc/simple_csv/batch-aaa/123_002.pdf",
+        "s3://dsc/simple-csv/batch-aaa/123_001.pdf",
+        "s3://dsc/simple-csv/batch-aaa/123_002.pdf",
     ]
 
     assert simple_csv_workflow_instance.get_item_bitstream_uris(
         item_identifier="123"
     ) == [
-        "s3://dsc/simple_csv/batch-aaa/123_001.pdf",
-        "s3://dsc/simple_csv/batch-aaa/123_002.pdf",
+        "s3://dsc/simple-csv/batch-aaa/123_001.pdf",
+        "s3://dsc/simple-csv/batch-aaa/123_002.pdf",
     ]
 
 
@@ -169,9 +169,9 @@ def test_workflow_simple_csv_get_item_bitstream_uris_if_filename_id_success(
     mock_s3_client_files_iter, simple_csv_workflow_instance
 ):
     mock_s3_client_files_iter.return_value = [
-        "s3://dsc/simple_csv/batch-aaa/123.pdf",
+        "s3://dsc/simple-csv/batch-aaa/123.pdf",
     ]
 
     assert simple_csv_workflow_instance.get_item_bitstream_uris(
         item_identifier="123.pdf"
-    ) == ["s3://dsc/simple_csv/batch-aaa/123.pdf"]
+    ) == ["s3://dsc/simple-csv/batch-aaa/123.pdf"]

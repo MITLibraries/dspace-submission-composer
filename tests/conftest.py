@@ -64,7 +64,7 @@ class TestWorkflow(Workflow):
 
 class TestSimpleCSV(SimpleCSV):
 
-    workflow_name = "simple_csv"
+    workflow_name = "simple-csv"
     submission_system: str = "Test@MIT"
 
     @property
@@ -231,7 +231,7 @@ def mocked_s3_simple_csv(mocked_s3, item_metadata):
 
     mocked_s3.put_object(
         Bucket="dsc",
-        Key="simple_csv/batch-aaa/metadata.csv",
+        Key="simple-csv/batch-aaa/metadata.csv",
         Body=csv_buffer.getvalue(),
     )
     return mocked_s3

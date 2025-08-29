@@ -20,7 +20,7 @@ class SimpleCSV(Workflow):
     deposit on S3.
     """
 
-    workflow_name: str = "simple_csv"
+    workflow_name: str = "simple-csv"
 
     @property
     def item_identifier_column_names(self) -> list[str]:

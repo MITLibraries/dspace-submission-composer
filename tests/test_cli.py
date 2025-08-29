@@ -18,14 +18,14 @@ def test_reconcile_success(
     mocked_s3_simple_csv,
 ):
     mock_s3_client_files_iter.return_value = [
-        "s3://dsc/simple_csv/batch-aaa/123_001.pdf",
-        "s3://dsc/simple_csv/batch-aaa/123_002.pdf",
+        "s3://dsc/simple-csv/batch-aaa/123_001.pdf",
+        "s3://dsc/simple-csv/batch-aaa/123_002.pdf",
     ]
     result = runner.invoke(
         main,
         [
             "--workflow-name",
-            "simple_csv",
+            "simple-csv",
             "--batch-id",
             "batch-aaa",
             "reconcile",
