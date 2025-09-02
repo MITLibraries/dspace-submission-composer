@@ -136,7 +136,11 @@ class Workflow(ABC):
         self.batch_id = batch_id
         self.workflow_events = WorkflowEvents()
         self.run_date = datetime.now(UTC)
-        self.exclude_prefixes: list[str] = ["archived/", "dspace_metadata/"]
+        self.exclude_prefixes: list[str] = [
+            "archived/",
+            "dspace_metadata/",
+            f"{self.batch_path}metadata.csv",
+        ]
         self.submission_summary: dict[str, int] = {
             "total": 0,
             "submitted": 0,
@@ -390,7 +394,6 @@ class Workflow(ABC):
         items = []
         for item_submission in ItemSubmission.get_batch(self.batch_id):
 
-            # instantiate ItemSubmission instance from DB record
             self.submission_summary["total"] += 1
             item_identifier = item_submission.item_identifier
             logger.debug(f"Preparing submission for item: {item_identifier}")
@@ -459,8 +462,6 @@ class Workflow(ABC):
         1. Process DSS result messages from the output queue
         2. Apply workflow-specific processing
         3. Load ingest results into WorkflowEvents for reporting
-
-        Must NOT be overridden by workflow subclasses.
         """
         logger.info(
             f"Processing DSS result messages from the output queue '{self.output_queue}'"

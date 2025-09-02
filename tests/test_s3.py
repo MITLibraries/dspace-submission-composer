@@ -99,23 +99,28 @@ def test_s3_client_files_iter_with_exclude_prefixes_success(mocked_s3, s3_client
     s3_client.put_file(
         file_content="",
         bucket="dsc",
-        key="workflow/batch-aaa/metadata.csv",
+        key="workflow/batch-aaa/archived/metadata.csv",
     )
     s3_client.put_file(
         file_content="",
         bucket="dsc",
-        key="workflow/batch-aaa/123.pdf",
+        key="workflow/batch-aaa/archived/123.pdf",
     )
-    s3_client.archive_file_with_new_key(
+    s3_client.put_file(
+        file_content="",
+        bucket="dsc",
+        key="workflow/batch-aaa/456.pdf",
+    )
+    s3_client.put_file(
+        file_content="",
         bucket="dsc",
         key="workflow/batch-aaa/metadata.csv",
-        archived_key_prefix="workflow/batch-aaa/archived",
     )
 
     assert list(
         s3_client.files_iter(
             bucket="dsc",
             prefix="workflow/batch-aaa",
-            exclude_prefixes=["archived"],
+            exclude_prefixes=["archived", "workflow/batch-aaa/metadata.csv"],
         )
-    ) == ["s3://dsc/workflow/batch-aaa/123.pdf"]
+    ) == ["s3://dsc/workflow/batch-aaa/456.pdf"]

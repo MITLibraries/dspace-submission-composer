@@ -21,6 +21,7 @@ class ArchivesSpace(SimpleCSV):
     """
 
     workflow_name: str = "archivesspace"
+    submission_system: str = "Dome"
 
     @property
     def metadata_mapping_path(self) -> str:

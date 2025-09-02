@@ -1,6 +1,5 @@
 import io
 import json
-from unittest.mock import patch
 
 import numpy as np
 import pandas as pd
@@ -14,18 +13,24 @@ from dsc.item_submission import ItemSubmission
 
 
 @freeze_time("2025-01-01 09:00:00")
-@patch("dsc.utilities.aws.s3.S3Client.files_iter")
 def test_workflow_simple_csv_reconcile_items_success(
-    mock_s3_client_files_iter,
     mocked_item_submission_db,
     mocked_s3_simple_csv,
     caplog,
+    mocked_s3,
     simple_csv_workflow_instance,
+    s3_client,
 ):
-    mock_s3_client_files_iter.return_value = [
-        "s3://dsc/simple-csv/batch-aaa/123_001.pdf",
-        "s3://dsc/simple-csv/batch-aaa/123_002.pdf",
-    ]
+    s3_client.put_file(
+        file_content="",
+        bucket="dsc",
+        key="simple-csv/batch-aaa/123_001.pdf",
+    )
+    s3_client.put_file(
+        file_content="",
+        bucket="dsc",
+        key="simple-csv/batch-aaa/123_002.pdf",
+    )
     expected_reconcile_summary = {
         "reconciled": 1,
         "bitstreams_without_metadata": 0,
@@ -41,19 +46,29 @@ def test_workflow_simple_csv_reconcile_items_success(
 
 
 @freeze_time("2025-01-01 09:00:00")
-@patch("dsc.utilities.aws.s3.S3Client.files_iter")
 def test_workflow_simple_csv_reconcile_items_if_not_reconciled_success(
-    mock_s3_client_files_iter,
     mocked_item_submission_db,
     mocked_s3_simple_csv,
     caplog,
+    mocked_s3,
     simple_csv_workflow_instance,
+    s3_client,
 ):
-    mock_s3_client_files_iter.return_value = [
-        "s3://dsc/simple-csv/batch-aaa/123_001.pdf",
-        "s3://dsc/simple-csv/batch-aaa/123_002.pdf",
-        "s3://dsc/simple-csv/batch-aaa/456_003.pdf",
-    ]
+    s3_client.put_file(
+        file_content="",
+        bucket="dsc",
+        key="simple-csv/batch-aaa/123_001.pdf",
+    )
+    s3_client.put_file(
+        file_content="",
+        bucket="dsc",
+        key="simple-csv/batch-aaa/123_002.pdf",
+    )
+    s3_client.put_file(
+        file_content="",
+        bucket="dsc",
+        key="simple-csv/batch-aaa/456_003.pdf",
+    )
     expected_reconcile_summary = {
         "reconciled": 1,
         "bitstreams_without_metadata": 1,
@@ -74,16 +89,22 @@ def test_workflow_simple_csv_reconcile_items_if_not_reconciled_success(
         ItemSubmissionDB.get(hash_key="batch-aaa", range_key="456")
 
 
-@patch("dsc.utilities.aws.s3.S3Client.files_iter")
 def test_workflow_simple_csv_reconcile_item_success(
-    mock_s3_client_files_iter,
+    mocked_s3,
     simple_csv_workflow_instance,
     item_metadata,
+    s3_client,
 ):
-    mock_s3_client_files_iter.return_value = [
-        "s3://dsc/simple-csv/batch-aaa/123_001.pdf",
-        "s3://dsc/simple-csv/batch-aaa/123_002.pdf",
-    ]
+    s3_client.put_file(
+        file_content="",
+        bucket="dsc",
+        key="simple-csv/batch-aaa/123_001.pdf",
+    )
+    s3_client.put_file(
+        file_content="",
+        bucket="dsc",
+        key="simple-csv/batch-aaa/123_002.pdf",
+    )
 
     # create item submission and attach source metadata
     item_submission = ItemSubmission.create(
@@ -94,15 +115,21 @@ def test_workflow_simple_csv_reconcile_item_success(
     assert simple_csv_workflow_instance.reconcile_item(item_submission)
 
 
-@patch("dsc.utilities.aws.s3.S3Client.files_iter")
 def test_workflow_simple_csv_reconcile_item_if_no_bitstreams_success(
-    mock_s3_client_files_iter,
+    mocked_s3,
     simple_csv_workflow_instance,
+    s3_client,
 ):
-    mock_s3_client_files_iter.return_value = [
-        "s3://dsc/simple-csv/batch-aaa/123_001.pdf",
-        "s3://dsc/simple-csv/batch-aaa/123_002.pdf",
-    ]
+    s3_client.put_file(
+        file_content="",
+        bucket="dsc",
+        key="simple-csv/batch-aaa/123_001.pdf",
+    )
+    s3_client.put_file(
+        file_content="",
+        bucket="dsc",
+        key="simple-csv/batch-aaa/123_002.pdf",
+    )
 
     # create item submission and attach source metadata
     item_submission = ItemSubmission.create(
@@ -147,14 +174,21 @@ def test_workflow_simple_csv_item_metadata_iter_processing_success(
     ]
 
 
-@patch("dsc.utilities.aws.s3.S3Client.files_iter")
 def test_workflow_simple_csv_get_item_bitstream_uris_if_prefix_id_success(
-    mock_s3_client_files_iter, simple_csv_workflow_instance
+    mocked_s3,
+    simple_csv_workflow_instance,
+    s3_client,
 ):
-    mock_s3_client_files_iter.return_value = [
-        "s3://dsc/simple-csv/batch-aaa/123_001.pdf",
-        "s3://dsc/simple-csv/batch-aaa/123_002.pdf",
-    ]
+    s3_client.put_file(
+        file_content="",
+        bucket="dsc",
+        key="simple-csv/batch-aaa/123_001.pdf",
+    )
+    s3_client.put_file(
+        file_content="",
+        bucket="dsc",
+        key="simple-csv/batch-aaa/123_002.pdf",
+    )
 
     assert simple_csv_workflow_instance.get_item_bitstream_uris(
         item_identifier="123"
@@ -164,13 +198,16 @@ def test_workflow_simple_csv_get_item_bitstream_uris_if_prefix_id_success(
     ]
 
 
-@patch("dsc.utilities.aws.s3.S3Client.files_iter")
 def test_workflow_simple_csv_get_item_bitstream_uris_if_filename_id_success(
-    mock_s3_client_files_iter, simple_csv_workflow_instance
+    mocked_s3,
+    simple_csv_workflow_instance,
+    s3_client,
 ):
-    mock_s3_client_files_iter.return_value = [
-        "s3://dsc/simple-csv/batch-aaa/123.pdf",
-    ]
+    s3_client.put_file(
+        file_content="",
+        bucket="dsc",
+        key="simple-csv/batch-aaa/123.pdf",
+    )
 
     assert simple_csv_workflow_instance.get_item_bitstream_uris(
         item_identifier="123.pdf"

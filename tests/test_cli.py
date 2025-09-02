@@ -1,5 +1,4 @@
 import json
-from unittest.mock import patch
 
 import boto3
 from freezegun import freeze_time
@@ -8,19 +7,21 @@ from dsc.cli import main
 from dsc.db.models import ItemSubmissionDB, ItemSubmissionStatus
 
 
-@patch("dsc.utilities.aws.s3.S3Client.files_iter")
 def test_reconcile_success(
-    mock_s3_client_files_iter,
     caplog,
     runner,
+    mocked_s3,
     simple_csv_workflow_instance,
     mocked_item_submission_db,
     mocked_s3_simple_csv,
+    s3_client,
 ):
-    mock_s3_client_files_iter.return_value = [
-        "s3://dsc/simple-csv/batch-aaa/123_001.pdf",
-        "s3://dsc/simple-csv/batch-aaa/123_002.pdf",
-    ]
+    s3_client.put_file(
+        file_content="", bucket="dsc", key="simple-csv/batch-aaa/123_001.pdf"
+    )
+    s3_client.put_file(
+        file_content="", bucket="dsc", key="simple-csv/batch-aaa/123_002.jpg"
+    )
     result = runner.invoke(
         main,
         [
@@ -50,9 +51,9 @@ def test_submit_success(
     s3_client,
 ):
     caplog.set_level("DEBUG")
-    s3_client.put_file(file_content="", bucket="dsc", key="test/batch-aaa/123_01.pdf")
-    s3_client.put_file(file_content="", bucket="dsc", key="test/batch-aaa/123_02.jpg")
-    s3_client.put_file(file_content="", bucket="dsc", key="test/batch-aaa/789_01.pdf")
+    s3_client.put_file(file_content="", bucket="dsc", key="test/batch-aaa/123_001.pdf")
+    s3_client.put_file(file_content="", bucket="dsc", key="test/batch-aaa/123_002.jpg")
+    s3_client.put_file(file_content="", bucket="dsc", key="test/batch-aaa/789_001.pdf")
     ItemSubmissionDB.create(
         item_identifier="123",
         batch_id="batch-aaa",

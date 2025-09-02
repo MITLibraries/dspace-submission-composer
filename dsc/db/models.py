@@ -53,16 +53,17 @@ class ItemSubmissionDB(Model):
     and item_identifier (sort key).
 
     Attributes:
-        batch_id [partition key]: A unique identifier for the workflow run,
-            also used as an S3 prefix for workflow run files.
+        batch_id [partition key]: A unique identifier for a workflow run,
+            also used as an S3 prefix for a workflow run's submission assets.
         item_identifier [sort key]: A unique identifier for an item submission
             in a batch.
         workflow_name: The name of the DSC workflow.
         source_system_identifier: An identifier used to linked the ingested item to its
-        record in the source system.
-        collection_handle: A persistent, globally unique identifier for a
-            collection in DSpace. The handle is used in the DSS submission message.
-        dspace_handle: A persistent, globally unique identifier for a digital object
+        record in a source system.
+        collection_handle: A persistent, globally unique identifier for the
+            collection in DSpace that the item will submitted to in the DSS submission
+            message.
+        dspace_handle: A persistent, globally unique identifier for the item
             in DSpace. The handle is provided in the DSS result message when
             an item is successfully ingested into DSpace.
             NOTE: If the item is sent to a DSpace submission queue, the handle is
@@ -81,7 +82,7 @@ class ItemSubmissionDB(Model):
         submit_attempts: The number of attempts to send a submission message to the
             input SQS queue for DSC. This value is only incremented when the DSC
             submit command is run for an item.
-        ingest_attempts: The number of attempts to ingest an item into DSpace (run DSS).
+        ingest_attempts: The number of attempts to ingest an item into DSpace via DSS.
             This value is only incremented when the DSC finalize command is run for
             an item.
     """
@@ -94,14 +95,14 @@ class ItemSubmissionDB(Model):
     workflow_name = UnicodeAttribute()
     source_system_identifier = UnicodeAttribute(null=True)
     collection_handle = UnicodeAttribute(null=True)
-    last_run_date = UTCDateTimeAttribute(null=True)
-    submit_attempts = NumberAttribute(default_for_new=0)
-    ingest_attempts = NumberAttribute(default_for_new=0)
-    ingest_date = UTCDateTimeAttribute(null=True)
-    last_result_message = JSONAttribute(null=True)
     dspace_handle = UnicodeAttribute(null=True)
     status = UnicodeAttribute(null=True)
     status_details = UnicodeAttribute(null=True)
+    ingest_date = UTCDateTimeAttribute(null=True)
+    last_result_message = JSONAttribute(null=True)
+    last_run_date = UTCDateTimeAttribute(null=True)
+    submit_attempts = NumberAttribute(default_for_new=0)
+    ingest_attempts = NumberAttribute(default_for_new=0)
 
     @classmethod
     def set_table_name(cls, table_name: str) -> None:
