@@ -1,6 +1,6 @@
 SHELL=/bin/bash
 DATETIME:=$(shell date -u +%Y%m%dT%H%M%SZ)
-MINIO_COMPOSE_FILE=dsc/extras/minio/docker-compose.yaml
+MINIO_COMPOSE_FILE=tests/minio/docker-compose.yaml
 ### This is the Terraform-generated header for dspace-submission-composer-dev. If ###
 ### this is a Lambda repo, uncomment the FUNCTION line below ###
 ### and review the other commented lines in the document. ###

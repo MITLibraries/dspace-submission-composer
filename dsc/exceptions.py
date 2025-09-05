@@ -18,6 +18,14 @@ class ItemMetadatMissingRequiredFieldError(Exception):
     pass
 
 
+class ItemSubmissionCreateError(Exception):
+    pass
+
+
+class ItemSubmissionExistsError(Exception):
+    pass
+
+
 class SQSMessageSendError(Exception):
     pass
 

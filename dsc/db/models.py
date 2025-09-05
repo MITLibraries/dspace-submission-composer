@@ -11,7 +11,7 @@ from pynamodb.attributes import (
 from pynamodb.exceptions import DoesNotExist, PutError
 from pynamodb.models import Model
 
-from dsc.db.exceptions import ItemSubmissionCreateError, ItemSubmissionExistsError
+from dsc.exceptions import ItemSubmissionCreateError, ItemSubmissionExistsError
 
 logger = logging.getLogger(__name__)
 ITEM_SUBMISSION_LOG_STR = (
@@ -61,8 +61,7 @@ class ItemSubmissionDB(Model):
         source_system_identifier: An identifier used to linked the ingested item to its
         record in a source system.
         collection_handle: A persistent, globally unique identifier for the
-            collection in DSpace that the item will submitted to in the DSS submission
-            message.
+            collection in DSpace that the item will include in the DSS message.
         dspace_handle: A persistent, globally unique identifier for the item
             in DSpace. The handle is provided in the DSS result message when
             an item is successfully ingested into DSpace.
