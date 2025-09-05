@@ -10,17 +10,19 @@ from dsc.item_submission import ItemSubmission
 
 
 @patch("dsc.workflows.opencourseware.OpenCourseWare._read_metadata_from_zip_file")
-@patch("dsc.utilities.aws.s3.S3Client.files_iter")
 def test_workflow_ocw_metadata_mapping_dspace_metadata_success(
-    mock_s3_client_files_iter,
     mock_opencourseware_read_metadata_from_zip_file,
     caplog,
+    mocked_s3,
     opencourseware_source_metadata,
     opencourseware_workflow_instance,
+    s3_client,
 ):
-    mock_s3_client_files_iter.return_value = [
-        "s3://dsc/opencourseware/batch-aaa/123.zip",
-    ]
+    s3_client.put_file(
+        file_content="",
+        bucket="dsc",
+        key="opencourseware/batch-aaa/123.zip",
+    )
     mock_opencourseware_read_metadata_from_zip_file.return_value = (
         opencourseware_source_metadata
     )
@@ -104,17 +106,20 @@ def test_workflow_ocw_metadata_mapping_dspace_metadata_success(
 
 
 @patch("dsc.workflows.opencourseware.OpenCourseWare._read_metadata_from_zip_file")
-@patch("dsc.utilities.aws.s3.S3Client.files_iter")
 def test_workflow_ocw_reconcile_items_success(
-    mock_s3_client_files_iter,
     mock_opencourseware_read_metadata_from_zip_file,
     mocked_item_submission_db,
     caplog,
+    mocked_s3,
     opencourseware_source_metadata,
     opencourseware_workflow_instance,
+    s3_client,
 ):
-    mock_s3_client_files_iter.return_value = ["s3://dsc/opencourseware/batch-aaa/123.zip"]
-
+    s3_client.put_file(
+        file_content="",
+        bucket="dsc",
+        key="opencourseware/batch-aaa/123.zip",
+    )
     mock_opencourseware_read_metadata_from_zip_file.return_value = (
         opencourseware_source_metadata
     )
@@ -133,19 +138,25 @@ def test_workflow_ocw_reconcile_items_success(
 
 
 @patch("dsc.workflows.opencourseware.OpenCourseWare._read_metadata_from_zip_file")
-@patch("dsc.utilities.aws.s3.S3Client.files_iter")
 def test_workflow_ocw_reconcile_items_if_not_reconciled_success(
-    mock_s3_client_files_iter,
     mock_opencourseware_read_metadata_from_zip_file,
     mocked_item_submission_db,
     caplog,
+    mocked_s3,
     opencourseware_source_metadata,
     opencourseware_workflow_instance,
+    s3_client,
 ):
-    mock_s3_client_files_iter.return_value = [
-        "s3://dsc/opencourseware/batch-aaa/123.zip",
-        "s3://dsc/opencourseware/batch-aaa/124.zip",
-    ]
+    s3_client.put_file(
+        file_content="",
+        bucket="dsc",
+        key="opencourseware/batch-aaa/123.zip",
+    )
+    s3_client.put_file(
+        file_content="",
+        bucket="dsc",
+        key="opencourseware/batch-aaa/124.zip",
+    )
     mock_opencourseware_read_metadata_from_zip_file.side_effect = [
         opencourseware_source_metadata,
         FileNotFoundError,
@@ -177,17 +188,18 @@ def test_workflow_ocw_reconcile_items_if_not_reconciled_success(
 
 
 @patch("dsc.workflows.opencourseware.OpenCourseWare._read_metadata_from_zip_file")
-@patch("dsc.utilities.aws.s3.S3Client.files_iter")
 def test_workflow_ocw_reconcile_item_success(
-    mock_s3_client_files_iter,
     mock_opencourseware_read_metadata_from_zip_file,
+    mocked_s3,
     opencourseware_source_metadata,
     opencourseware_workflow_instance,
+    s3_client,
 ):
-    mock_s3_client_files_iter.return_value = [
-        "s3://dsc/opencourseware/batch-aaa/123.zip",
-        "s3://dsc/opencourseware/batch-aaa/124.zip",
-    ]
+    s3_client.put_file(
+        file_content="",
+        bucket="dsc",
+        key="opencourseware/batch-aaa/123.zip",
+    )
     mock_opencourseware_read_metadata_from_zip_file.side_effect = [
         opencourseware_source_metadata,
         FileNotFoundError,
@@ -203,16 +215,18 @@ def test_workflow_ocw_reconcile_item_success(
 
 
 @patch("dsc.workflows.opencourseware.OpenCourseWare._read_metadata_from_zip_file")
-@patch("dsc.utilities.aws.s3.S3Client.files_iter")
 def test_workflow_ocw_reconcile_item_if_no_metadata_success(
-    mock_s3_client_files_iter,
     mock_opencourseware_read_metadata_from_zip_file,
+    mocked_s3,
     opencourseware_source_metadata,
     opencourseware_workflow_instance,
+    s3_client,
 ):
-    mock_s3_client_files_iter.return_value = [
-        "s3://dsc/opencourseware/batch-aaa/124.zip",
-    ]
+    s3_client.put_file(
+        file_content="",
+        bucket="dsc",
+        key="opencourseware/batch-aaa/124.zip",
+    )
     mock_opencourseware_read_metadata_from_zip_file.side_effect = [
         opencourseware_source_metadata,
         FileNotFoundError,
@@ -228,17 +242,19 @@ def test_workflow_ocw_reconcile_item_if_no_metadata_success(
 
 
 @patch("dsc.workflows.opencourseware.OpenCourseWare._read_metadata_from_zip_file")
-@patch("dsc.utilities.aws.s3.S3Client.files_iter")
 def test_workflow_ocw_item_metadata_iter_success(
-    mock_s3_client_files_iter,
     mock_opencourseware_read_metadata_from_zip_file,
     caplog,
+    mocked_s3,
     opencourseware_source_metadata,
     opencourseware_workflow_instance,
+    s3_client,
 ):
-    mock_s3_client_files_iter.return_value = [
-        "s3://dsc/opencourseware/batch-aaa/123.zip",
-    ]
+    s3_client.put_file(
+        file_content="",
+        bucket="dsc",
+        key="opencourseware/batch-aaa/123.zip",
+    )
     mock_opencourseware_read_metadata_from_zip_file.return_value = (
         opencourseware_source_metadata
     )
@@ -324,14 +340,21 @@ def test_workflow_ocw_read_metadata_from_zip_file_without_metadata_raise_error(
         )
 
 
-@patch("dsc.utilities.aws.s3.S3Client.files_iter")
 def test_workflow_ocw_get_item_bitstream_uris_success(
-    mock_s3_client_files_iter, opencourseware_workflow_instance
+    mocked_s3,
+    opencourseware_workflow_instance,
+    s3_client,
 ):
-    mock_s3_client_files_iter.return_value = [
-        "s3://dsc/opencourseware/batch-aaa/123.zip",
-        "s3://dsc/opencourseware/batch-aaa/124.zip",
-    ]
+    s3_client.put_file(
+        file_content="",
+        bucket="dsc",
+        key="opencourseware/batch-aaa/123.zip",
+    )
+    s3_client.put_file(
+        file_content="",
+        bucket="dsc",
+        key="opencourseware/batch-aaa/123.zip",
+    )
 
     assert opencourseware_workflow_instance.get_item_bitstream_uris(
         item_identifier="123.zip"

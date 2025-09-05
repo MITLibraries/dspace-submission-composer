@@ -3,19 +3,21 @@ import logging
 import pytest
 
 
-def test_sqs_queue_dss_input_raises_error(monkeypatch, config_instance):
+def test_sqs_queue_dss_input_missing_raises_error(monkeypatch, config_instance):
     monkeypatch.delenv("SQS_QUEUE_DSS_INPUT")
     with pytest.raises(OSError, match="Env var 'SQS_QUEUE_DSS_INPUT' must be defined"):
         _ = config_instance.sqs_queue_dss_input
 
 
-def test_source_email_raises_error(monkeypatch, config_instance):
+def test_source_email_missing_raises_error(monkeypatch, config_instance):
     monkeypatch.delenv("SOURCE_EMAIL")
     with pytest.raises(OSError, match="Env var 'SOURCE_EMAIL' must be defined"):
         _ = config_instance.source_email
 
 
-def test_check_required_env_vars(monkeypatch, config_instance):
+def test_check_required_env_vars_missing_env_var_raises_error(
+    monkeypatch, config_instance
+):
     monkeypatch.delenv("WORKSPACE")
     with pytest.raises(OSError, match="Missing required environment variables:"):
         config_instance.check_required_env_vars()

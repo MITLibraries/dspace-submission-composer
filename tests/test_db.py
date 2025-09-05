@@ -3,8 +3,8 @@ from unittest.mock import patch
 import pytest
 from pynamodb.exceptions import PutError
 
-from dsc.db.exceptions import ItemSubmissionCreateError, ItemSubmissionExistsError
 from dsc.db.models import ItemSubmissionDB
+from dsc.exceptions import ItemSubmissionCreateError, ItemSubmissionExistsError
 
 
 def test_db_itemsubmission_create_success(mocked_item_submission_db):

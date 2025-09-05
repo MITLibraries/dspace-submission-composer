@@ -280,12 +280,23 @@ def test_itemsubmission_send_submission_message_raises_value_error(
         )
 
 
+@patch("dsc.utilities.aws.sqs.SQSClient.send")
 def test_itemsubmission_send_submission_message_raises_custom_exception(
+    mock_send,
     mocked_sqs_input,
     mocked_sqs_output,
     mocked_item_submission_db,
     item_submission_instance,
 ):
+    mock_send.side_effect = ClientError(
+        operation_name="SendMessage",
+        error_response={
+            "Error": {
+                "Code": "QueueDoesNotExist",
+                "Message": "The specified queue does not exist",
+            }
+        },
+    )
     item_submission_instance.metadata_s3_uri = (
         "s3://dsc/workflow/folder/123_metadata.json"
     )
@@ -293,19 +304,7 @@ def test_itemsubmission_send_submission_message_raises_custom_exception(
         "s3://dsc/workflow/folder/123_01.pdf",
         "s3://dsc/workflow/folder/123_02.pdf",
     ]
-    with patch("dsc.utilities.aws.sqs.SQSClient.send") as mock_send:
-        mock_send.side_effect = ClientError(
-            operation_name="SendMessage",
-            error_response={
-                "Error": {
-                    "Code": "QueueDoesNotExist",
-                    "Message": "The specified queue does not exist",
-                }
-            },
+    with pytest.raises(SQSMessageSendError, match="The specified queue does not exist"):
+        item_submission_instance.send_submission_message(
+            "workflow", "mock-output-queue", "DSpace@MIT", "1234/5678"
         )
-        with pytest.raises(
-            SQSMessageSendError, match="The specified queue does not exist"
-        ):
-            item_submission_instance.send_submission_message(
-                "workflow", "mock-output-queue", "DSpace@MIT", "1234/5678"
-            )

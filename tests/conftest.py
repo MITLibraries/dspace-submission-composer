@@ -64,7 +64,7 @@ class TestWorkflow(Workflow):
 
 class TestSimpleCSV(SimpleCSV):
 
-    workflow_name = "simple_csv"
+    workflow_name = "simple-csv"
     submission_system: str = "Test@MIT"
 
     @property
@@ -136,14 +136,6 @@ def opencourseware_workflow_instance():
 
 
 @pytest.fixture
-def opencourseware_source_metadata():
-    with zipfile.ZipFile(
-        "tests/fixtures/opencourseware/123.zip", "r"
-    ) as zip_file, zip_file.open("data.json") as file:
-        return json.load(file)
-
-
-@pytest.fixture
 def config_instance():
     return Config()
 
@@ -195,18 +187,18 @@ def item_submission_instance(dspace_metadata):
 
 
 @pytest.fixture
+def metadata_mapping():
+    with open("tests/fixtures/test_metadata_mapping.json") as mapping_file:
+        return json.load(mapping_file)
+
+
+@pytest.fixture
 def mocked_item_submission_db(config_instance):
     with mock_aws():
         if not ItemSubmissionDB.exists():
             ItemSubmissionDB.set_table_name(config_instance.item_submissions_table_name)
             ItemSubmissionDB.create_table()
         yield
-
-
-@pytest.fixture
-def metadata_mapping():
-    with open("tests/fixtures/test_metadata_mapping.json") as mapping_file:
-        return json.load(mapping_file)
 
 
 @pytest.fixture
@@ -231,7 +223,7 @@ def mocked_s3_simple_csv(mocked_s3, item_metadata):
 
     mocked_s3.put_object(
         Bucket="dsc",
-        Key="simple_csv/batch-aaa/metadata.csv",
+        Key="simple-csv/batch-aaa/metadata.csv",
         Body=csv_buffer.getvalue(),
     )
     return mocked_s3
@@ -259,6 +251,14 @@ def mocked_sqs_output():
         sqs = boto3.client("sqs", region_name="us-east-1")
         sqs.create_queue(QueueName="mock-output-queue")
         yield sqs
+
+
+@pytest.fixture
+def opencourseware_source_metadata():
+    with zipfile.ZipFile(
+        "tests/fixtures/opencourseware/123.zip", "r"
+    ) as zip_file, zip_file.open("data.json") as file:
+        return json.load(file)
 
 
 @pytest.fixture
