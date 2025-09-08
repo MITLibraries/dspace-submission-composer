@@ -4,6 +4,7 @@ import logging
 from typing import TYPE_CHECKING
 
 import boto3
+from urllib.parse import urlparse
 
 if TYPE_CHECKING:  # pragma: no cover
     from collections.abc import Iterator
@@ -16,6 +17,17 @@ class S3Client:
 
     def __init__(self) -> None:
         self.client = boto3.client("s3")
+
+    @staticmethod
+    def _split_s3_uri(s3_uri: str) -> tuple[str, str]:
+        """Validate and split an S3 URI into (bucket, key)."""
+        parsed = urlparse(s3_uri)
+        if parsed.scheme != "s3" or not parsed.netloc or not parsed.path:
+            raise ValueError(f"Invalid S3 URI: {s3_uri!r}")
+
+        bucket = parsed.netloc
+        key = parsed.path.lstrip("/")  # strip leading slash from /key
+        return bucket, key
 
     def archive_file_with_new_key(
         self, bucket: str, key: str, archived_key_prefix: str
@@ -35,6 +47,23 @@ class S3Client:
         self.client.delete_object(
             Bucket=bucket,
             Key=key,
+        )
+
+    def move_file(
+        self,
+        source_path: str,
+        destination_path: str,
+    ):
+        source_bucket, source_key = self._split_s3_uri(s3_uri=source_path)
+        destination_bucket, destination_key = self._split_s3_uri(s3_uri=destination_path)
+        self.client.copy_object(
+            Bucket=destination_bucket,
+            CopySource=f"{source_bucket}/{source_key}",
+            Key=destination_key,
+        )
+        self.client.delete_object(
+            Bucket=source_bucket,
+            Key=source_key,
         )
 
     def put_file(
@@ -96,14 +125,19 @@ class S3Client:
                     # skip base folder
                     continue
 
-                if (
-                    content["Key"].endswith(file_type)
-                    and item_identifier in content["Key"]
-                ):
-                    if any(
-                        exclude_prefix in content["Key"]
-                        for exclude_prefix in exclude_prefixes
-                    ):
-                        continue
+                # must contain item_identifier if provided
+                if item_identifier and item_identifier not in content["Key"]:
+                    continue
 
-                    yield f"s3://{bucket}/{content["Key"]}"
+                # must end with file_type if provided
+                if file_type and not content["Key"].endswith(file_type):
+                    continue
+
+                # skip keys with specified prefixes
+                if any(
+                    exclude_prefix in content["Key"]
+                    for exclude_prefix in exclude_prefixes
+                ):
+                    continue
+
+                yield f"s3://{bucket}/{content["Key"]}"
