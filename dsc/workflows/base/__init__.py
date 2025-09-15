@@ -221,6 +221,48 @@ class Workflow(ABC):
         MUST be overridden by workflow subclasses.
         """
 
+    def create_batch(self) -> None:
+        """Create a batch of item submissions for processing.
+
+        A "batch" refers to a collection of item submissions that are grouped together
+        for coordinated processing, storage, and workflow execution. Each batch
+        typically consists of multiple items, each with its own metadata and
+        associated assets, organized under a unique batch identifier.
+
+        This method prepares the necessary assets in S3 (programmatically as needed)
+        and records each item in the batch to DynamoDB.
+        """
+        self._prepare_batch_submission_assets()
+        self._create_batch_in_db()
+
+    def _prepare_batch_submission_assets(self) -> None:  # noqa: B027
+        """Prepare batch submission assets in S3.
+
+        This method performs the required steps to retrieve and/or prepare
+        submission assets as a batch of item submissions in S3. By default,
+        it performs no actions, which represents cases when requestors manually
+        create the batch folder in S3 and upload the submission assets themselves.
+
+        OPTIONALLY overridden by workflow subclasses that require programmatic
+        batch creation.
+        """
+
+    def _create_batch_in_db(self) -> None:
+        """Write records for a batch of item submissions to DynamoDB.
+
+        This method loops through the item metadata, creating an
+        instance of ItemSubmission and then writing a corresponding
+        record to DynamoDB.
+        """
+        for item_metadata in self.item_metadata_iter():
+            item_submission = ItemSubmission.create(
+                batch_id=self.batch_id,
+                item_identifier=item_metadata["item_identifier"],
+                workflow_name=self.workflow_name,
+                source_system_identifier=item_metadata.get("source_system_identifier"),
+            )
+            item_submission.save()
+
     @final
     def reconcile_items(self) -> bool:
         """Reconcile item submissions for a batch.
