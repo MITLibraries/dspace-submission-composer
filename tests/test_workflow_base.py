@@ -1,8 +1,10 @@
 import json
+from datetime import UTC, datetime
 from unittest.mock import patch
 
 import pytest
 from botocore.exceptions import ClientError
+from freezegun import freeze_time
 
 from dsc.db.models import ItemSubmissionDB, ItemSubmissionStatus
 from dsc.exceptions import (
@@ -36,6 +38,18 @@ def test_base_workflow_get_workflow_invalid_workflow_name_raises_error(
 ):
     with pytest.raises(InvalidWorkflowNameError):
         base_workflow_instance.get_workflow("tast")
+
+
+@freeze_time("2025-01-01 09:00:00")
+def test_base_workflow_create_batch_in_db_success(
+    base_workflow_instance, mocked_item_submission_db
+):
+    item_submissions, _ = base_workflow_instance.prepare_batch()
+    base_workflow_instance._create_batch_in_db(item_submissions)  # noqa: SLF001
+    item_submission = ItemSubmissionDB.get(hash_key="batch-aaa", range_key="123")
+
+    assert item_submission.last_run_date == datetime(2025, 1, 1, 9, 0, tzinfo=UTC)
+    assert item_submission.status == ItemSubmissionStatus.BATCH_CREATED
 
 
 def test_base_workflow_submit_items_success(

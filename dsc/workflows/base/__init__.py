@@ -14,6 +14,7 @@ import jsonschema.exceptions
 from dsc.config import Config
 from dsc.db.models import ItemSubmissionDB, ItemSubmissionStatus
 from dsc.exceptions import (
+    BatchCreationFailedError,
     InvalidSQSMessageError,
     InvalidWorkflowNameError,
     ReconcileFailedError,
@@ -222,6 +223,60 @@ class Workflow(ABC):
         """
 
     @final
+    def create_batch(self) -> None:
+        """Create a batch of item submissions for processing.
+
+        A "batch" refers to a collection of item submissions that are grouped together
+        for coordinated processing, storage, and workflow execution. Each batch
+        typically consists of multiple items, each with its own metadata and
+        associated files, organized under a unique batch identifier.
+
+        This method prepares the necessary assets in S3 (programmatically as needed)
+        and records each item in the batch to DynamoDB.
+        """
+        item_submissions, errors = self.prepare_batch()
+        if errors:
+            raise BatchCreationFailedError
+        self._create_batch_in_db(item_submissions)
+
+    @abstractmethod
+    def prepare_batch(self) -> tuple[list, ...]:
+        """Prepare batch submission assets in S3.
+
+        This method performs the required steps to prepare a batch
+        of item submissions in S3. These steps must include (at minimum)
+        the following checks:
+
+        - Check if there is metadata for the item submission;
+          otherwise raise dsc.exceptions.ItemMetadataNotFoundError
+        - Check if there are any bitstreams for the item submission;
+          otherwise raise dsc.exceptions.ItemBitstreamsNotFoundError
+
+        MUST be overridden by workflow subclasses.
+
+        Returns:
+            A tuple of item submissions (init params) represented as a
+            list of dicts and errors represented as a list of tuples
+            containing the item identifier and the error message.
+        """
+        pass  # noqa: PIE790
+
+    @final
+    def _create_batch_in_db(self, item_submissions: list[dict]) -> None:
+        """Write records for a batch of item submissions to DynamoDB.
+
+        This method loops through the item submissions (init params)
+        represented as a list dicts. For each item submission, the
+        method creates an instance of ItemSubmission and saves the
+        record to DynamoDB.
+        """
+        for item_submission_init_params in item_submissions:
+            item_submission = ItemSubmission.create(**item_submission_init_params)
+            item_submission.last_run_date = self.run_date
+            item_submission.status = ItemSubmissionStatus.BATCH_CREATED
+            item_submission.save()
+
+    @final
     def reconcile_items(self) -> bool:
         """Reconcile item submissions for a batch.
 
@@ -241,6 +296,8 @@ class Workflow(ABC):
         NOTE: This method is likely the first time a record will be inserted
         into DynamoDB for each item submission. If already present,
         its status will be updated.
+
+        TODO: Reconcile methods will be deprecated after end-to-end testing.
         """
         reconciled_items = {}  # key=item_identifier, value=list of bitstream URIs
         bitstreams_without_metadata = []  # list of bitstream URIs
@@ -248,12 +305,14 @@ class Workflow(ABC):
 
         # loop through each item metadata
         for item_metadata in self.item_metadata_iter():
-            item_submission = ItemSubmission.get_or_create(
+            item_submission = ItemSubmission.get(
                 batch_id=self.batch_id,
                 item_identifier=item_metadata["item_identifier"],
-                workflow_name=self.workflow_name,
-                source_system_identifier=item_metadata.get("source_system_identifier"),
             )
+
+            # if no corresponding record in DynamoDB, skip
+            if not item_submission:
+                continue
 
             # attach source metadata
             item_submission.source_metadata = item_metadata
@@ -336,8 +395,7 @@ class Workflow(ABC):
         )
         return True
 
-    @abstractmethod
-    def reconcile_item(self, item_submission: ItemSubmission) -> bool:
+    def reconcile_item(self, _item_submission: ItemSubmission) -> bool:
         """Reconcile bitstreams and metadata for an item.
 
         Items in DSpace represent a "work" and combine metadata and files,
@@ -348,7 +406,10 @@ class Workflow(ABC):
 
         If an item fails reconcile, this method should raise
         dsc.exceptions.ReconcileFailed*Error. Otherwise, return True.
+
+        TODO: Reconcile methods will be deprecated after end-to-end testing.
         """
+        return False
 
     def _report_reconcile_workflow_events(
         self,

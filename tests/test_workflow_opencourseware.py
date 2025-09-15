@@ -120,6 +120,12 @@ def test_workflow_ocw_reconcile_items_success(
         bucket="dsc",
         key="opencourseware/batch-aaa/123.zip",
     )
+    ItemSubmissionDB(
+        item_identifier="123",
+        batch_id="batch-aaa",
+        workflow_name="opencourseware",
+    ).create()
+
     mock_opencourseware_read_metadata_from_zip_file.return_value = (
         opencourseware_source_metadata
     )
@@ -157,6 +163,17 @@ def test_workflow_ocw_reconcile_items_if_not_reconciled_success(
         bucket="dsc",
         key="opencourseware/batch-aaa/124.zip",
     )
+    ItemSubmissionDB(
+        item_identifier="123",
+        batch_id="batch-aaa",
+        workflow_name="opencourseware",
+    ).create()
+    ItemSubmissionDB(
+        item_identifier="124",
+        batch_id="batch-aaa",
+        workflow_name="opencourseware",
+    ).create()
+
     mock_opencourseware_read_metadata_from_zip_file.side_effect = [
         opencourseware_source_metadata,
         FileNotFoundError,

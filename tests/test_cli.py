@@ -22,6 +22,11 @@ def test_reconcile_success(
     s3_client.put_file(
         file_content="", bucket="dsc", key="simple-csv/batch-aaa/123_002.jpg"
     )
+    instance = ItemSubmissionDB(
+        batch_id="batch-aaa", item_identifier="123", workflow_name="workflow"
+    )
+    instance.create()
+
     result = runner.invoke(
         main,
         [
