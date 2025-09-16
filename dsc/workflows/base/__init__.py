@@ -290,12 +290,14 @@ class Workflow(ABC):
 
         # loop through each item metadata
         for item_metadata in self.item_metadata_iter():
-            item_submission = ItemSubmission.get_or_create(
+            item_submission = ItemSubmission.get(
                 batch_id=self.batch_id,
                 item_identifier=item_metadata["item_identifier"],
-                workflow_name=self.workflow_name,
-                source_system_identifier=item_metadata.get("source_system_identifier"),
             )
+
+            # if no corresponding record in DynamoDB, skip
+            if not item_submission:
+                continue
 
             # attach source metadata
             item_submission.source_metadata = item_metadata

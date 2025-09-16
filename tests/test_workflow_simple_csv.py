@@ -31,6 +31,12 @@ def test_workflow_simple_csv_reconcile_items_success(
         bucket="dsc",
         key="simple-csv/batch-aaa/123_002.pdf",
     )
+    ItemSubmissionDB(
+        item_identifier="123",
+        batch_id="batch-aaa",
+        workflow_name="simple-csv",
+    ).create()
+
     expected_reconcile_summary = {
         "reconciled": 1,
         "bitstreams_without_metadata": 0,
@@ -69,6 +75,12 @@ def test_workflow_simple_csv_reconcile_items_if_not_reconciled_success(
         bucket="dsc",
         key="simple-csv/batch-aaa/456_003.pdf",
     )
+    ItemSubmissionDB(
+        item_identifier="123",
+        batch_id="batch-aaa",
+        workflow_name="simple-csv",
+    ).create()
+
     expected_reconcile_summary = {
         "reconciled": 1,
         "bitstreams_without_metadata": 1,
