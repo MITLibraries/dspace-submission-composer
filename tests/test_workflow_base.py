@@ -51,18 +51,18 @@ def test_base_workflow_submit_items_success(
     s3_client.put_file(file_content="", bucket="dsc", key="test/batch-aaa/123_01.pdf")
     s3_client.put_file(file_content="", bucket="dsc", key="test/batch-aaa/123_02.jpg")
     s3_client.put_file(file_content="", bucket="dsc", key="test/batch-aaa/789_01.pdf")
-    ItemSubmissionDB.create(
+    ItemSubmissionDB(
         item_identifier="123",
         batch_id="batch-aaa",
         workflow_name="test",
         status=ItemSubmissionStatus.RECONCILE_SUCCESS,
-    )
-    ItemSubmissionDB.create(
+    ).create()
+    ItemSubmissionDB(
         item_identifier="789",
         batch_id="batch-aaa",
         workflow_name="test",
         status=ItemSubmissionStatus.RECONCILE_SUCCESS,
-    )
+    ).create()
     items = base_workflow_instance.submit_items(collection_handle="123.4/5678")
 
     expected_submission_summary = {"total": 2, "submitted": 2, "skipped": 0, "errors": 0}
@@ -80,18 +80,18 @@ def test_base_workflow_submit_items_failed_ready_to_submit_is_skipped(
     mocked_item_submission_db,
 ):
     caplog.set_level("DEBUG")
-    ItemSubmissionDB.create(
+    ItemSubmissionDB(
         item_identifier="123",
         batch_id="batch-aaa",
         workflow_name="test",
         status=ItemSubmissionStatus.INGEST_SUCCESS,
-    )
-    ItemSubmissionDB.create(
+    ).create()
+    ItemSubmissionDB(
         item_identifier="789",
         batch_id="batch-aaa",
         workflow_name="test",
         status=ItemSubmissionStatus.RECONCILE_SUCCESS,
-    )
+    ).create()
     items = base_workflow_instance.submit_items(collection_handle="123.4/5678")
 
     expected_submission_summary = {"total": 2, "submitted": 1, "skipped": 1, "errors": 0}
@@ -127,18 +127,18 @@ def test_base_workflow_submit_items_exceptions_handled(
         ),
     ]
     mocked_method.side_effect = side_effect
-    ItemSubmissionDB.create(
+    ItemSubmissionDB(
         item_identifier="123",
         batch_id="batch-aaa",
         workflow_name="test",
         status=ItemSubmissionStatus.RECONCILE_SUCCESS,
-    )
-    ItemSubmissionDB.create(
+    ).create()
+    ItemSubmissionDB(
         item_identifier="789",
         batch_id="batch-aaa",
         workflow_name="test",
         status=ItemSubmissionStatus.RECONCILE_SUCCESS,
-    )
+    ).create()
     items = base_workflow_instance.submit_items(collection_handle="123.4/5678")
 
     expected_submission_summary = {"total": 2, "submitted": 1, "skipped": 0, "errors": 1}
@@ -161,18 +161,18 @@ def test_base_workflow_finalize_items_success(
 ):
     caplog.set_level("DEBUG")
 
-    ItemSubmissionDB.create(
+    ItemSubmissionDB(
         item_identifier="10.1002/term.3131",
         batch_id="batch-aaa",
         workflow_name="test",
         status=ItemSubmissionStatus.SUBMIT_SUCCESS,
-    )
-    ItemSubmissionDB.create(
+    ).create()
+    ItemSubmissionDB(
         item_identifier="10.1002/term.4242",
         batch_id="batch-aaa",
         workflow_name="test",
         status=ItemSubmissionStatus.SUBMIT_SUCCESS,
-    )
+    ).create()
 
     sqs_client.send(
         message_attributes=result_message_attributes,
@@ -225,12 +225,12 @@ def test_base_workflow_finalize_items_already_ingested_item_skipped(
 ):
     caplog.set_level("DEBUG")
 
-    ItemSubmissionDB.create(
+    ItemSubmissionDB(
         item_identifier="10.1002/term.3131",
         batch_id="batch-aaa",
         workflow_name="test",
         status=ItemSubmissionStatus.INGEST_SUCCESS,
-    )
+    ).create()
 
     sqs_client.send(
         message_attributes=result_message_attributes,
@@ -263,18 +263,18 @@ def test_base_workflow_finalize_items_missing_result_message_skipped(
     sqs_client,
 ):
     caplog.set_level("DEBUG")
-    ItemSubmissionDB.create(
+    ItemSubmissionDB(
         item_identifier="10.1002/term.3131",
         batch_id="batch-aaa",
         workflow_name="test",
         status=ItemSubmissionStatus.SUBMIT_SUCCESS,
-    )
-    ItemSubmissionDB.create(
+    ).create()
+    ItemSubmissionDB(
         item_identifier="10.1002/term.4242",
         batch_id="batch-aaa",
         workflow_name="test",
         status=ItemSubmissionStatus.SUBMIT_SUCCESS,
-    )
+    ).create()
 
     sqs_client.send(
         message_attributes=result_message_attributes,
@@ -311,12 +311,12 @@ def test_base_workflow_finalize_items_with_unknown_ingest_result(
 ):
     caplog.set_level("DEBUG")
 
-    ItemSubmissionDB.create(
+    ItemSubmissionDB(
         item_identifier="10.1002/term.4242",
         batch_id="batch-aaa",
         workflow_name="test",
         status=ItemSubmissionStatus.SUBMIT_SUCCESS,
-    )
+    ).create()
     result_message_attributes["PackageID"]["StringValue"] = "10.1002/term.4242"
     result_message_body_error = json.loads(result_message_body_error)
     result_message_body_error["ResultType"] = "false"

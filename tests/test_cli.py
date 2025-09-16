@@ -54,18 +54,18 @@ def test_submit_success(
     s3_client.put_file(file_content="", bucket="dsc", key="test/batch-aaa/123_001.pdf")
     s3_client.put_file(file_content="", bucket="dsc", key="test/batch-aaa/123_002.jpg")
     s3_client.put_file(file_content="", bucket="dsc", key="test/batch-aaa/789_001.pdf")
-    ItemSubmissionDB.create(
+    ItemSubmissionDB(
         item_identifier="123",
         batch_id="batch-aaa",
         workflow_name="test",
         status=ItemSubmissionStatus.RECONCILE_SUCCESS,
-    )
-    ItemSubmissionDB.create(
+    ).create()
+    ItemSubmissionDB(
         item_identifier="789",
         batch_id="batch-aaa",
         workflow_name="test",
         status=ItemSubmissionStatus.RECONCILE_SUCCESS,
-    )
+    ).create()
 
     expected_submission_summary = {"total": 2, "submitted": 2, "skipped": 0, "errors": 0}
 
@@ -118,12 +118,12 @@ def test_finalize_success(
 ):
     caplog.set_level("DEBUG")
 
-    ItemSubmissionDB.create(
+    ItemSubmissionDB(
         item_identifier="10.1002/term.3131",
         batch_id="batch-aaa",
         workflow_name="test",
         status=ItemSubmissionStatus.SUBMIT_SUCCESS,
-    )
+    ).create()
 
     sqs_client.send(
         message_attributes=result_message_attributes,

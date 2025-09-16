@@ -25,9 +25,9 @@ def test_itemsubmission_init_success(item_submission_instance, dspace_metadata):
 
 def test_itemsubmission_get_success(mocked_item_submission_db):
     # create record in item submissions DynamoDB table
-    ItemSubmissionDB.create(
+    ItemSubmissionDB(
         batch_id="batch-aaa", item_identifier="123", workflow_name="test"
-    )
+    ).create()
 
     assert ItemSubmission.get(
         batch_id="batch-aaa", item_identifier="123"
@@ -40,13 +40,13 @@ def test_itemsubmission_get_if_does_not_exist_in_db_success(mocked_item_submissi
 
 def test_itemsubmission_get_batch_success(mocked_item_submission_db):
     # create records in item submissions DynamoDB table
-    ItemSubmissionDB.create(
+    ItemSubmissionDB(
         batch_id="batch-aaa", item_identifier="123", workflow_name="test"
-    )
+    ).create()
     # create record in item submissions DynamoDB table
-    ItemSubmissionDB.create(
+    ItemSubmissionDB(
         batch_id="batch-aaa", item_identifier="456", workflow_name="test"
-    )
+    ).create()
 
     assert list(ItemSubmission.get_batch(batch_id="batch-aaa")) == [
         ItemSubmission(batch_id="batch-aaa", item_identifier="123", workflow_name="test"),
