@@ -227,7 +227,7 @@ class Workflow(ABC):
         A "batch" refers to a collection of item submissions that are grouped together
         for coordinated processing, storage, and workflow execution. Each batch
         typically consists of multiple items, each with its own metadata and
-        associated assets, organized under a unique batch identifier.
+        associated files, organized under a unique batch identifier.
 
         This method prepares the necessary assets in S3 (programmatically as needed)
         and records each item in the batch to DynamoDB.
@@ -246,6 +246,7 @@ class Workflow(ABC):
         OPTIONALLY overridden by workflow subclasses that require programmatic
         batch creation.
         """
+        pass  # noqa: PIE790
 
     def _create_batch_in_db(self) -> None:
         """Write records for a batch of item submissions to DynamoDB.
