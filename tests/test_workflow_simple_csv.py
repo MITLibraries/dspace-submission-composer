@@ -12,6 +12,33 @@ from dsc.exceptions import ReconcileFailedMissingBitstreamsError
 from dsc.item_submission import ItemSubmission
 
 
+def test_workflow_simple_csv_prepare_batch(
+    mocked_s3_simple_csv,
+    s3_client,
+    simple_csv_workflow_instance,
+):
+    s3_client.put_file(
+        file_content="",
+        bucket="dsc",
+        key="simple-csv/batch-aaa/123_001.pdf",
+    )
+    s3_client.put_file(
+        file_content="",
+        bucket="dsc",
+        key="simple-csv/batch-aaa/123_002.pdf",
+    )
+    assert simple_csv_workflow_instance.prepare_batch() == (
+        [
+            {
+                "batch_id": "batch-aaa",
+                "item_identifier": "123",
+                "workflow_name": "simple-csv",
+            }
+        ],
+        [],
+    )
+
+
 @freeze_time("2025-01-01 09:00:00")
 def test_workflow_simple_csv_reconcile_items_success(
     mocked_item_submission_db,

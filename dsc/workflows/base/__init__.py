@@ -14,6 +14,7 @@ import jsonschema.exceptions
 from dsc.config import Config
 from dsc.db.models import ItemSubmissionDB, ItemSubmissionStatus
 from dsc.exceptions import (
+    BatchCreationFailedError,
     InvalidSQSMessageError,
     InvalidWorkflowNameError,
     ReconcileFailedError,
@@ -232,36 +233,45 @@ class Workflow(ABC):
         This method prepares the necessary assets in S3 (programmatically as needed)
         and records each item in the batch to DynamoDB.
         """
-        self._prepare_batch_submission_assets()
-        self._create_batch_in_db()
+        item_submissions, errors = self.prepare_batch()
+        if errors:
+            raise BatchCreationFailedError
+        self._create_batch_in_db(item_submissions)
 
-    def _prepare_batch_submission_assets(self) -> None:  # noqa: B027
+    @abstractmethod
+    def prepare_batch(self) -> tuple[list, ...]:
         """Prepare batch submission assets in S3.
 
-        This method performs the required steps to retrieve and/or prepare
-        submission assets as a batch of item submissions in S3. By default,
-        it performs no actions, which represents cases when requestors manually
-        create the batch folder in S3 and upload the submission assets themselves.
+        This method performs the required steps to prepare a batch
+        of item submissions in S3. These steps must include (at minimum)
+        the following checks:
 
-        OPTIONALLY overridden by workflow subclasses that require programmatic
-        batch creation.
+        - Check if there is metadata for the item submission;
+          otherwise raise dsc.exceptions.ItemMetadataNotFoundError
+        - Check if there are any bitstreams for the item submission;
+          otherwise raise dsc.exceptions.ItemBitstreamsNotFoundError
+
+        MUST be overridden by workflow subclasses.
+
+        Returns:
+            A tuple of item submissions (init params) represented as a
+            list of dicts and errors represented as a list of tuples
+            containing the item identifier and the error message.
         """
         pass  # noqa: PIE790
 
-    def _create_batch_in_db(self) -> None:
+    def _create_batch_in_db(self, item_submissions: list[dict]) -> None:
         """Write records for a batch of item submissions to DynamoDB.
 
-        This method loops through the item metadata, creating an
-        instance of ItemSubmission and then writing a corresponding
+        This method loops through the item submissions (init params)
+        represented as a list dicts. For each item submission, the
+        method creates an instance of ItemSubmission and saves the
         record to DynamoDB.
         """
-        for item_metadata in self.item_metadata_iter():
-            item_submission = ItemSubmission.create(
-                batch_id=self.batch_id,
-                item_identifier=item_metadata["item_identifier"],
-                workflow_name=self.workflow_name,
-                source_system_identifier=item_metadata.get("source_system_identifier"),
-            )
+        for item_submission_init_params in item_submissions:
+            item_submission = ItemSubmission.create(**item_submission_init_params)
+            item_submission.last_run_date = self.run_date
+            item_submission.status = ItemSubmissionStatus.BATCH_CREATED
             item_submission.save()
 
     @final

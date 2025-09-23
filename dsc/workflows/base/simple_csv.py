@@ -5,7 +5,11 @@ from typing import Any
 import pandas as pd
 import smart_open
 
-from dsc.exceptions import ReconcileFailedMissingBitstreamsError
+from dsc.exceptions import (
+    ItemBitstreamsNotFoundError,
+    ItemMetadataNotFoundError,
+    ReconcileFailedMissingBitstreamsError,
+)
 from dsc.item_submission import ItemSubmission
 from dsc.utilities.aws import S3Client
 from dsc.workflows.base import Workflow
@@ -74,7 +78,6 @@ class SimpleCSV(Workflow):
                 logger.warning(
                     f"Renaming multiple columns as 'item_identifier': {col_names}"
                 )
-
             metadata_df = metadata_df.rename(
                 columns={
                     col: "item_identifier"
@@ -92,3 +95,47 @@ class SimpleCSV(Workflow):
 
             for _, row in metadata_df.iterrows():
                 yield row.to_dict()
+
+    def prepare_batch(self) -> tuple[list, ...]:
+        item_submission_init_params = []
+        errors = []
+
+        for item_metadata in self.item_metadata_iter():
+            # check if there is sufficient metadata for the item submission
+            if self._insufficient_item_metadata(item_metadata):
+                errors.append(
+                    (
+                        item_metadata["item_identifier"],
+                        str(ItemMetadataNotFoundError),
+                    )
+                )
+                continue
+
+            # check if there are any bitstreams associated with the item submission
+            if not self.get_item_bitstream_uris(
+                item_identifier=item_metadata["item_identifier"]
+            ):
+                errors.append(
+                    (item_metadata["item_identifier"], str(ItemBitstreamsNotFoundError))
+                )
+                continue
+
+            # if item submission has sufficient metadata and bitstreams
+            # save init params
+            item_submission_init_params.append(
+                {
+                    "batch_id": self.batch_id,
+                    "item_identifier": item_metadata["item_identifier"],
+                    "workflow_name": self.workflow_name,
+                }
+            )
+        return item_submission_init_params, errors
+
+    def _insufficient_item_metadata(self, item_metadata: dict) -> bool:
+        """Check if the metadata for the item is sufficient.
+
+        All item metadata will have a set value for the 'item_identifier' field.
+        If the count of non-null fields is exactly 1, this means only the item
+        identifier has been provided; therefore the metadata is insufficient.
+        """
+        return sum(1 for value in item_metadata.values() if value is not None) == 1
