@@ -12,6 +12,43 @@ from dsc.exceptions import ReconcileFailedMissingBitstreamsError
 from dsc.item_submission import ItemSubmission
 
 
+def test_workflow_simple_csv_prepare_batch_success(
+    mocked_s3_simple_csv,
+    s3_client,
+    simple_csv_workflow_instance,
+):
+    s3_client.put_file(
+        file_content="",
+        bucket="dsc",
+        key="simple-csv/batch-aaa/123_001.pdf",
+    )
+    s3_client.put_file(
+        file_content="",
+        bucket="dsc",
+        key="simple-csv/batch-aaa/123_002.pdf",
+    )
+    assert simple_csv_workflow_instance.prepare_batch() == (
+        [
+            {
+                "batch_id": "batch-aaa",
+                "item_identifier": "123",
+                "workflow_name": "simple-csv",
+            }
+        ],
+        [],
+    )
+
+
+def test_workflow_simple_csv_prepare_batch_track_errors(
+    mocked_s3_simple_csv,
+    simple_csv_workflow_instance,
+):
+    assert simple_csv_workflow_instance.prepare_batch() == (
+        [],
+        [("123", "No bitstreams found for the item submission")],
+    )
+
+
 @freeze_time("2025-01-01 09:00:00")
 def test_workflow_simple_csv_reconcile_items_success(
     mocked_item_submission_db,
@@ -31,6 +68,12 @@ def test_workflow_simple_csv_reconcile_items_success(
         bucket="dsc",
         key="simple-csv/batch-aaa/123_002.pdf",
     )
+    ItemSubmissionDB(
+        item_identifier="123",
+        batch_id="batch-aaa",
+        workflow_name="simple-csv",
+    ).create()
+
     expected_reconcile_summary = {
         "reconciled": 1,
         "bitstreams_without_metadata": 0,
@@ -69,6 +112,12 @@ def test_workflow_simple_csv_reconcile_items_if_not_reconciled_success(
         bucket="dsc",
         key="simple-csv/batch-aaa/456_003.pdf",
     )
+    ItemSubmissionDB(
+        item_identifier="123",
+        batch_id="batch-aaa",
+        workflow_name="simple-csv",
+    ).create()
+
     expected_reconcile_summary = {
         "reconciled": 1,
         "bitstreams_without_metadata": 1,

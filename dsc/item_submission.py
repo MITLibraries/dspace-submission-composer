@@ -154,20 +154,43 @@ class ItemSubmission:
         )
         return item_submission
 
-    def upsert_db(self) -> None:
-        """Upsert a record in DynamoDB from ItemSubmission.
+    def save(self) -> None:
+        """Create a record in DynamoDB from self.
 
-        This will either update the associated record in the item submissions DynamoDB
-        table using the content of ItemSubmission if it already exists, or
-        insert a new record to the table using the content of the ItemSubmission
+        This method is to be used when writing a record to DynamoDB for the first time.
+        It relies on the dsc.db.models.ItemSubmissionDB.create method to persist the
+        record on DynamoDB, which will first check whether an item with the same primary
+        keys already exists (and raises an error if one is found).
         """
-        item_submission_record = ItemSubmissionDB(
+        item_submission_db = ItemSubmissionDB(
             **{attr: getattr(self, attr) for attr in ItemSubmissionDB.get_attributes()}
         )
-        item_submission_record.save()
+        item_submission_db.create()
 
         logger.info(
             f"Saved record "
+            f"{ITEM_SUBMISSION_LOG_STR.format(
+                batch_id=self.batch_id, item_identifier=self.item_identifier
+                )}"
+        )
+
+    def upsert_db(self) -> None:
+        """Upsert a record in DynamoDB from ItemSubmission.
+
+        This method can either update the associated record in DynamoDB
+        using the content of ItemSubmission if it already exists or
+        insert a new record to the table using the content of the ItemSubmission.
+
+        NOTE: This method relies on the pynamodb.Model.save method to persist the
+        record in DynamoDB, which can overwrite an existing record.
+        """
+        item_submission_db = ItemSubmissionDB(
+            **{attr: getattr(self, attr) for attr in ItemSubmissionDB.get_attributes()}
+        )
+        item_submission_db.save()
+
+        logger.info(
+            f"Upserted record "
             f"{ITEM_SUBMISSION_LOG_STR.format(
                 batch_id=self.batch_id, item_identifier=self.item_identifier
                 )}"

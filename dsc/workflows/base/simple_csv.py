@@ -5,7 +5,10 @@ from typing import Any
 import pandas as pd
 import smart_open
 
-from dsc.exceptions import ReconcileFailedMissingBitstreamsError
+from dsc.exceptions import (
+    ItemBitstreamsNotFoundError,
+    ReconcileFailedMissingBitstreamsError,
+)
 from dsc.item_submission import ItemSubmission
 from dsc.utilities.aws import S3Client
 from dsc.workflows.base import Workflow
@@ -74,7 +77,6 @@ class SimpleCSV(Workflow):
                 logger.warning(
                     f"Renaming multiple columns as 'item_identifier': {col_names}"
                 )
-
             metadata_df = metadata_df.rename(
                 columns={
                     col: "item_identifier"
@@ -92,3 +94,31 @@ class SimpleCSV(Workflow):
 
             for _, row in metadata_df.iterrows():
                 yield row.to_dict()
+
+    def prepare_batch(self) -> tuple[list, ...]:
+        item_submissions = []
+        errors = []
+
+        for item_metadata in self.item_metadata_iter():
+            # check if there are any bitstreams associated with the item submission
+            if not self.get_item_bitstream_uris(
+                item_identifier=item_metadata["item_identifier"]
+            ):
+                errors.append(
+                    (
+                        item_metadata["item_identifier"],
+                        str(ItemBitstreamsNotFoundError()),
+                    )
+                )
+                continue
+
+            # if item submission has associated bitstreams
+            # save init params
+            item_submissions.append(
+                {
+                    "batch_id": self.batch_id,
+                    "item_identifier": item_metadata["item_identifier"],
+                    "workflow_name": self.workflow_name,
+                }
+            )
+        return item_submissions, errors

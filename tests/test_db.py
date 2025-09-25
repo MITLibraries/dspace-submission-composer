@@ -8,9 +8,10 @@ from dsc.exceptions import ItemSubmissionCreateError, ItemSubmissionExistsError
 
 
 def test_db_itemsubmission_create_success(mocked_item_submission_db):
-    ItemSubmissionDB.create(
+    instance = ItemSubmissionDB(
         batch_id="batch-aaa", item_identifier="123", workflow_name="workflow"
     )
+    instance.create()
 
     # retrieve created 'item' from ItemDB
     fetched_item = ItemSubmissionDB.get(hash_key="batch-aaa", range_key="123")
@@ -21,14 +22,15 @@ def test_db_itemsubmission_create_success(mocked_item_submission_db):
 
 
 def test_db_itemsubmission_create_if_exists_raise_error(mocked_item_submission_db):
-    ItemSubmissionDB.create(
+    instance = ItemSubmissionDB(
         batch_id="batch-aaa", item_identifier="123", workflow_name="workflow"
     )
+    instance.create()
 
     with pytest.raises(ItemSubmissionExistsError):
-        ItemSubmissionDB.create(
+        ItemSubmissionDB(
             batch_id="batch-aaa", item_identifier="123", workflow_name="workflow"
-        )
+        ).create()
 
 
 @patch("dsc.db.models.ItemSubmissionDB.save")
@@ -42,22 +44,6 @@ def test_db_itemsubmission_create_if_puterror_raise_error(
     mock_item_submission_db_save.side_effect = PutError(cause=MockDynamoDBError)
 
     with pytest.raises(ItemSubmissionCreateError):
-        ItemSubmissionDB.create(
+        ItemSubmissionDB(
             batch_id="batch-aaa", item_identifier="123", workflow_name="workflow"
-        )
-
-
-def test_db_itemsubmission_get_or_create_success(mocked_item_submission_db):
-    ItemSubmissionDB.create(
-        batch_id="batch-aaa", item_identifier="123", workflow_name="workflow"
-    )
-
-    # retrieve created 'item' from ItemDB
-    fetched_item = ItemSubmissionDB.get_or_create(
-        batch_id="batch-aaa", item_identifier="123", workflow_name="workflow"
-    )
-
-    assert fetched_item
-    assert fetched_item.item_identifier == "123"
-    assert fetched_item.batch_id == "batch-aaa"
-    assert fetched_item.workflow_name == "workflow"
+        ).create()

@@ -1,6 +1,6 @@
 import logging
 from enum import StrEnum
-from typing import TypedDict, Unpack
+from typing import TypedDict
 
 from pynamodb.attributes import (
     JSONAttribute,
@@ -8,7 +8,7 @@ from pynamodb.attributes import (
     UnicodeAttribute,
     UTCDateTimeAttribute,
 )
-from pynamodb.exceptions import DoesNotExist, PutError
+from pynamodb.exceptions import PutError
 from pynamodb.models import Model
 
 from dsc.exceptions import ItemSubmissionCreateError, ItemSubmissionExistsError
@@ -21,6 +21,7 @@ ITEM_SUBMISSION_LOG_STR = (
 
 
 class ItemSubmissionStatus(StrEnum):
+    BATCH_CREATED = "batch_created"
     RECONCILE_SUCCESS = "reconcile_success"
     RECONCILE_FAILED = "reconcile_failed"
     SUBMIT_SUCCESS = "submit_success"
@@ -115,52 +116,42 @@ class ItemSubmissionDB(Model):
         """
         cls.Meta.table_name = table_name
 
-    @classmethod
-    def create(
-        cls,
-        item_identifier: str,
-        batch_id: str,
-        workflow_name: str,
-        **attributes: Unpack[OptionalItemAttributes],
-    ) -> "ItemSubmissionDB":
+    def create(self) -> "ItemSubmissionDB":
         """Create a new item (row) in the DynamoDB table.
 
-        This method also calls self.save() to write the item to DynamoDB.
-        A condition is included in the 'save' call to prevent overwriting
-        entries in the table that have the same primary keys.
+        This method attempts to save the current instance to the DynamoDB
+        table, enforcing a condition that prevents overwriting an existing
+        item with the same primary keys.
 
-        If the call to the save method fails due to the set condition, a
-        db.exceptions.X is raised; otherwise, it re-raises
-        the pynamodb.exceptions.PutError.
+        If the call to the save method fails for any reason, a
+        pynamodb.exceptions.PutError is raised.
+
+            - If the error is caused by the failing condition,
+              raise ItemSubmissionExistsError
+            - Otherwise, raise ItemSubmissioNCreate error with the
+              message describing the cause.
 
         Raises:
             ItemSubmissionCreateError
             ItemSubmissionExistsError
         """
-        item = cls(
-            item_identifier=item_identifier,
-            batch_id=batch_id,
-            workflow_name=workflow_name,
-            **attributes,
-        )
-
         try:
-            item.save(
-                condition=cls.item_identifier.does_not_exist()
-                & cls.batch_id.does_not_exist()
+            self.save(
+                condition=ItemSubmissionDB.item_identifier.does_not_exist()
+                & ItemSubmissionDB.batch_id.does_not_exist()
             )
             logger.info(
                 "Created record "
-                f"{ITEM_SUBMISSION_LOG_STR.format(batch_id=batch_id,
-                                      item_identifier=item_identifier)}"
+                f"{ITEM_SUBMISSION_LOG_STR.format(batch_id=self.batch_id,
+                                      item_identifier=self.item_identifier)}"
             )
         except PutError as exception:
             # if the `PutError` is due to failing conditional check, this means
             # a row for the item submission already exists in DynamoDB
             if exception.cause_response_code == "ConditionalCheckFailedException":
                 raise ItemSubmissionExistsError(
-                    f"Item with batch={batch_id} (hash key) and "
-                    f"item_identifier={item_identifier} (range key) already exists"
+                    f"Item with batch={self.batch_id} (hash key) and "
+                    f"item_identifier={self.item_identifier} (range key) already exists"
                 ) from exception
 
             # if the `PutError` is due to any other cause,
@@ -169,35 +160,7 @@ class ItemSubmissionDB(Model):
                 exception.cause_response_message
             ) from exception
 
-        return item
-
-    @classmethod
-    def get_or_create(
-        cls, item_identifier: str, batch_id: str, workflow_name: str
-    ) -> "ItemSubmissionDB":
-        """Get or create item (row) from the DynamoDB table.
-
-        This method will first try to get the item from the table.
-        If the  does not exist, it will try to create the record.
-
-        Raises:
-            ItemSubmissionCreateError
-        """
-        try:
-            item = ItemSubmissionDB.get(hash_key=batch_id, range_key=item_identifier)
-            logger.info(
-                "Retrieved record "
-                f"{ITEM_SUBMISSION_LOG_STR.format(batch_id=batch_id,
-                                      item_identifier=item_identifier)}"
-            )
-        except DoesNotExist:
-            item = ItemSubmissionDB.create(
-                item_identifier=item_identifier,
-                batch_id=batch_id,
-                workflow_name=workflow_name,
-            )
-
-        return item
+        return self
 
     def to_dict(self, *attributes: str) -> dict:
         """Create dict representing an item submission.

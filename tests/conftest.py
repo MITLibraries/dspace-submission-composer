@@ -24,6 +24,7 @@ from dsc.workflows.base import Workflow, WorkflowEvents
 from dsc.workflows.base.simple_csv import SimpleCSV
 
 
+# Test Workflow classes ######################
 class TestWorkflow(Workflow):
 
     workflow_name: str = "test"
@@ -61,6 +62,47 @@ class TestWorkflow(Workflow):
             },
         ]
 
+    def prepare_batch(self):
+        return (
+            [
+                {
+                    "batch_id": "batch-aaa",
+                    "item_identifier": "123",
+                    "workflow_name": "test",
+                },
+                {
+                    "batch_id": "batch-aaa",
+                    "item_identifier": "789",
+                    "workflow_name": "test",
+                },
+            ],
+            [],
+        )
+
+
+class TestOpenCourseWare(OpenCourseWare):
+
+    @property
+    def output_queue(self) -> str:
+        return "mock-output-queue"
+
+    def prepare_batch(self):
+        return (
+            [
+                {
+                    "batch_id": "batch-aaa",
+                    "item_identifier": "123",
+                    "workflow_name": "opencourseware",
+                },
+                {
+                    "batch_id": "batch-aaa",
+                    "item_identifier": "124",
+                    "workflow_name": "opencourseware",
+                },
+            ],
+            [],
+        )
+
 
 class TestSimpleCSV(SimpleCSV):
 
@@ -80,13 +122,30 @@ class TestSimpleCSV(SimpleCSV):
         return "mock-output-queue"
 
 
-class TestOpenCourseWare(OpenCourseWare):
+# Test Workflow instances ####################
+@pytest.fixture
+@freeze_time("2025-01-01 09:00:00")
+def base_workflow_instance(item_metadata, metadata_mapping, mocked_s3):
+    return TestWorkflow(batch_id="batch-aaa")
 
-    @property
-    def output_queue(self) -> str:
-        return "mock-output-queue"
+
+@pytest.fixture
+def simple_csv_workflow_instance(metadata_mapping):
+    return TestSimpleCSV(batch_id="batch-aaa")
 
 
+@pytest.fixture
+@freeze_time("2025-01-01 09:00:00")
+def archivesspace_workflow_instance(tmp_path):
+    return ArchivesSpace(batch_id="batch-aaa")
+
+
+@pytest.fixture
+def opencourseware_workflow_instance():
+    return TestOpenCourseWare(batch_id="batch-aaa")
+
+
+# Test fixtures ##############################
 @pytest.fixture(autouse=True)
 def _test_env(monkeypatch):
     monkeypatch.setenv("SENTRY_DSN", "None")
@@ -111,28 +170,6 @@ def moto_server():
     yield f"http://{host}:{port}"
     server.stop()
     time.sleep(0.5)
-
-
-@pytest.fixture
-@freeze_time("2025-01-01 09:00:00")
-def base_workflow_instance(item_metadata, metadata_mapping, mocked_s3):
-    return TestWorkflow(batch_id="batch-aaa")
-
-
-@pytest.fixture
-def simple_csv_workflow_instance(metadata_mapping):
-    return TestSimpleCSV(batch_id="batch-aaa")
-
-
-@pytest.fixture
-@freeze_time("2025-01-01 09:00:00")
-def archivesspace_workflow_instance(tmp_path):
-    return ArchivesSpace(batch_id="batch-aaa")
-
-
-@pytest.fixture
-def opencourseware_workflow_instance():
-    return TestOpenCourseWare(batch_id="batch-aaa")
 
 
 @pytest.fixture

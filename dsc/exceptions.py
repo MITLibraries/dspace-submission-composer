@@ -69,3 +69,18 @@ class ReconcileFoundMetadataWithoutBitstreamsWarning(Warning):
         if len(self.metadata_without_bitstreams) > 20:  # noqa: PLR2004
             message = f"{message} (showing first 20 metadata item identifiers)"
         return f"{message}: {self.metadata_without_bitstreams}"
+
+
+# Exceptions for 'create-batch' step
+class BatchCreationFailedError(Exception):
+    pass
+
+
+class ItemMetadataNotFoundError(Exception):
+    def __init__(self) -> None:
+        super().__init__("No metadata found for the item submission")
+
+
+class ItemBitstreamsNotFoundError(Exception):
+    def __init__(self) -> None:
+        super().__init__("No bitstreams found for the item submission")
