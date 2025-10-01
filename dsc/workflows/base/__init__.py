@@ -23,6 +23,7 @@ from dsc.exceptions import (
     ReconcileFoundMetadataWithoutBitstreamsWarning,
 )
 from dsc.item_submission import ItemSubmission
+from dsc.reports import CreateBatchReport
 from dsc.utilities.aws import SESClient, SQSClient
 from dsc.utilities.validate.schemas import RESULT_MESSAGE_ATTRIBUTES, RESULT_MESSAGE_BODY
 
@@ -620,10 +621,33 @@ class Workflow(ABC):
             f"'{self.workflow_name}' "
         )
 
+    def send_report_temp(self, email_recipients: list[str]) -> None:
+        """Send report as an email via SES.
+
+        TODO: The name of this method is temporary until all reporting modules
+        are updated to read from DynamoDB instead of the WorkflowEvents object.
+        """
+        logger.info(f"Sending report to recipients: {email_recipients}")
+        report = CreateBatchReport.from_workflow(self)
+
+        ses_client = SESClient(region=CONFIG.aws_region_name)
+        ses_client.create_and_send_email(
+            subject=report.subject,
+            source_email_address=CONFIG.source_email,
+            recipient_email_addresses=email_recipients,
+            message_body_plain_text=report.generate_summary(),
+            attachments=report.create_email_attachments(),
+        )
+
     def send_report(
         self, report_class: type[Report], email_recipients: list[str]
     ) -> None:
-        """Send report as an email via SES."""
+        """Send report as an email via SES.
+
+        TODO: This method will be replaced by 'send_create_x_report' once all
+        reporting modules are updated to read from DynamoDB instead
+        of the WorkflowEvents object.
+        """
         report = report_class.from_workflow(self)
         logger.info(f"Sending report to recipients: {email_recipients}")
         ses_client = SESClient(region=CONFIG.aws_region_name)

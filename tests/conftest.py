@@ -13,7 +13,7 @@ from moto import mock_aws
 from moto.server import ThreadedMotoServer
 
 from dsc.config import Config
-from dsc.db.models import ItemSubmissionDB
+from dsc.db.models import ItemSubmissionDB, ItemSubmissionStatus
 from dsc.item_submission import ItemSubmission
 from dsc.utilities.aws.s3 import S3Client
 from dsc.utilities.aws.ses import SESClient
@@ -236,6 +236,23 @@ def mocked_item_submission_db(config_instance):
             ItemSubmissionDB.set_table_name(config_instance.item_submissions_table_name)
             ItemSubmissionDB.create_table()
         yield
+
+
+@pytest.fixture
+def mock_item_submission_db_with_records(mocked_item_submission_db):
+    # create two records for 'batch-aaa'
+    ItemSubmissionDB(
+        batch_id="aaa",
+        item_identifier="123",
+        workflow_name="test",
+        status=ItemSubmissionStatus.BATCH_CREATED,
+    ).create()
+    ItemSubmissionDB(
+        batch_id="aaa",
+        item_identifier="456",
+        workflow_name="test",
+        status=ItemSubmissionStatus.BATCH_CREATED,
+    ).create()
 
 
 @pytest.fixture

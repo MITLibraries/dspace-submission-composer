@@ -1,3 +1,4 @@
+# ruff: noqa: FIX002, TD002, TD003
 from __future__ import annotations
 
 import logging
@@ -55,6 +56,11 @@ class SESClient:
         message_body_html: str | None = None,
         attachments: list | None = None,
     ) -> MIMEMultipart:
+        # TODO: Simplify method to simply accept 'message_body' as plain text
+        #       after all reporting modules updated to read from DynamoDB.
+        #       Initial testing showed that including the message as HTML was
+        #       resulted in a separate HTML file being added as an attachment
+        #       instead of formatting the email body.
         message = MIMEMultipart()
         message["Subject"] = subject
 
@@ -70,6 +76,7 @@ class SESClient:
         return message
 
     def _create_attachment(self, filename: str, content: StringIO) -> MIMEApplication:
+        content.seek(0)
         attachment = MIMEApplication(content.read())
         attachment.add_header("Content-Disposition", "attachment", filename=filename)
         return attachment

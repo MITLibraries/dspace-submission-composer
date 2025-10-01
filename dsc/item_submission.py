@@ -66,6 +66,9 @@ class ItemSubmission:
     bitstream_s3_uris: list[str] | None = None
     metadata_s3_uri: str = ""
 
+    def asdict_subset(self, fields: list[str]) -> dict:
+        return {field: getattr(self, field) for field in fields if hasattr(self, field)}
+
     @classmethod
     def get_or_create(
         cls,

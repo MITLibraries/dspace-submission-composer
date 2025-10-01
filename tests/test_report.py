@@ -1,7 +1,73 @@
+import os
+from io import StringIO
+
 from freezegun import freeze_time
 
-from dsc.reports import FinalizeReport, ReconcileReport, SubmitReport
+from dsc.reports import CreateBatchReport, FinalizeReport, ReconcileReport, SubmitReport
 from dsc.workflows.base import WorkflowEvents
+
+
+@freeze_time("2025-01-01 09:00:00")
+def test_create_batch_report_init_success():
+    create_batch_report = CreateBatchReport(workflow_name="test", batch_id="aaa")
+
+    assert create_batch_report.workflow_name == "test"
+    assert create_batch_report.batch_id == "aaa"
+    assert create_batch_report.report_date == "2025-01-01 09:00:00"
+    assert create_batch_report.subject == ("DSC Create Batch Results - test, batch='aaa'")
+
+
+def test_create_batch_report_retrieves_all_item_submissions(
+    mock_item_submission_db_with_records,
+):
+    create_batch_report = CreateBatchReport(workflow_name="test", batch_id="aaa")
+
+    assert create_batch_report.item_submissions == [
+        {
+            "batch_id": "aaa",
+            "item_identifier": "123",
+            "source_system_identifier": None,
+            "status": "batch_created",
+            "status_details": None,
+            "dspace_handle": None,
+            "ingest_date": None,
+        },
+        {
+            "batch_id": "aaa",
+            "item_identifier": "456",
+            "source_system_identifier": None,
+            "status": "batch_created",
+            "status_details": None,
+            "dspace_handle": None,
+            "ingest_date": None,
+        },
+    ]
+
+
+def test_create_batch_report_generate_summary(mock_item_submission_db_with_records):
+    create_batch_report = CreateBatchReport(workflow_name="test", batch_id="aaa")
+
+    assert "Created: 2" in create_batch_report.generate_summary()
+
+
+def test_create_batch_report_write_to_csv_file(
+    mock_item_submission_db_with_records, tmp_path
+):
+    create_batch_report = CreateBatchReport(workflow_name="test", batch_id="aaa")
+    create_batch_report.write_to_csv(output_file=tmp_path / "data.csv")
+
+    assert os.path.exists(tmp_path / "data.csv")
+
+
+def test_create_batch_report_write_to_csv_buffer(
+    mock_item_submission_db_with_records, tmp_path
+):
+    csv_buffer = StringIO()
+    create_batch_report = CreateBatchReport(workflow_name="test", batch_id="aaa")
+    create_batch_report.write_to_csv(output_file=csv_buffer)
+
+    csv_buffer.seek(0)
+    assert csv_buffer.read()
 
 
 @freeze_time("2025-01-01 09:00:00")
