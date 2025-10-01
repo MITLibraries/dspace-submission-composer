@@ -4,15 +4,16 @@ import itertools
 import json
 import logging
 from abc import ABC, abstractmethod
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import UTC, datetime
+from io import StringIO
 from typing import TYPE_CHECKING, Any, final
 
 import jsonschema
 import jsonschema.exceptions
 
 from dsc.config import Config
-from dsc.db.models import ItemSubmissionDB, ItemSubmissionStatus
+from dsc.db.models import ItemSubmissionStatus
 from dsc.exceptions import (
     BatchCreationFailedError,
     InvalidSQSMessageError,
@@ -23,6 +24,7 @@ from dsc.exceptions import (
     ReconcileFoundMetadataWithoutBitstreamsWarning,
 )
 from dsc.item_submission import ItemSubmission
+from dsc.reports import Report
 from dsc.utilities.aws import SESClient, SQSClient
 from dsc.utilities.validate.schemas import RESULT_MESSAGE_ATTRIBUTES, RESULT_MESSAGE_BODY
 
@@ -101,24 +103,6 @@ class DSSResultMessage:
             ) from exception
 
 
-@dataclass
-class WorkflowEvents:
-    """Record of events during the execution of Workflow methods.
-
-    This dataclass is designed to hold useful data used in reporting.
-    It is comprised of three lists, which contain details
-    about reconciled, submitted, and processed items -- aligning with
-    the DSC CLI commands (reconcile, submit, and finalize). Error
-    messages are also tracked in a list.
-    """
-
-    reconciled_items: dict = field(default_factory=dict)
-    submitted_items: list[dict] = field(default_factory=list)
-    processed_items: list[dict] = field(default_factory=list)
-    errors: list[str] = field(default_factory=list)
-    reconcile_errors: dict = field(default_factory=dict)
-
-
 class Workflow(ABC):
     """A base workflow class from which other workflow classes are derived."""
 
@@ -135,7 +119,6 @@ class Workflow(ABC):
                 and metadata files.
         """
         self.batch_id = batch_id
-        self.workflow_events = WorkflowEvents()
         self.run_date = datetime.now(UTC)
         self.exclude_prefixes: list[str] = [
             "archived/",
@@ -357,11 +340,6 @@ class Workflow(ABC):
             )
         )
 
-        # attach results to workflow events
-        self._report_reconcile_workflow_events(
-            reconciled_items, bitstreams_without_metadata, metadata_without_bitstreams
-        )
-
         # log results
         reconcile_summary = {
             "reconciled": len(reconciled_items),
@@ -410,25 +388,6 @@ class Workflow(ABC):
         TODO: Reconcile methods will be deprecated after end-to-end testing.
         """
         return False
-
-    def _report_reconcile_workflow_events(
-        self,
-        reconciled_items: dict,
-        bitstreams_without_metadata: list[str],
-        metadata_without_bitstreams: list[str],
-    ) -> None:
-        """Attach reconcile results to WorkflowEvents for reporting.
-
-        TODO: This method is a temporary workaround until reporting modules are updated
-        so that it no longer rely on WorkflowEvents.
-        """
-        self.workflow_events.reconciled_items = reconciled_items
-        self.workflow_events.reconcile_errors["bitstreams_without_metadata"] = (
-            bitstreams_without_metadata
-        )
-        self.workflow_events.reconcile_errors["metadata_without_bitstreams"] = (
-            metadata_without_bitstreams
-        )
 
     @final
     def submit_items(self, collection_handle: str) -> list:
@@ -490,7 +449,6 @@ class Workflow(ABC):
                     "message_id": response["MessageId"],
                 }
                 items.append(item_data)
-                self.workflow_events.submitted_items.append(item_data)
                 self.submission_summary["submitted"] += 1
 
                 logger.info(f"Sent item submission message: {item_data["message_id"]}")
@@ -500,7 +458,6 @@ class Workflow(ABC):
                 item_submission.submit_attempts += 1
                 item_submission.upsert_db()
             except Exception as exception:  # noqa: BLE001
-                self.workflow_events.errors.append(str(exception))
                 self.submission_summary["errors"] += 1
 
                 item_submission.status = ItemSubmissionStatus.SUBMIT_FAILED
@@ -522,7 +479,6 @@ class Workflow(ABC):
 
         1. Process DSS result messages from the output queue
         2. Apply workflow-specific processing
-        3. Load ingest results into WorkflowEvents for reporting
         """
         logger.info(
             f"Processing DSS result messages from the output queue '{self.output_queue}'"
@@ -594,18 +550,6 @@ class Workflow(ABC):
                 message_id=result_message.message_id,
             )
 
-        # update WorkflowEvents with batch-level ingest results
-        for item_submission_record in ItemSubmissionDB.query(self.batch_id):
-            self.workflow_events.processed_items.append(
-                item_submission_record.to_dict(
-                    "item_identifier",
-                    "status",
-                    "status_details",
-                    "dspace_handle",
-                    "last_result_message",
-                )
-            )
-
         # optional method used for some workflows
         self.workflow_specific_processing()
 
@@ -631,7 +575,11 @@ class Workflow(ABC):
             subject=report.subject,
             source_email_address=CONFIG.source_email,
             recipient_email_addresses=email_recipients,
-            message_body_plain_text=report.to_plain_text(),
-            message_body_html=report.to_html(),
-            attachments=report.create_attachments(),
+            message_body=report.generate_summary(),
+            attachments=[
+                (
+                    f"{self.batch_id}-item-submissions.csv",
+                    report.write_item_submissions_csv(StringIO()),
+                )
+            ],
         )

@@ -8,7 +8,7 @@ import click
 
 from dsc.config import Config
 from dsc.db.models import ItemSubmissionDB
-from dsc.reports import FinalizeReport, ReconcileReport, SubmitReport
+from dsc.reports import FinalizeReport, SubmitReport
 from dsc.workflows.base import Workflow
 
 logger = logging.getLogger(__name__)
@@ -74,22 +74,11 @@ def post_main_group_subcommand(
 
 @main.command()
 @click.pass_context
-@click.option(
-    "-e",
-    "--email-recipients",
-    help="The recipients of the reconcile results email as a comma-delimited string",
-    default=None,
-)
-def reconcile(ctx: click.Context, email_recipients: str | None = None) -> None:
+def reconcile(ctx: click.Context) -> None:
     """Reconcile bitstreams with item identifiers from the metadata."""
     workflow = ctx.obj["workflow"]
 
     reconciled = workflow.reconcile_items()
-
-    if email_recipients:
-        workflow.send_report(
-            report_class=ReconcileReport, email_recipients=email_recipients.split(",")
-        )
 
     if not reconciled:
         logger.error("Failed to reconcile bitstreams and metadata")

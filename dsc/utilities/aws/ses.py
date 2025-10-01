@@ -27,8 +27,7 @@ class SESClient:
         subject: str,
         source_email_address: str,
         recipient_email_addresses: list[str],
-        message_body_plain_text: str,
-        message_body_html: str | None = None,
+        message_body: str,
         attachments: list[tuple] | None = None,
     ) -> None:
         """Create an email message and send it via SES.
@@ -37,39 +36,32 @@ class SESClient:
             subject: The subject of the email.
             source_email_address: The email address of the sender.
             recipient_email_addresses: The email address of the receipient.
-            message_body_plain_text: Message body rendered in plain-text.
-            message_body_html: Message body rendered in HTML.
+            message_body: Message body rendered in plain-text.
             attachments: Attachments to include in an email, represented as
                 a list of tuples containing: filename, content type, content.
         """
-        message = self._create_email(
-            subject, message_body_plain_text, message_body_html, attachments
-        )
+        message = self._create_email(subject, message_body, attachments)
         self._send_email(source_email_address, recipient_email_addresses, message)
         logger.debug(f"Logs sent to {recipient_email_addresses}")
 
     def _create_email(
         self,
         subject: str,
-        message_body_plain_text: str,
-        message_body_html: str | None = None,
+        message_body: str,
         attachments: list | None = None,
     ) -> MIMEMultipart:
         message = MIMEMultipart()
         message["Subject"] = subject
-
-        message.attach(MIMEText(message_body_plain_text, "plain"))
-
-        if message_body_html:
-            message.attach(MIMEText(message_body_html, "html"))
-
+        message.attach(MIMEText(message_body, "plain"))
         if attachments:
             for filename, content in attachments:
                 attachment = self._create_attachment(filename, content)
                 message.attach(attachment)
+
         return message
 
     def _create_attachment(self, filename: str, content: StringIO) -> MIMEApplication:
+        content.seek(0)
         attachment = MIMEApplication(content.read())
         attachment.add_header("Content-Disposition", "attachment", filename=filename)
         return attachment

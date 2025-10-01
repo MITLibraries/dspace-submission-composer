@@ -7,43 +7,6 @@ from dsc.cli import main
 from dsc.db.models import ItemSubmissionDB, ItemSubmissionStatus
 
 
-def test_reconcile_success(
-    caplog,
-    runner,
-    mocked_s3,
-    simple_csv_workflow_instance,
-    mocked_item_submission_db,
-    mocked_s3_simple_csv,
-    s3_client,
-):
-    s3_client.put_file(
-        file_content="", bucket="dsc", key="simple-csv/batch-aaa/123_001.pdf"
-    )
-    s3_client.put_file(
-        file_content="", bucket="dsc", key="simple-csv/batch-aaa/123_002.jpg"
-    )
-    instance = ItemSubmissionDB(
-        batch_id="batch-aaa", item_identifier="123", workflow_name="workflow"
-    )
-    instance.create()
-
-    result = runner.invoke(
-        main,
-        [
-            "--workflow-name",
-            "simple-csv",
-            "--batch-id",
-            "batch-aaa",
-            "reconcile",
-        ],
-    )
-    assert result.exit_code == 0
-    assert (
-        "Successfully reconciled bitstreams and metadata for all 1 item(s)" in caplog.text
-    )
-    assert "Total time elapsed" in caplog.text
-
-
 @freeze_time("2025-01-01 09:00:00")
 def test_submit_success(
     caplog,

@@ -1,0 +1,10 @@
+{% block content %}
+Ingest report
+Batch: {{batch_id}}
+Run date: {{report_date}}
+
+Results:
+Ingested to DSpace: {{ ingested_items|length }}
+Failed ingest to DSpace: {{ errors|length }}
+Unable to determine whether ingested to DSpace: {{ unknowns|length }}
+{% endblock %}

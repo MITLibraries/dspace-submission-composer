@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, fields
 from typing import TYPE_CHECKING, Any
 
 from botocore.exceptions import ClientError
@@ -65,6 +65,17 @@ class ItemSubmission:
     dspace_metadata: dict[str, Any] | None = None
     bitstream_s3_uris: list[str] | None = None
     metadata_s3_uri: str = ""
+
+    def asdict(self, attrs: list[str] | None = None) -> dict:
+        """Convert an instance to a dictionary.
+
+        Args:
+            attrs: List of attributes to include in dict. Defaults to None,
+                which will select all fields.
+        """
+        if attrs is None:
+            attrs = [field.name for field in fields(self)]
+        return {attr: getattr(self, attr) for attr in attrs if hasattr(self, attr)}
 
     @classmethod
     def get_or_create(

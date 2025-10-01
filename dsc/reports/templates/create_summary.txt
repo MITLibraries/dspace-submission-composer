@@ -1,0 +1,8 @@
+{% block content %}
+Create batch report
+Batch: {{batch_id}}
+Run date: {{report_date}}
+
+Results:
+Created: {{ item_submissions | length }}
+{% endblock %}
