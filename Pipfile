@@ -19,7 +19,6 @@ black = "*"
 coveralls = "*"
 freezegun = "*"
 moto = {version="*", extras=["server"]}
-
 mypy = "*"
 pandas-stubs = "*"
 pip-audit = "*"
