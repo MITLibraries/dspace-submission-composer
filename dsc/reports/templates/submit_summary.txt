@@ -1,0 +1,9 @@
+{% block content %}
+Submit report
+Batch: {{batch_id}}
+Run date: {{report_date}}
+
+Results:
+Submitted to DSS: {{ submitted_items|length }}
+Failed to submit to DSS: {{ errors|length }}
+{% endblock %}

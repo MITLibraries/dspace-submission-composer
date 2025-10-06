@@ -13,14 +13,14 @@ from moto import mock_aws
 from moto.server import ThreadedMotoServer
 
 from dsc.config import Config
-from dsc.db.models import ItemSubmissionDB
+from dsc.db.models import ItemSubmissionDB, ItemSubmissionStatus
 from dsc.item_submission import ItemSubmission
 from dsc.utilities.aws.s3 import S3Client
 from dsc.utilities.aws.ses import SESClient
 from dsc.utilities.aws.sqs import SQSClient
 from dsc.workflows import OpenCourseWare
 from dsc.workflows.archivesspace import ArchivesSpace
-from dsc.workflows.base import Workflow, WorkflowEvents
+from dsc.workflows.base import Workflow
 from dsc.workflows.base.simple_csv import SimpleCSV
 
 
@@ -239,6 +239,23 @@ def mocked_item_submission_db(config_instance):
 
 
 @pytest.fixture
+def mock_item_submission_db_with_records(mocked_item_submission_db):
+    # create two records for 'batch-aaa'
+    ItemSubmissionDB(
+        batch_id="aaa",
+        item_identifier="123",
+        workflow_name="test",
+        status=ItemSubmissionStatus.BATCH_CREATED,
+    ).create()
+    ItemSubmissionDB(
+        batch_id="aaa",
+        item_identifier="456",
+        workflow_name="test",
+        status=ItemSubmissionStatus.BATCH_CREATED,
+    ).create()
+
+
+@pytest.fixture
 def mocked_s3(config_instance):
     with mock_aws():
         s3 = boto3.client("s3", region_name=config_instance.aws_region_name)
@@ -400,40 +417,4 @@ def submission_message_body():
                 }
             ],
         }
-    )
-
-
-@pytest.fixture
-def workflow_events_reconcile():
-    return WorkflowEvents(
-        reconciled_items={
-            "123": ["123.pdf", "123.tiff"],
-        },
-        reconcile_errors={
-            "bitstreams_without_metadata": ["124.pdf"],
-            "metadata_without_bitstreams": ["125"],
-        },
-    )
-
-
-@pytest.fixture
-def workflow_events_submit():
-    return WorkflowEvents(
-        submitted_items=[{"item_identifier": "123", "message_id": "abc"}],
-        errors=["Failed to send submission message for item: 124"],
-    )
-
-
-@pytest.fixture
-def workflow_events_finalize(result_message_body_success):
-    return WorkflowEvents(
-        processed_items=[
-            {
-                "item_identifier": "123",
-                "ingested": True,
-                "dspace_handle": None,
-                "error": None,
-                "result_message_body": json.loads(result_message_body_success),
-            }
-        ]
     )

@@ -392,9 +392,7 @@ def test_base_workflow_workflow_specific_processing_success(
 
 
 def test_base_workflow_send_report_success(
-    caplog,
-    base_workflow_instance,
-    mocked_ses,
+    caplog, base_workflow_instance, mocked_ses, mocked_item_submission_db
 ):
     caplog.set_level("DEBUG")
     base_workflow_instance.send_report(
