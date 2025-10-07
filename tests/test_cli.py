@@ -1,10 +1,76 @@
 import json
+from unittest.mock import MagicMock, patch
 
 import boto3
 from freezegun import freeze_time
 
 from dsc.cli import main
 from dsc.db.models import ItemSubmissionDB, ItemSubmissionStatus
+
+
+def test_create_success(
+    caplog,
+    runner,
+    base_workflow_instance,
+    mocked_item_submission_db,
+    mocked_s3,
+    s3_client,
+):
+    caplog.set_level("DEBUG")
+    s3_client.put_file(file_content="", bucket="dsc", key="test/batch-aaa/123_001.pdf")
+    s3_client.put_file(file_content="", bucket="dsc", key="test/batch-aaa/123_002.jpg")
+    s3_client.put_file(file_content="", bucket="dsc", key="test/batch-aaa/789_001.pdf")
+
+    result = runner.invoke(
+        main,
+        [
+            "--verbose",
+            "--workflow-name",
+            "test",
+            "--batch-id",
+            "batch-aaa",
+            "create",
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert "Created record" in caplog.text
+    assert "Saved record" in caplog.text
+
+
+def test_create_with_sync_data_success(
+    caplog,
+    runner,
+    base_workflow_instance,
+    mocked_item_submission_db,
+    mocked_s3,
+    s3_client,
+):
+    caplog.set_level("DEBUG")
+    s3_client.put_file(file_content="", bucket="dsc", key="test/batch-aaa/123_001.pdf")
+    s3_client.put_file(file_content="", bucket="dsc", key="test/batch-aaa/123_002.jpg")
+    s3_client.put_file(file_content="", bucket="dsc", key="test/batch-aaa/789_001.pdf")
+
+    mock_sync_callback = MagicMock(name="sync_callback")
+
+    with patch.object(main.commands["sync"], "callback", new=mock_sync_callback):
+        result = runner.invoke(
+            main,
+            [
+                "--verbose",
+                "--workflow-name",
+                "test",
+                "--batch-id",
+                "batch-aaa",
+                "create",
+                "--sync-data",
+            ],
+        )
+
+        assert result.exit_code == 0
+        mock_sync_callback.assert_called_once()
+        assert "Created record" in caplog.text
+        assert "Saved record" in caplog.text
 
 
 @freeze_time("2025-01-01 09:00:00")

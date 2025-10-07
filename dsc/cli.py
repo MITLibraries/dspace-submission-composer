@@ -1,3 +1,5 @@
+# ruff: noqa: TD002, TD003, FIX002
+
 import datetime
 import logging
 import subprocess
@@ -8,7 +10,7 @@ import click
 
 from dsc.config import Config
 from dsc.db.models import ItemSubmissionDB
-from dsc.reports import FinalizeReport, SubmitReport
+from dsc.reports import CreateReport, FinalizeReport, SubmitReport
 from dsc.workflows.base import Workflow
 
 logger = logging.getLogger(__name__)
@@ -72,6 +74,7 @@ def post_main_group_subcommand(
     )
 
 
+# TODO: Remove 'reconcile' CLI command after DSC step function is updated
 @main.command()
 @click.pass_context
 def reconcile(ctx: click.Context) -> None:
@@ -83,6 +86,62 @@ def reconcile(ctx: click.Context) -> None:
     if not reconciled:
         logger.error("Failed to reconcile bitstreams and metadata")
         ctx.exit(1)
+
+
+@main.command()
+@click.pass_context
+@click.option("--sync-data/--no-sync-data", default=False)
+@click.option(
+    "-s",
+    "--source",
+    help=(
+        "Source directory formatted as a local filesystem path or "
+        "an S3 URI in s3://bucket/prefix form"
+    ),
+)
+@click.option(
+    "-d",
+    "--destination",
+    help=(
+        "Destination directory formatted as a local filesystem path or "
+        "an S3 URI in s3://bucket/prefix form"
+    ),
+)
+@click.option(
+    "--dry-run",
+    is_flag=True,
+    help=(
+        "Display the operations that would be performed using the "
+        "sync command without actually running them"
+    ),
+)
+@click.option(
+    "-e",
+    "--email-recipients",
+    help="The recipients of the submission results email as a comma-delimited string",
+    default=None,
+)
+def create(
+    ctx: click.Context,
+    source: str | None = None,
+    destination: str | None = None,
+    email_recipients: str | None = None,
+    *,
+    dry_run: bool = False,
+    sync_data: bool = False,
+) -> None:
+    """Create a batch of item submissions."""
+    workflow = ctx.obj["workflow"]
+
+    if sync_data:
+        ctx.invoke(sync, source, destination, dry_run=dry_run)
+
+    workflow.create_batch(synced=sync_data)
+
+    if email_recipients:
+        workflow.send_report(
+            report_class=CreateReport, email_recipients=email_recipients.split(",")
+        )
 
 
 @main.command()
@@ -155,7 +214,7 @@ def finalize(ctx: click.Context, email_recipients: str) -> None:
     is_flag=True,
     help=(
         "Display the operations that would be performed using the "
-        "specified command without actually running them"
+        "sync command without actually running them"
     ),
 )
 def sync(

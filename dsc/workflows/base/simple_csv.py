@@ -95,7 +95,12 @@ class SimpleCSV(Workflow):
             for _, row in metadata_df.iterrows():
                 yield row.to_dict()
 
-    def prepare_batch(self) -> tuple[list, ...]:
+    def prepare_batch(
+        self,
+        *,
+        synced: bool = False,  # noqa: ARG002
+    ) -> tuple[list, ...]:
+
         item_submissions = []
         errors = []
 
