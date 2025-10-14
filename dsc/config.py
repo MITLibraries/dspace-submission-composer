@@ -11,13 +11,16 @@ class Config:
         "SENTRY_DSN",
         "AWS_REGION_NAME",
         "ITEM_SUBMISSIONS_TABLE_NAME",
-        "RETRY_THRESHOLD",
         "S3_BUCKET_SUBMISSION_ASSETS",
         "SOURCE_EMAIL",
         "SQS_QUEUE_DSS_INPUT",
     ]
 
-    OPTIONAL_ENV_VARS: Iterable[str] = ["S3_BUCKET_SYNC_SOURCE", "WARNING_ONLY_LOGGERS"]
+    OPTIONAL_ENV_VARS: Iterable[str] = [
+        "RETRY_THRESHOLD",
+        "S3_BUCKET_SYNC_SOURCE",
+        "WARNING_ONLY_LOGGERS",
+    ]
 
     @property
     def workspace(self) -> str:

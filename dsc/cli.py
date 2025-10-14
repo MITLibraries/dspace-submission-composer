@@ -3,7 +3,6 @@
 import datetime
 import logging
 import subprocess
-import sys
 from time import perf_counter
 
 import click
@@ -92,23 +91,7 @@ def reconcile(ctx: click.Context) -> None:
 @click.pass_context
 @click.option("--sync-data/--no-sync-data", default=False)
 @click.option(
-    "-s",
-    "--source",
-    help=(
-        "Source directory formatted as a local filesystem path or "
-        "an S3 URI in s3://bucket/prefix form"
-    ),
-)
-@click.option(
-    "-d",
-    "--destination",
-    help=(
-        "Destination directory formatted as a local filesystem path or "
-        "an S3 URI in s3://bucket/prefix form"
-    ),
-)
-@click.option(
-    "--dry-run",
+    "--sync-dry-run",
     is_flag=True,
     help=(
         "Display the operations that would be performed using the "
@@ -116,25 +99,52 @@ def reconcile(ctx: click.Context) -> None:
     ),
 )
 @click.option(
+    "-s",
+    "--sync-source",
+    help=(
+        "Source directory formatted as a local filesystem path or "
+        "an S3 URI in s3://bucket/prefix form"
+    ),
+)
+@click.option(
+    "-d",
+    "--sync-destination",
+    help=(
+        "Destination directory formatted as a local filesystem path or "
+        "an S3 URI in s3://bucket/prefix form"
+    ),
+)
+@click.option(
     "-e",
     "--email-recipients",
-    help="The recipients of the submission results email as a comma-delimited string",
+    help="The recipients of the batch creation results email as a comma-delimited string",
     default=None,
 )
 def create(
     ctx: click.Context,
-    source: str | None = None,
-    destination: str | None = None,
-    email_recipients: str | None = None,
     *,
-    dry_run: bool = False,
     sync_data: bool = False,
+    sync_dry_run: bool = False,
+    sync_source: str | None = None,
+    sync_destination: str | None = None,
+    email_recipients: str | None = None,
 ) -> None:
     """Create a batch of item submissions."""
     workflow = ctx.obj["workflow"]
 
     if sync_data:
-        ctx.invoke(sync, source, destination, dry_run=dry_run)
+        try:
+            ctx.invoke(
+                sync,
+                source=sync_source,
+                destination=sync_destination,
+                dry_run=sync_dry_run,
+            )
+        except click.exceptions.Exit as exception:
+            logger.error(  # noqa: TRY400
+                "Failed to sync data, cannot proceed with batch creation"
+            )
+            ctx.exit(exception.exit_code)
 
     workflow.create_batch(synced=sync_data)
 
@@ -142,52 +152,6 @@ def create(
         workflow.send_report(
             report_class=CreateReport, email_recipients=email_recipients.split(",")
         )
-
-
-@main.command()
-@click.pass_context
-@click.option(
-    "-c",
-    "--collection-handle",
-    help="The handle of the DSpace collection to which the batch will be submitted",
-    required=True,
-)
-@click.option(
-    "-e",
-    "--email-recipients",
-    help="The recipients of the submission results email as a comma-delimited string",
-    default=None,
-)
-def submit(
-    ctx: click.Context,
-    collection_handle: str,
-    email_recipients: str | None = None,
-) -> None:
-    """Send a batch of item submissions to the DSpace Submission Service (DSS)."""
-    workflow = ctx.obj["workflow"]
-    workflow.submit_items(collection_handle)
-
-    if email_recipients:
-        workflow.send_report(
-            report_class=SubmitReport, email_recipients=email_recipients.split(",")
-        )
-
-
-@main.command()
-@click.pass_context
-@click.option(
-    "-e",
-    "--email-recipients",
-    help="The recipients of the submission results email as a comma-delimited string",
-    required=True,
-)
-def finalize(ctx: click.Context, email_recipients: str) -> None:
-    """Process the result messages from the DSS output queue according the workflow."""
-    workflow = ctx.obj["workflow"]
-    workflow.finalize_items()
-    workflow.send_report(
-        report_class=FinalizeReport, email_recipients=email_recipients.split(",")
-    )
 
 
 # data sync command
@@ -293,7 +257,52 @@ def sync(
 
     if return_code != 0:
         logger.error(f"Failed to sync (exit code: {return_code})")
+        ctx.exit(return_code)  # exit with the same code as subprocess
     else:
         logger.info("Sync completed successfully")
 
-    sys.exit(return_code)  # exit with the same code as subprocess
+
+@main.command()
+@click.pass_context
+@click.option(
+    "-c",
+    "--collection-handle",
+    help="The handle of the DSpace collection to which the batch will be submitted",
+    required=True,
+)
+@click.option(
+    "-e",
+    "--email-recipients",
+    help="The recipients of the submission results email as a comma-delimited string",
+    default=None,
+)
+def submit(
+    ctx: click.Context,
+    collection_handle: str,
+    email_recipients: str | None = None,
+) -> None:
+    """Send a batch of item submissions to the DSpace Submission Service (DSS)."""
+    workflow = ctx.obj["workflow"]
+    workflow.submit_items(collection_handle)
+
+    if email_recipients:
+        workflow.send_report(
+            report_class=SubmitReport, email_recipients=email_recipients.split(",")
+        )
+
+
+@main.command()
+@click.pass_context
+@click.option(
+    "-e",
+    "--email-recipients",
+    help="The recipients of the submission results email as a comma-delimited string",
+    required=True,
+)
+def finalize(ctx: click.Context, email_recipients: str) -> None:
+    """Process the result messages from the DSS output queue according the workflow."""
+    workflow = ctx.obj["workflow"]
+    workflow.finalize_items()
+    workflow.send_report(
+        report_class=FinalizeReport, email_recipients=email_recipients.split(",")
+    )
