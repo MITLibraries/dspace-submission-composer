@@ -95,7 +95,24 @@ class SimpleCSV(Workflow):
             for _, row in metadata_df.iterrows():
                 yield row.to_dict()
 
-    def prepare_batch(self) -> tuple[list, ...]:
+    def prepare_batch(
+        self,
+        *,
+        synced: bool = False,  # noqa: ARG002
+    ) -> tuple[list, ...]:
+        """Prepare a batch of item submissions, given a metadata CSV file.
+
+        For this workflow, the expected number of item submissions is determined
+        by the number of entries in the metadata CSV file. This method
+        will iterate over the rows in the metadata CSV file, using the
+        provided item identifier to check if there are any matching bitstreams.
+        If no bitstreams are found, the item identifier is captured in a list
+        of errors; otherwise, the item identifier is stored in a list of
+        item submissions to be created by Workflow._create_batch_in_db.
+
+        For SimpelCSV workflows, the batch preparation steps are the same
+        for synced vs. non-synced workflows.
+        """
         item_submissions = []
         errors = []
 

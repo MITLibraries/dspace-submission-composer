@@ -62,7 +62,7 @@ class TestWorkflow(Workflow):
             },
         ]
 
-    def prepare_batch(self):
+    def prepare_batch(self, *, synced: bool = False):  # noqa: ARG002
         return (
             [
                 {
