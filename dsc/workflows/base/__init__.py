@@ -288,14 +288,16 @@ class Workflow(ABC):
 
         # loop through each item metadata
         for item_metadata in self.item_metadata_iter():
-            item_submission = ItemSubmission.get(
-                batch_id=self.batch_id,
-                item_identifier=item_metadata["item_identifier"],
+            # item_submission = ItemSubmission.get(
+            #     batch_id=self.batch_id,
+            #     item_identifier=item_metadata["item_identifier"],
+            # )
+            item_submission = ItemSubmission(
+                self.batch_id, item_metadata["item_identifier"], "sccs"
             )
-
             # if no corresponding record in DynamoDB, skip
-            if not item_submission:
-                continue
+            # if not item_submission:
+            #     continue
 
             # attach source metadata
             item_submission.source_metadata = item_metadata
@@ -412,17 +414,20 @@ class Workflow(ABC):
         }
 
         items = []
-        for item_submission in ItemSubmission.get_batch(self.batch_id):
-
+        # for item_submission in ItemSubmission.get_batch(self.batch_id):
+        for item_metadata in self.item_metadata_iter():
+            item_submission = ItemSubmission(
+                self.batch_id, item_metadata["item_identifier"], "sccs"
+            )
             self.submission_summary["total"] += 1
             item_identifier = item_submission.item_identifier
             logger.debug(f"Preparing submission for item: {item_identifier}")
             item_submission.last_run_date = self.run_date
 
             # validate whether a message should be sent for this item submission
-            if not item_submission.ready_to_submit():
-                self.submission_summary["skipped"] += 1
-                continue
+            # if not item_submission.ready_to_submit():
+            #     self.submission_summary["skipped"] += 1
+            #     continue
             try:
                 # prepare submission assets
                 item_submission.prepare_dspace_metadata(
@@ -456,14 +461,14 @@ class Workflow(ABC):
                 # Set status in DynamoDB
                 item_submission.status = ItemSubmissionStatus.SUBMIT_SUCCESS
                 item_submission.submit_attempts += 1
-                item_submission.upsert_db()
+                # item_submission.upsert_db()
             except Exception as exception:  # noqa: BLE001
                 self.submission_summary["errors"] += 1
 
                 item_submission.status = ItemSubmissionStatus.SUBMIT_FAILED
                 item_submission.status_details = str(exception)
                 item_submission.submit_attempts += 1
-                item_submission.upsert_db()
+                # item_submission.upsert_db()
 
         logger.info(
             f"Submitted messages to the DSS input queue '{CONFIG.sqs_queue_dss_input}' "
@@ -544,7 +549,7 @@ class Workflow(ABC):
                 logger.debug(f"Unable to determine ingest status for record {log_str}")
             item_submission.last_result_message = str(result_message.raw_message)
             item_submission.last_run_date = self.run_date
-            item_submission.upsert_db()
+            # item_submission.upsert_db()
             sqs_client.delete(
                 receipt_handle=result_message.receipt_handle,
                 message_id=result_message.message_id,

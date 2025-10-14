@@ -57,5 +57,13 @@
     "dc.description.sponsorship": {
         "source_field_name": "dc.description.sponsorship",
         "language": "en_US"
+    },
+    "dc.description.abstract": {
+        "source_field_name": "dc.description.abstract",
+        "language": "en_US"
+    },
+    "dc.type.uri": {
+        "source_field_name": "dc.type.uri",
+        "language": "en_US"
     }
 }
