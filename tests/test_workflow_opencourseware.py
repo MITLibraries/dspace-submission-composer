@@ -332,7 +332,7 @@ def test_workflow_ocw_item_metadata_iter_success(
         ],
         "dc.identifier.other": ["14.02", "14.02-Fall2004"],
         "dc.coverage.temporal": "Fall 2004",
-        "dc.audience.educationlevel": "Undergraduate",
+        "dc.audience.educationlevel": ["Undergraduate"],
         "dc.type": "Learning Object",
         "dc.rights": ("Attribution-NonCommercial-NoDerivs 4.0 United States"),
         "dc.rights.uri": ("https://creativecommons.org/licenses/by-nc-nd/4.0/deed.en"),
