@@ -28,7 +28,7 @@ def test_opencourseware_transform_success(opencourseware_source_metadata):
         ],
         "dc.identifier.other": ["14.02", "14.02-Fall2004"],
         "dc.coverage.temporal": "Fall 2004",
-        "dc.audience.educationlevel": "Undergraduate",
+        "dc.audience.educationlevel": ["Undergraduate"],
         "dc.type": "Learning Object",
         "dc.rights": ("Attribution-NonCommercial-NoDerivs 4.0 United States"),
         "dc.rights.uri": ("https://creativecommons.org/licenses/by-nc-nd/4.0/deed.en"),
@@ -131,9 +131,6 @@ def test_opencourseware_dc_coverage_temporal_success(opencourseware_source_metad
 
 
 def test_opencourseware_dc_audience_educationlevel(opencourseware_source_metadata):
-    assert (
-        OpenCourseWareTransformer.dc_audience_educationlevel(
-            opencourseware_source_metadata
-        )
-        == "Undergraduate"
-    )
+    assert OpenCourseWareTransformer.dc_audience_educationlevel(
+        opencourseware_source_metadata
+    ) == ["Undergraduate"]

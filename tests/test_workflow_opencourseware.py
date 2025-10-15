@@ -106,6 +106,36 @@ def test_workflow_ocw_metadata_mapping_dspace_metadata_success(
 
 
 @patch("dsc.workflows.opencourseware.OpenCourseWare._read_metadata_from_zip_file")
+def test_workflow_ocw_prepare_batch_success(
+    mock_opencourseware_read_metadata_from_zip_file,
+    mocked_item_submission_db,
+    mocked_s3,
+    opencourseware_source_metadata,
+    opencourseware_workflow_instance,
+    s3_client,
+):
+    s3_client.put_file(
+        file_content="",
+        bucket="dsc",
+        key="opencourseware/batch-aaa/123.zip",
+    )
+    mock_opencourseware_read_metadata_from_zip_file.return_value = (
+        opencourseware_source_metadata
+    )
+
+    assert opencourseware_workflow_instance.prepare_batch() == (
+        [
+            {
+                "batch_id": "batch-aaa",
+                "item_identifier": "123",
+                "workflow_name": "opencourseware",
+            }
+        ],
+        [],
+    )
+
+
+@patch("dsc.workflows.opencourseware.OpenCourseWare._read_metadata_from_zip_file")
 def test_workflow_ocw_reconcile_items_success(
     mock_opencourseware_read_metadata_from_zip_file,
     mocked_item_submission_db,
@@ -302,7 +332,7 @@ def test_workflow_ocw_item_metadata_iter_success(
         ],
         "dc.identifier.other": ["14.02", "14.02-Fall2004"],
         "dc.coverage.temporal": "Fall 2004",
-        "dc.audience.educationlevel": "Undergraduate",
+        "dc.audience.educationlevel": ["Undergraduate"],
         "dc.type": "Learning Object",
         "dc.rights": ("Attribution-NonCommercial-NoDerivs 4.0 United States"),
         "dc.rights.uri": ("https://creativecommons.org/licenses/by-nc-nd/4.0/deed.en"),

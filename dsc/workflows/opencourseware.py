@@ -7,7 +7,7 @@ from typing import Any, ClassVar
 
 import smart_open
 
-from dsc.exceptions import ReconcileFailedMissingMetadataError
+from dsc.exceptions import ItemMetadataNotFoundError, ReconcileFailedMissingMetadataError
 from dsc.item_submission import ItemSubmission
 from dsc.utilities.aws.s3 import S3Client
 from dsc.workflows.base import Workflow
@@ -121,10 +121,11 @@ class OpenCourseWareTransformer:
                         "primary_course_number": "8.01",
                         "extra_course_numbers": "18.01,6.042",
                         "course_title": "Physics I",
-                        "term_year": "2021"
+                        "term": "Fall",
+                        "year": "2021"
                     }
                 Output:
-                    "8.01 / 18.01 / 6.042 Physics I, 2021"
+                    "8.01 / 18.01 / 6.042 Physics I, Fall 2021"
         """
         title = ""
 
@@ -159,17 +160,17 @@ class OpenCourseWareTransformer:
         return source_metadata["year"]
 
     @classmethod
-    def dc_description_abstract(cls, source_metadata: dict) -> str:
+    def dc_description_abstract(cls, source_metadata: dict) -> str | None:
         """Return the course description from the source metadata.
 
         Example:
             Input: {"course_description": "An introduction to algorithms."}
             Output: "An introduction to algorithms."
         """
-        return source_metadata["course_description"]
+        return source_metadata.get("course_description") or None
 
     @classmethod
-    def dc_contributor_author(cls, source_metadata: dict) -> list[str]:
+    def dc_contributor_author(cls, source_metadata: dict) -> list[str] | None:
         """Return a list of formatted instructor names.
 
         Example:
@@ -185,7 +186,7 @@ class OpenCourseWareTransformer:
             instructor_name
             for instructor_details in source_metadata["instructors"]
             if (instructor_name := cls._format_instructor_name(instructor_details))
-        ]
+        ] or None
 
     @classmethod
     def _format_instructor_name(cls, instructor_details: dict[str, str]) -> str:
@@ -205,7 +206,7 @@ class OpenCourseWareTransformer:
         return instructor_name.strip()
 
     @classmethod
-    def dc_contributor_department(cls, source_metadata: dict) -> list[str]:
+    def dc_contributor_department(cls, source_metadata: dict) -> list[str] | None:
         """Return a list of department names mapped from department numbers.
 
         Example:
@@ -220,33 +221,33 @@ class OpenCourseWareTransformer:
             cls.department_mappings.get(str(department_number), str(department_number))
             for department_number in source_metadata["department_numbers"]
         ]
-        return list(filter(None, department_names))
+        return list(filter(None, department_names)) or None
 
     @classmethod
-    def creativework_learningresourcetype(cls, source_metadata: dict) -> list[str]:
+    def creativework_learningresourcetype(cls, source_metadata: dict) -> list[str] | None:
         """Return the list of learning resource types.
 
         Example:
             Input: {"learning_resource_types": ["Lecture Notes", "Exams"]}
             Output: ["Lecture Notes", "Exams"]
         """
-        return source_metadata["learning_resource_types"]
+        return source_metadata.get("learning_resource_types") or None
 
     @classmethod
-    def dc_subject(cls, source_metadata: dict) -> list[str]:
+    def dc_subject(cls, source_metadata: dict) -> list[str] | None:
         """Concatenate topic arrays into dash-separated strings.
 
         Example:
             Input: {"topics": [["Math", "Algebra"], ["Science", "Physics"]]}
             Output: ["Math - Algebra", "Science - Physics"]
         """
-        topics_list = [
-            " - ".join(topic_terms) for topic_terms in source_metadata["topics"]
-        ]
-        return list(filter(None, topics_list))
+        if topics := source_metadata.get("topics"):
+            topics_list = [" - ".join(topic_terms) for topic_terms in topics]
+            return list(filter(None, topics_list))
+        return None
 
     @classmethod
-    def dc_identifier_other(cls, source_metadata: dict) -> list[str]:
+    def dc_identifier_other(cls, source_metadata: dict) -> list[str] | None:
         """Return a list of course identifiers, including formatted term/year.
 
         Example:
@@ -259,35 +260,45 @@ class OpenCourseWareTransformer:
             Output: ["6.001", "6.001-Fall2023", "18.01"]
         """
         identifier_other_list = []
-        if primary_course_number := source_metadata["primary_course_number"]:
+        if primary_course_number := source_metadata.get("primary_course_number"):
             identifier_other_list.append(primary_course_number)
+
             # format primary_course_number with term and year
+            derived_course_number_parts = [
+                primary_course_number,
+                f"{source_metadata.get('term', '')}{source_metadata.get('year', '')}",
+            ]
             identifier_other_list.append(
-                f"{primary_course_number}-{source_metadata["term"]}{source_metadata["year"]}"
+                "-".join(part for part in derived_course_number_parts if part)
             )
-        if extra_course_numbers := source_metadata["extra_course_numbers"]:
-            identifier_other_list.append(extra_course_numbers)
-        return identifier_other_list
+        if extra_course_numbers := source_metadata.get("extra_course_numbers"):
+            identifier_other_list.append(extra_course_numbers.split(","))
+        return identifier_other_list or None
 
     @classmethod
-    def dc_coverage_temporal(cls, source_metadata: dict) -> str:
+    def dc_coverage_temporal(cls, source_metadata: dict) -> str | None:
         """Return a string combining term and year.
 
         Example:
             Input: {"term": "Spring", "year": "2024"}
             Output: "Spring 2024"
         """
-        return " ".join([source_metadata["term"], source_metadata["year"]])
+        return (
+            " ".join(
+                [source_metadata.get("term", ""), source_metadata.get("year", "")]
+            ).strip()
+            or None
+        )
 
     @classmethod
-    def dc_audience_educationlevel(cls, source_metadata: dict) -> str:
+    def dc_audience_educationlevel(cls, source_metadata: dict) -> list[str] | None:
         """Return the education level from the source metadata.
 
         Example:
             Input: {"level": ["Undergraduate"]}
             Output: "Undergraduate"
         """
-        return source_metadata["level"][0]
+        return source_metadata.get("level") or None
 
     @classmethod
     def dc_type(cls) -> str:
@@ -362,7 +373,6 @@ class OpenCourseWare(Workflow):
         for file in self.batch_bitstream_uris:
             try:
                 source_metadata = self._read_metadata_from_zip_file(file)
-
             except FileNotFoundError:
                 source_metadata = {}
 
@@ -393,3 +403,44 @@ class OpenCourseWare(Workflow):
     def _parse_item_identifier(self, file: str) -> str:
         """Parse item identifier from bitstream zip file."""
         return file.split("/")[-1].removesuffix(".zip")
+
+    def prepare_batch(
+        self,
+        *,
+        synced: bool = False,  # noqa: ARG002
+    ) -> tuple[list, ...]:
+        """Prepare a batch of item submissions, given a batch of zip files.
+
+        For this workflow, the expected number of item submissions is determined
+        by the number of zip files in the batch folder. This method will iterate
+        over the yielded transformed metadata, checking whether metadata is provided:
+
+        - If only the item identifier is provided and no other metadata is available,
+          an error is recorded
+        - If metadata is present, init params are generated for the item submission
+
+        For the OpenCourseWare workflow, the batch preparation steps are the same
+        for synced vs. non-synced workflows.
+        """
+        item_submissions = []
+        errors = []
+
+        for item_metadata in self.item_metadata_iter():
+            # check if metadata is provided
+            # item identifier is always returned by iter
+            if len(item_metadata) == 1 and "item_identifier" in item_metadata:
+                errors.append(
+                    (item_metadata["item_identifier"], str(ItemMetadataNotFoundError()))
+                )
+                continue
+
+            # if item submission includes metadata, save init params
+            item_submissions.append(
+                {
+                    "batch_id": self.batch_id,
+                    "item_identifier": item_metadata["item_identifier"],
+                    "workflow_name": self.workflow_name,
+                }
+            )
+
+        return item_submissions, errors
