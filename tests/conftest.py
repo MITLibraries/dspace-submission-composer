@@ -86,23 +86,6 @@ class TestOpenCourseWare(OpenCourseWare):
     def output_queue(self) -> str:
         return "mock-output-queue"
 
-    def prepare_batch(self):
-        return (
-            [
-                {
-                    "batch_id": "batch-aaa",
-                    "item_identifier": "123",
-                    "workflow_name": "opencourseware",
-                },
-                {
-                    "batch_id": "batch-aaa",
-                    "item_identifier": "124",
-                    "workflow_name": "opencourseware",
-                },
-            ],
-            [],
-        )
-
 
 class TestSimpleCSV(SimpleCSV):
 

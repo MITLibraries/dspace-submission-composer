@@ -105,12 +105,12 @@ class SimpleCSV(Workflow):
         For this workflow, the expected number of item submissions is determined
         by the number of entries in the metadata CSV file. This method
         will iterate over the rows in the metadata CSV file, using the
-        provided item identifier to check if there are any matching bitstreams.
-        If no bitstreams are found, the item identifier is captured in a list
-        of errors; otherwise, the item identifier is stored in a list of
-        item submissions to be created by Workflow._create_batch_in_db.
+        provided item identifier to check if there are any matching bitstreams:
 
-        For SimpelCSV workflows, the batch preparation steps are the same
+        - If no bitstreams are found, an error is recorded
+        - If bitstreams are found, init params are generated for the item submission
+
+        For SimpleCSV workflows, the batch preparation steps are the same
         for synced vs. non-synced workflows.
         """
         item_submissions = []
@@ -129,8 +129,7 @@ class SimpleCSV(Workflow):
                 )
                 continue
 
-            # if item submission has associated bitstreams
-            # save init params
+            # if item submission has associated bitstreams, save init params
             item_submissions.append(
                 {
                     "batch_id": self.batch_id,
@@ -138,4 +137,5 @@ class SimpleCSV(Workflow):
                     "workflow_name": self.workflow_name,
                 }
             )
+
         return item_submissions, errors

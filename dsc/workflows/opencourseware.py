@@ -7,7 +7,7 @@ from typing import Any, ClassVar
 
 import smart_open
 
-from dsc.exceptions import ReconcileFailedMissingMetadataError
+from dsc.exceptions import ItemMetadataNotFoundError, ReconcileFailedMissingMetadataError
 from dsc.item_submission import ItemSubmission
 from dsc.utilities.aws.s3 import S3Client
 from dsc.workflows.base import Workflow
@@ -362,7 +362,6 @@ class OpenCourseWare(Workflow):
         for file in self.batch_bitstream_uris:
             try:
                 source_metadata = self._read_metadata_from_zip_file(file)
-
             except FileNotFoundError:
                 source_metadata = {}
 
@@ -393,3 +392,44 @@ class OpenCourseWare(Workflow):
     def _parse_item_identifier(self, file: str) -> str:
         """Parse item identifier from bitstream zip file."""
         return file.split("/")[-1].removesuffix(".zip")
+
+    def prepare_batch(
+        self,
+        *,
+        synced: bool = False,  # noqa: ARG002
+    ) -> tuple[list, ...]:
+        """Prepare a batch of item submissions, given a batch of zip files.
+
+        For this workflow, the expected number of item submissions is determined
+        by the number of zip files in the batch folder. This method will iterate
+        over the yielded transformed metadata, checking whether metadata is provided:
+
+        - If only the item identifier is provided and no other metadata is available,
+          an error is recorded
+        - If metadata is present, init params are generated for the item submission
+
+        For the OpenCourseWare workflow, the batch preparation steps are the same
+        for synced vs. non-synced workflows.
+        """
+        item_submissions = []
+        errors = []
+
+        for item_metadata in self.item_metadata_iter():
+            # check if metadata is provided
+            # item identifier is always returned by iter
+            if len(item_metadata) == 1 and "item_identifier" in item_metadata:
+                errors.append(
+                    (item_metadata["item_identifier"], str(ItemMetadataNotFoundError()))
+                )
+                continue
+
+            # if item submission includes metadata, save init params
+            item_submissions.append(
+                {
+                    "batch_id": self.batch_id,
+                    "item_identifier": item_metadata["item_identifier"],
+                    "workflow_name": self.workflow_name,
+                }
+            )
+
+        return item_submissions, errors
