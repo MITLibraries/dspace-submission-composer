@@ -396,6 +396,7 @@ def test_base_workflow_send_report_success(
 ):
     caplog.set_level("DEBUG")
     base_workflow_instance.send_report(
-        report_class=FinalizeReport, email_recipients=["test@test.test"]
+        report=FinalizeReport.from_workflow(base_workflow_instance),
+        email_recipients=["test@test.test"],
     )
     assert "Logs sent to ['test@test.test']" in caplog.text

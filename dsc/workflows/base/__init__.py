@@ -6,7 +6,6 @@ import logging
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from io import StringIO
 from typing import TYPE_CHECKING, Any, final
 
 import jsonschema
@@ -219,7 +218,7 @@ class Workflow(ABC):
         """
         item_submissions, errors = self.prepare_batch(synced=synced)
         if errors:
-            raise BatchCreationFailedError
+            raise BatchCreationFailedError(errors)
         self._create_batch_in_db(item_submissions)
 
     @abstractmethod
@@ -564,11 +563,8 @@ class Workflow(ABC):
             f"'{self.workflow_name}' "
         )
 
-    def send_report(
-        self, report_class: type[Report], email_recipients: list[str]
-    ) -> None:
+    def send_report(self, report: Report, email_recipients: list[str]) -> None:
         """Send report as an email via SES."""
-        report = report_class.from_workflow(self)
         logger.info(f"Sending report to recipients: {email_recipients}")
         ses_client = SESClient(region=CONFIG.aws_region_name)
         ses_client.create_and_send_email(
@@ -576,10 +572,5 @@ class Workflow(ABC):
             source_email_address=CONFIG.source_email,
             recipient_email_addresses=email_recipients,
             message_body=report.generate_summary(),
-            attachments=[
-                (
-                    f"{self.batch_id}-item-submissions.csv",
-                    report.write_item_submissions_csv(StringIO()),
-                )
-            ],
+            attachments=report.generate_attachments(),
         )
