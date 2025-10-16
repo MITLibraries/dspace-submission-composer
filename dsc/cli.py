@@ -9,6 +9,7 @@ import click
 
 from dsc.config import Config
 from dsc.db.models import ItemSubmissionDB
+from dsc.exceptions import BatchCreationFailedError
 from dsc.reports import CreateReport, FinalizeReport, SubmitReport
 from dsc.workflows.base import Workflow
 
@@ -146,11 +147,17 @@ def create(
             )
             ctx.exit(exception.exit_code)
 
-    workflow.create_batch(synced=sync_data)
+    try:
+        workflow.create_batch(synced=sync_data)
+        errors = None
+    except BatchCreationFailedError as exception:
+        logger.error("Failed to create batch")  # noqa: TRY400
+        errors = exception.errors
 
     if email_recipients:
         workflow.send_report(
-            report_class=CreateReport, email_recipients=email_recipients.split(",")
+            report=CreateReport(workflow.workflow_name, workflow.batch_id, errors=errors),
+            email_recipients=email_recipients.split(","),
         )
 
 
@@ -287,7 +294,8 @@ def submit(
 
     if email_recipients:
         workflow.send_report(
-            report_class=SubmitReport, email_recipients=email_recipients.split(",")
+            report=SubmitReport(workflow.workflow_name, workflow.batch_id),
+            email_recipients=email_recipients.split(","),
         )
 
 
@@ -304,5 +312,6 @@ def finalize(ctx: click.Context, email_recipients: str) -> None:
     workflow = ctx.obj["workflow"]
     workflow.finalize_items()
     workflow.send_report(
-        report_class=FinalizeReport, email_recipients=email_recipients.split(",")
+        report=FinalizeReport(workflow.workflow_name, workflow.batch_id),
+        email_recipients=email_recipients.split(","),
     )

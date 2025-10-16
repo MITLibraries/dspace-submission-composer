@@ -29,7 +29,15 @@ def test_report_init_from_workflow_success(base_workflow_instance):
     assert create_report.subject == ("DSC Create Batch Results - test, batch='batch-aaa'")
 
 
-def test_report_batch_item_submissions_success(
+def test_report_generate_attachments(mock_item_submission_db_with_records):
+    create_report = CreateReport(workflow_name="test", batch_id="aaa")
+    attachment = create_report.generate_attachments()[0]
+
+    assert attachment[0] == "aaa-item-submissions.csv"
+    assert isinstance(attachment[1], StringIO)
+
+
+def test_report_get_batch_item_submissions_success(
     mock_item_submission_db_with_records,
 ):
     create_report = CreateReport(workflow_name="test", batch_id="aaa")
@@ -38,19 +46,21 @@ def test_report_batch_item_submissions_success(
     assert len(batch_item_submissions) == 2  # noqa: PLR2004
 
 
-def test_report_write_to_csv_file(mock_item_submission_db_with_records, tmp_path):
+def test_report_write_item_submissions_csv_file(
+    mock_item_submission_db_with_records, tmp_path
+):
     create_report = CreateReport(workflow_name="test", batch_id="aaa")
     create_report.write_item_submissions_csv(output_file=tmp_path / "data.csv")
 
     assert os.path.exists(tmp_path / "data.csv")
 
 
-def test_report_write_to_csv_buffer(mock_item_submission_db_with_records, tmp_path):
+def test_report_write_item_submissions_csv_buffer(mock_item_submission_db_with_records):
     csv_buffer = StringIO()
     create_report = CreateReport(workflow_name="test", batch_id="aaa")
     create_report.write_item_submissions_csv(output_file=csv_buffer)
-
     csv_buffer.seek(0)
+
     assert csv_buffer.read()
 
 
@@ -58,6 +68,19 @@ def test_create_report_generate_summary(mock_item_submission_db_with_records):
     create_report = CreateReport(workflow_name="test", batch_id="aaa")
 
     assert "Created: 2" in create_report.generate_summary()
+
+
+def test_create_report_write_errors_csv():
+    csv_buffer = StringIO()
+    create_report = CreateReport(
+        workflow_name="test",
+        batch_id="aaa",
+        errors=[("123", "No bitstreams found for the item submission")],
+    )
+    create_report.write_errors_csv(output_file=csv_buffer)
+    csv_buffer.seek(0)
+
+    assert "123,No bitstreams found for the item submission" in csv_buffer.read()
 
 
 def test_submit_report_generate_summary(mock_item_submission_db_with_records):

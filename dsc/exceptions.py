@@ -73,7 +73,9 @@ class ReconcileFoundMetadataWithoutBitstreamsWarning(Warning):
 
 # Exceptions for 'create-batch' step
 class BatchCreationFailedError(Exception):
-    pass
+    def __init__(self, errors: list[tuple]) -> None:
+        super().__init__()
+        self.errors = errors
 
 
 class ItemMetadataNotFoundError(Exception):
