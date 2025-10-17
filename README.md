@@ -1,9 +1,10 @@
 # dspace-submission-composer
-An application for creating messages for the [DSpace Submission Service application](https://github.com/MITLibraries/dspace-submission-service).
+DSpace Submission Composer (DSC) is a Python CLI application that prepares items for ingest into DSpace. 
 
-# Application Description
+DSC is a component of the DSpace Submission Orchestrator (DSO), a collection of microservices that form a data pipeline for ingesting items into DSpace repositories. The application's name highlights a key step of the DSC workflow in which it "composes" and sends a message to an SQS queue. These messages follow the specification set by the [DSpace Submission Service (DSS)](https://github.com/MITLibraries/dspace-submission-service), another component of DSO. Together, DSC and DSS follow a message-driven architecture, communicating over message queues in SQS.
 
-Description of the app
+See additional documentation in the :
+* [Understanding and Running the DSC Workflow](docs/how_to_run.md)
 
 ## Development
 
