@@ -1,24 +1,25 @@
-# Understanding and Running the DSC Workflow
+# Understanding and Running DSC
 
-This documentation describes the DSC workflow and how to run the application.
+This documentation describes the DSC application and how to run it.
 
 **DISCLAIMER**: While the CLI application is runnable on its own, the DSO Step Function offers a simplified user interface for running the full ETL pipeline. For more details on the DSO Step Function and how to use it, see https://mitlibraries.atlassian.net/wiki/spaces/IN/pages/4690542593/DSpace+Submission+Orchestrator+DSO.
 
-## The DSC Workflow
-
-The DSC workflow consists of the following key steps:
+Running DSC consists of the following key steps:
 
 1. Create a batch
 2. Queue a batch for ingest
-3. Items are ingested into DSpace by DSS*
+3. _Items are ingested into DSpace by DSS*_
 4. Analyze ingest results
 
 ***Important:** DSC is not responsible for ingesting items into DSpace nor does it execute this process. This task is handled by [DSS](https://github.com/MITLibraries/dspace-submission-service), which is invoked via the [DSO Step Function](https://github.com/MITLibraries/dspace-submission-service).
 
-The DSC CLI provides commands for all other steps in the DSC workflow. 
-
 ### Create a batch
-DSC processes deposits in "batches", a collection of item submissions grouped by a unique identifier. DSC requires that the item submission assets (metadata and bitstream files) are uploaded to a "folder" in S3, named after the batch ID. While some requestors may upload the submission assets to S3 themselves, in other cases, these files need to be retrieved (via API requests) and uploaded during the batch creation step. 
+DSC processes deposits in "batches", a collection of item submissions grouped by a unique identifier. Generally, assets for batches are provided in one of two ways:
+
+1. Requestors upload raw metadata and bitstreams (see [How To: Batch deposits with DSO for Content Owners](https://mitlibraries.atlassian.net/wiki/spaces/INF/pages/4411326470/How-To+Batch+deposits+with+DSpace+Submission+Orchestrator+DSO+for+Content+Owners))
+2. DSC workflows retrieve raw metadata and/or bitstreams programmatically (via API requests)
+
+Once all assets are stored in a "folder" in S3, DSC verifies that metadata and bitstreams have been provided for each item submission. It is only after _all_ item submissions have been verified that DSC will establish the batch by recording each item in DynamoDB.
 
 At the end of this step:
 * If all item submission assets are complete:
