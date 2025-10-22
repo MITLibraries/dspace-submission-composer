@@ -41,6 +41,7 @@ def main(
     batch_id: str,
     verbose: bool,  # noqa: FBT001
 ) -> None:
+    """DSC CLI."""
     ctx.ensure_object(dict)
     ctx.obj["start_time"] = perf_counter()
     workflow_class = Workflow.get_workflow(workflow_name)
@@ -90,7 +91,9 @@ def reconcile(ctx: click.Context) -> None:
 
 @main.command()
 @click.pass_context
-@click.option("--sync-data/--no-sync-data", default=False)
+@click.option(
+    "--sync-data/--no-sync-data", default=False, help=("Invoke 'sync' CLI command")
+)
 @click.option(
     "--sync-dry-run",
     is_flag=True,
@@ -200,14 +203,15 @@ def sync(
     If 'source' and 'destination' are not provided, the method will derive values
     based on the required '--batch-id / -b' and 'workflow-name / -w' options and
     S3 bucket env vars:
+
         * source: batch path in S3_BUCKET_SYNC_SOURCE
+
         * destination: batch path in S3_BUCKET_SUBMISSION_ASSETS
 
     This command accepts both local file system paths and S3 URIs in
     s3://bucket/prefix form. It synchronizes the contents of the source directory
-    to the destination directory, and is configured to:
-        * --delete: delete files in the destination that are not present in the source
-        * --exclude metadata/*: exclude files in the dspace_metadata/ directory
+    to the destination directory, and is configured to delete files in the destination
+    that are not present in the source exclude files in the dspace_metadata/ directory.
 
     Although the aws s3 sync command recursively copies files, it ignores
     empty directories from the sync.
@@ -288,7 +292,7 @@ def submit(
     collection_handle: str,
     email_recipients: str | None = None,
 ) -> None:
-    """Send a batch of item submissions to the DSpace Submission Service (DSS)."""
+    """Send a batch of item submissions to DSS."""
     workflow = ctx.obj["workflow"]
     workflow.submit_items(collection_handle)
 
@@ -308,7 +312,7 @@ def submit(
     required=True,
 )
 def finalize(ctx: click.Context, email_recipients: str) -> None:
-    """Process the result messages from the DSS output queue according the workflow."""
+    """Process the result messages from the DSC output queue."""
     workflow = ctx.obj["workflow"]
     workflow.finalize_items()
     workflow.send_report(
