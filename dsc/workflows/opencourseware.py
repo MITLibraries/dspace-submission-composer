@@ -272,7 +272,7 @@ class OpenCourseWareTransformer:
                 "-".join(part for part in derived_course_number_parts if part)
             )
         if extra_course_numbers := source_metadata.get("extra_course_numbers"):
-            identifier_other_list.append(extra_course_numbers.split(","))
+            identifier_other_list.extend(extra_course_numbers.split(","))
         return identifier_other_list or None
 
     @classmethod

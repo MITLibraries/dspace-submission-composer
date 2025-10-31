@@ -13,7 +13,7 @@
     "dc.contributor.author": {
         "source_field_name": "dc.contributor.author"
     },
-    "dc_contributor_department": {
+    "dc.contributor.department": {
         "source_field_name": "dc.contributor.department"
     },
     "creativework.learningresourcetype": {

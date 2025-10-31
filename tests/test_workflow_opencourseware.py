@@ -57,7 +57,7 @@ def test_workflow_ocw_metadata_mapping_dspace_metadata_success(
         },
         {"key": "dc.contributor.author", "value": "Caballero, Ricardo", "language": None},
         {
-            "key": "dc_contributor_department",
+            "key": "dc.contributor.department",
             "value": "Massachusetts Institute of Technology. Department of Economics",
             "language": None,
         },
