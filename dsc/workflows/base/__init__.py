@@ -256,6 +256,7 @@ class Workflow(ABC):
             item_submission = ItemSubmission.create(**item_submission_init_params)
             item_submission.last_run_date = self.run_date
             item_submission.status = ItemSubmissionStatus.BATCH_CREATED
+            item_submission.status_details = None
             item_submission.save()
 
     @final
@@ -454,11 +455,11 @@ class Workflow(ABC):
 
                 # Set status in DynamoDB
                 item_submission.status = ItemSubmissionStatus.SUBMIT_SUCCESS
+                item_submission.status_details = None
                 item_submission.submit_attempts += 1
                 item_submission.upsert_db()
             except Exception as exception:  # noqa: BLE001
                 self.submission_summary["errors"] += 1
-
                 item_submission.status = ItemSubmissionStatus.SUBMIT_FAILED
                 item_submission.status_details = str(exception)
                 item_submission.submit_attempts += 1
@@ -529,6 +530,7 @@ class Workflow(ABC):
             # update item submission status based on ingest result
             if result_message.result_type == "success":
                 item_submission.status = ItemSubmissionStatus.INGEST_SUCCESS
+                item_submission.status_details = None
                 item_submission.dspace_handle = result_message.dspace_handle
                 sqs_results_summary["ingest_success"] += 1
                 logger.debug(f"Record {log_str} was ingested")
