@@ -11,6 +11,7 @@ jinja2 = "*"
 jsonschema = "*"
 pandas = "*"
 pynamodb = "*"
+requests = "*"
 sentry-sdk = "*"
 smart_open = {extras = ["s3"], version = "*"}
 
