@@ -37,6 +37,13 @@ class BatchCreationFailedError(Exception):
         self.errors = errors
 
 
+class ItemIdentifiersFileNotFoundError(Exception):
+    def __init__(self) -> None:
+        super().__init__(
+            f"The param 'ids_file' is required for {self.__class__.__name__}"
+        )
+
+
 class ItemMetadataNotFoundError(Exception):
     def __init__(self) -> None:
         super().__init__("No metadata found for the item submission")

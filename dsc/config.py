@@ -17,6 +17,8 @@ class Config:
     ]
 
     OPTIONAL_ENV_VARS: Iterable[str] = [
+        "CONTENT_API_URL",
+        "METADATA_API_URL",
         "RETRY_THRESHOLD",
         "S3_BUCKET_SYNC_SOURCE",
         "WARNING_ONLY_LOGGERS",
@@ -75,6 +77,16 @@ class Config:
         if _excluded_loggers := os.getenv("WARNING_ONLY_LOGGERS"):
             return _excluded_loggers.split(",")
         return []
+
+    # workflow-specific env vars
+
+    @property
+    def content_api_url(self) -> str | None:
+        return os.getenv("CONTENT_API_URL")
+
+    @property
+    def metadata_api_url(self) -> str | None:
+        return os.getenv("METADATA_API_URL")
 
     def check_required_env_vars(self) -> None:
         """Method to raise exception if required env vars not set."""

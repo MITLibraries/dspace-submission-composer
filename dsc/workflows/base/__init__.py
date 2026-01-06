@@ -200,7 +200,7 @@ class Workflow(ABC):
         """
 
     @final
-    def create_batch(self, *, synced: bool = False) -> None:
+    def create_batch(self, ids_file: str | None = None, *, synced: bool = False) -> None:
         """Create a batch of item submissions for processing.
 
         A "batch" refers to a collection of item submissions that are grouped together
@@ -211,13 +211,16 @@ class Workflow(ABC):
         This method prepares the necessary assets in S3 (programmatically as needed)
         and records each item in the batch to DynamoDB.
         """
-        item_submissions, errors = self.prepare_batch(synced=synced)
+        logger.info(f"Creating batch '{self.batch_id}'")
+        item_submissions, errors = self.prepare_batch(ids_file=ids_file, synced=synced)
         if errors:
             raise BatchCreationFailedError(errors)
         self._create_batch_in_db(item_submissions)
 
     @abstractmethod
-    def prepare_batch(self, *, synced: bool = False) -> tuple[list, ...]:
+    def prepare_batch(
+        self, ids_file: str | None = None, *, synced: bool = False
+    ) -> tuple[list, ...]:
         """Prepare batch submission assets in S3.
 
         This method performs the required steps to prepare a batch
