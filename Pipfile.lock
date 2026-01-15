@@ -1,7 +1,7 @@
 {
     "_meta": {
         "hash": {
-            "sha256": "7ee96bd4280349be03bc7c60c137c9a8c9b76e725dc7a218bda8714bd5773fba"
+            "sha256": "34cf0040b588d88e2c50f7fcb39b5c07258870da1ef3c79576809429bd7ea1f3"
         },
         "pipfile-spec": 6,
         "requires": {
@@ -27,6 +27,7 @@
         "boto3": {
             "hashes": [
 <<<<<<< HEAD
+<<<<<<< HEAD
                 "sha256:ba9cd2f7819637d15bfbeb63af4c567fcc8a7dcd7b93dd12734ec58601169538",
                 "sha256:d7e548bea65e0ae2c465c77de937bc686b591aee6a352d5a19a16bc751e591c1"
             ],
@@ -41,6 +42,14 @@
             "markers": "python_version >= '3.9'",
             "version": "==1.42.26"
 >>>>>>> c02fc82 ([wip] implement Wiley workflow)
+=======
+                "sha256:7994bc2a094c1894f6a4221a1696c5d18af6c9c888191051866f1d05c4fba431",
+                "sha256:7d56c298b8d98f5e9b04cf5d6627f68e7792e25614533aef17f815681b5e1096"
+            ],
+            "index": "pypi",
+            "markers": "python_version >= '3.9'",
+            "version": "==1.42.28"
+>>>>>>> 34e2ae2 ([wip])
         },
         "boto3-stubs": {
             "extras": [
@@ -48,6 +57,7 @@
                 "ses"
             ],
             "hashes": [
+<<<<<<< HEAD
 <<<<<<< HEAD
                 "sha256:68a2ca754686c980d79d1c67f2d4d5eb8dc3d89f4ec62d4080b95fbdad3ee01b",
                 "sha256:e1d106cf9c662ecfd6044483e53c6e9584b6da916e753510f51a8bfc8d19016d"
@@ -73,26 +83,34 @@
 =======
                 "sha256:009e6763a3fe4013293abb64b8bc92593361f8deb1e961b844ba645b2d6f70f2",
                 "sha256:537b38828ae036a40ac103fc2bcc520e933759816da9cabfbfece9ed175d7c7e"
+=======
+                "sha256:6ee83bd1457d6377130d709fcb0f8b2b95ca7928b0657d18abb1d08d19db6ec9",
+                "sha256:f3ff19e73973c392aaeb3a419848cdbe7e54d6219ef43a23fcd168a0d69033d4"
+>>>>>>> 34e2ae2 ([wip])
             ],
             "markers": "python_version >= '3.9'",
-            "version": "==1.42.26"
+            "version": "==1.42.28"
         },
         "botocore": {
             "hashes": [
-                "sha256:1c8855e3e811f015d930ccfe8751d4be295aae0562133d14b6f0b247cd6fd8d3",
-                "sha256:71171c2d09ac07739f4efce398b15a4a8bc8769c17fb3bc99625e43ed11ad8b7"
+                "sha256:0c15e78d1accf97df691083331f682e97b1bef73ef12dcdaadcf652abf9c182c",
+                "sha256:d26c7a0851489ce1a18279f9802fe434bd736ea861d4888cc2c7d83fb1f6af8f"
             ],
             "markers": "python_version >= '3.9'",
-            "version": "==1.42.26"
+            "version": "==1.42.28"
         },
         "botocore-stubs": {
             "hashes": [
-                "sha256:548380a16d31234255c00a4a4a15a5c8cdad360ba1af6dac5202111ec258155c",
-                "sha256:5b0946681d46ce8acb0a3b8494bdf76d34bc26276f0b7baedcf88a6cf1dd798b"
+                "sha256:aa131f92f266c0ac479873e8e914c46256c39db3aecea0c73edf0846d304e9df",
+                "sha256:ce16fb37db1b2d6f8877b9ca2a03cabb6bc67bd40e9f22de8001bc536eecd10d"
             ],
             "markers": "python_version >= '3.9'",
+<<<<<<< HEAD
             "version": "==1.42.26"
 >>>>>>> c02fc82 ([wip] implement Wiley workflow)
+=======
+            "version": "==1.42.28"
+>>>>>>> 34e2ae2 ([wip])
         },
         "certifi": {
             "hashes": [
@@ -234,6 +252,7 @@
             "version": "==8.3.1"
         },
 <<<<<<< HEAD
+<<<<<<< HEAD
 =======
         "fsspec": {
             "hashes": [
@@ -244,6 +263,8 @@
             "markers": "python_version >= '3.10'",
             "version": "==2026.1.0"
         },
+=======
+>>>>>>> 34e2ae2 ([wip])
         "idna": {
             "hashes": [
                 "sha256:771a87f49d9defaf64091e6e6fe9c18d4833f140bd19464795bc32d966ca37ea",
@@ -269,6 +290,15 @@
             ],
             "markers": "python_version >= '3.7'",
             "version": "==1.0.1"
+        },
+        "jsonlines": {
+            "hashes": [
+                "sha256:0c6d2c09117550c089995247f605ae4cf77dd1533041d366351f6f298822ea74",
+                "sha256:185b334ff2ca5a91362993f42e83588a360cf95ce4b71a73548502bda52a7c55"
+            ],
+            "index": "pypi",
+            "markers": "python_version >= '3.8'",
+            "version": "==4.0.0"
         },
         "jsonschema": {
             "hashes": [
@@ -756,15 +786,6 @@
             "markers": "python_version >= '3.10'",
             "version": "==0.30.0"
         },
-        "s3fs": {
-            "hashes": [
-                "sha256:2ca5de8dc18ad7ad350c0bd01aef0406aa5d0fff78a561f0f710f9d9858abdd0",
-                "sha256:91c1dfb45e5217bd441a7a560946fe865ced6225ff7eb0fb459fe6e601a95ed3"
-            ],
-            "index": "pypi",
-            "markers": "python_version >= '3.5'",
-            "version": "==0.4.2"
-        },
         "s3transfer": {
             "hashes": [
                 "sha256:18e25d66fed509e3868dc1572b3f427ff947dd2c56f844a5bf09481ad3f3b2fe",
@@ -1064,6 +1085,7 @@
         "boto3": {
             "hashes": [
 <<<<<<< HEAD
+<<<<<<< HEAD
                 "sha256:ba9cd2f7819637d15bfbeb63af4c567fcc8a7dcd7b93dd12734ec58601169538",
                 "sha256:d7e548bea65e0ae2c465c77de937bc686b591aee6a352d5a19a16bc751e591c1"
             ],
@@ -1081,19 +1103,27 @@
 =======
                 "sha256:0fbcf1922e62d180f3644bc1139425821b38d93c1e6ec27409325d2ae86131aa",
                 "sha256:f116cfbe7408e0a9153da363f134d2f1b5008f17ee86af104f0ce59a62be1833"
+=======
+                "sha256:7994bc2a094c1894f6a4221a1696c5d18af6c9c888191051866f1d05c4fba431",
+                "sha256:7d56c298b8d98f5e9b04cf5d6627f68e7792e25614533aef17f815681b5e1096"
+>>>>>>> 34e2ae2 ([wip])
             ],
             "index": "pypi",
             "markers": "python_version >= '3.9'",
-            "version": "==1.42.26"
+            "version": "==1.42.28"
         },
         "botocore": {
             "hashes": [
-                "sha256:1c8855e3e811f015d930ccfe8751d4be295aae0562133d14b6f0b247cd6fd8d3",
-                "sha256:71171c2d09ac07739f4efce398b15a4a8bc8769c17fb3bc99625e43ed11ad8b7"
+                "sha256:0c15e78d1accf97df691083331f682e97b1bef73ef12dcdaadcf652abf9c182c",
+                "sha256:d26c7a0851489ce1a18279f9802fe434bd736ea861d4888cc2c7d83fb1f6af8f"
             ],
             "markers": "python_version >= '3.9'",
+<<<<<<< HEAD
             "version": "==1.42.26"
 >>>>>>> c02fc82 ([wip] implement Wiley workflow)
+=======
+            "version": "==1.42.28"
+>>>>>>> 34e2ae2 ([wip])
         },
         "cachecontrol": {
             "extras": [
@@ -1758,6 +1788,9 @@
         "librt": {
             "hashes": [
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> 34e2ae2 ([wip])
                 "sha256:00105e7d541a8f2ee5be52caacea98a005e0478cfe78c8080fbb7b5d2b340c63",
                 "sha256:0241a6ed65e6666236ea78203a73d800dbed896cf12ae25d026d75dc1fcd1dac",
                 "sha256:03679b9856932b8c8f674e87aa3c55ea11c9274301f76ae8dc4d281bda55cf62",
@@ -1834,6 +1867,7 @@
                 "sha256:fdec6e2368ae4f796fc72fad7fd4bd1753715187e6d870932b0904609e7c878e",
                 "sha256:ff3e9c11aa260c31493d4b3197d1e28dd07768594a4f92bec4506849d736248f",
                 "sha256:ff71447cb778a4f772ddc4ce360e6ba9c95527ed84a52096bd1bbf9fee2ec7c0"
+<<<<<<< HEAD
             ],
             "markers": "python_version >= '3.9'",
             "version": "==0.7.8"
@@ -1918,6 +1952,11 @@
             "markers": "python_version >= '3.9'",
             "version": "==0.7.7"
 >>>>>>> c02fc82 ([wip] implement Wiley workflow)
+=======
+            ],
+            "markers": "python_version >= '3.9'",
+            "version": "==0.7.8"
+>>>>>>> 34e2ae2 ([wip])
         },
         "license-expression": {
             "hashes": [
@@ -2314,6 +2353,7 @@
         "pandas-stubs": {
             "hashes": [
 <<<<<<< HEAD
+<<<<<<< HEAD
                 "sha256:076e3724bcaa73de78932b012ec64b3010463d377fa63116f4e6850643d93800",
                 "sha256:ec070b5c576e1badf12544ae50385872f0631fc35d99d00dc598c2954ec564d3"
             ],
@@ -2328,6 +2368,14 @@
             "markers": "python_version >= '3.10'",
             "version": "==2.3.3.251219"
 >>>>>>> c02fc82 ([wip] implement Wiley workflow)
+=======
+                "sha256:076e3724bcaa73de78932b012ec64b3010463d377fa63116f4e6850643d93800",
+                "sha256:ec070b5c576e1badf12544ae50385872f0631fc35d99d00dc598c2954ec564d3"
+            ],
+            "index": "pypi",
+            "markers": "python_version >= '3.10'",
+            "version": "==2.3.3.260113"
+>>>>>>> 34e2ae2 ([wip])
         },
         "pathable": {
             "hashes": [
@@ -3030,6 +3078,7 @@
         "ruff": {
             "hashes": [
 <<<<<<< HEAD
+<<<<<<< HEAD
                 "sha256:4acdf009f32b46f6e8864af19cbf6841eaaed8638e65c8dac845aea0d703c841",
                 "sha256:591a7f68860ea4e003917d19b5c4f5ac39ff558f162dc753a2c5de897fd5502c",
                 "sha256:6070bd026e409734b9257e03e3ef18c6e1a216f0435c6751d7a8ec69cb59abef",
@@ -3078,6 +3127,31 @@
             "markers": "python_version >= '3.7'",
             "version": "==0.14.11"
 >>>>>>> c02fc82 ([wip] implement Wiley workflow)
+=======
+                "sha256:0864023ac5b2c90af354372529926b4fce4980bff828b722bedf115a0677131b",
+                "sha256:276b0821947f2afff8ee6da282bade96459d2e29f5a203eef04eb7b7a85b119f",
+                "sha256:28255d5a1828bc1da67c8c5a2cea5c83de6f0b6185eef46f4fc12957396fb169",
+                "sha256:2e15471064058c5f22ad17aec4cab3920f71bf6b2dd8e1c8cfb05e8e9ee6d9d6",
+                "sha256:59434a99f0af57111f62cd77e86b4d4896a2c72bb90cc039d1ac501b151b798b",
+                "sha256:5f59c587a413c9bd3259ec2d006853671f823ac4b4f974653bbcc84c180271de",
+                "sha256:6372d9e07c0e61342582b29ba825c0712930c08ee72312d1764abfe761de2806",
+                "sha256:65ce54567c42e3a6d2548b49b8e4e87148eaf455ad76d7a20f83c902bc7cc5e4",
+                "sha256:697c2e00f00cb1027b91fc8930e276bed580b2976a3e4aca50eae2b3db291f92",
+                "sha256:8da366e9942b26ac1fb0df43264a3550655160b9536cdb66a2b070a22b6e5d6a",
+                "sha256:a111f79ba789257177fe5971eea061c8545af3c0cab3529fa00155f6621c68da",
+                "sha256:a5912e8270c6b9ed28ae50b993032d195046293fefa56127a8dffbaa5e5bfc04",
+                "sha256:b4c3478b459b71940f49d4dac1f91efa3852bb566368ad9f94dae2c257b6e63e",
+                "sha256:bd31832569b06c75fdbf6f5f63a3458b7038d97f6e908b6e08fd02d00c20a3ae",
+                "sha256:c14202522c2887e6644308827e72a6a0561fa965854e42ef14b325fa617c2634",
+                "sha256:c1a90feecc2e44c01737d9d879ba6fc84b5626a7bd31e81991443198596ebe22",
+                "sha256:c59c4941400a86c60219fd1457012e6da23a92590755ab4ed1ae25bbe4aab948",
+                "sha256:cc1ba7b0d74d14b75c3a9d7e7ca01040bd126bd6bde2cffe3c31c1defe649ec6",
+                "sha256:f0672b72872dc204580d2d3f8bdc4e922c88a0f93e2a3fb799ca085797a5a7c4"
+            ],
+            "index": "pypi",
+            "markers": "python_version >= '3.7'",
+            "version": "==0.14.12"
+>>>>>>> 34e2ae2 ([wip])
         },
         "s3transfer": {
             "hashes": [

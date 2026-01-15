@@ -7,13 +7,12 @@ name = "pypi"
 boto3 = "*"
 boto3-stubs = {extras = ["essential","ses"], version = "*"}
 click = "*"
-fsspec = "*"
 jinja2 = "*"
+jsonlines = "*"
 jsonschema = "*"
 pandas = "*"
 pynamodb = "*"
 requests = "*"
-s3fs = "*"
 sentry-sdk = "*"
 smart_open = {extras = ["s3"], version = "*"}
 

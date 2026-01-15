@@ -3,6 +3,7 @@ import csv
 import datetime
 import inspect
 import json
+import jsonlines
 import logging
 from itertools import chain
 from typing import Any, Iterable
@@ -17,7 +18,7 @@ from dsc.exceptions import (
     ItemIdentifiersFileNotFoundError,
     ItemMetadataNotFoundError,
 )
-from dsc.workflows import SimpleCSV
+from dsc.workflows import Workflow
 from dsc.utilities.aws.s3 import S3Client
 
 logger = logging.getLogger(__name__)
@@ -178,7 +179,7 @@ class WileyTransformer:
         return source_metadata.get("dc_relation_isversionof")
 
 
-class Wiley(SimpleCSV):
+class Wiley(Workflow):
     workflow_name: str = "wiley"
     metadata_transformer = WileyTransformer
 
@@ -196,19 +197,11 @@ class Wiley(SimpleCSV):
             )
         )
 
-    def get_item_identifiers(self, item_identifiers_file: str) -> list[str]:
+    def item_metadata_iter(self, metadata_file: str = "metadata.csv"):
         with smart_open.open(
-            f"s3://{self.s3_bucket}/{self.workflow_name}/{item_identifiers_file}",  # TODO: Add 'workflow_path' property
-        ) as csvfile:
-            # retrieve item identifiers (DOIs) from the CSV file
-            metadata_df = pd.read_csv(
-                csvfile, header=None, names=["item_identifier"], dtype="str"
-            )
-
-            # drop any rows where all values are missing
-            metadata_df = metadata_df.dropna(how="all")
-
-            return metadata_df["item_identifier"].to_list()
+            f"s3://{self.s3_bucket}/{self.batch_path}{metadata_file}",
+        ) as metadata_file:
+            pass
 
     def prepare_batch(
         self,
@@ -261,25 +254,42 @@ class Wiley(SimpleCSV):
 
         return item_submissions, errors
 
+    def get_item_identifiers(self, item_identifiers_file: str) -> list[str]:
+        with smart_open.open(
+            f"s3://{self.s3_bucket}/{self.workflow_name}/{item_identifiers_file}"
+        ) as csvfile:
+            # retrieve item identifiers (DOIs) from the CSV file
+            metadata_df = pd.read_csv(
+                csvfile, header=None, names=["item_identifier"], dtype="str"
+            )
+
+            # drop any rows where all values are missing
+            metadata_df = metadata_df.dropna(how="all")
+
+            return metadata_df["item_identifier"].to_list()
+
     def create_metadata_file(self, item_identifiers: list[str]) -> None:
         # TODO: Must be updated to only send a request to Crossref API
         #       if no entry in DynamoDB table with status>="ingest_success";
         logger.info("Creating metadata CSV file")
         with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
             results = executor.map(self.get_crossref_metadata, item_identifiers)
-
-            item_metadata = []
+            metadata = []
             for result in results:
-                item_metadata.append(result)
+                metadata.append(result)
+            self._write_metadata_file_to_s3(metadata)
 
-        item_metadata_df = pd.DataFrame(item_metadata)
-        item_metadata_df.to_csv(
-            f"s3://{self.s3_bucket}/{self.batch_path}metadata.csv", index=False
-        )
+    def _write_metadata_file_to_s3(self, metadata: list[dict]):
+        logger.debug(f"Writing metadata CSV file to S3")
+        with smart_open.open(
+            f"s3://{self.s3_bucket}/{self.workflow_name}/{self.batch_path}metadata.jsonl"
+        ) as metadata_file:
+            writer = jsonlines.Writer(metadata_file)
+            writer.write_all(metadata)
 
     def get_crossref_metadata(self, doi: str) -> dict:
         url = f"{CONFIG.metadata_api_url}{doi}"
-        logger.debug("Requesting metadata for", url)
+        logger.debug(f"Requesting metadata for {url}")
 
         try:
             response = requests.get(
@@ -302,7 +312,7 @@ class Wiley(SimpleCSV):
         return {"item_identifier": doi, **transformed_metadata}
 
     def download_bitstreams(self, item_identifiers: list[str]) -> None:
-        # TODO: Must be updated to only send a request to Crossref API
+        # TODO: Must be updated to only send a request to Wiley API
         #       if no entry in DynamoDB table with status>="ingest_success";
         logger.info("Downloading content from Wiley")
         with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
@@ -325,7 +335,7 @@ class Wiley(SimpleCSV):
 
     def get_content(self, doi: str) -> bytes | Any | None:
         url = f"{CONFIG.content_api_url}{doi}"
-        logger.debug("Requesting PDF for", url)
+        logger.debug(f"Requesting PDF for {url}")
 
         try:
             response = requests.get(url, headers=WILEY_HEADERS, timeout=30)
