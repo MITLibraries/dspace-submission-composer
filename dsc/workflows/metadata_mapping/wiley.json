@@ -1,0 +1,37 @@
+{
+    "dc.title": {
+        "source_field_name": "dc.title",
+        "required": true
+    },
+    "dc.date.issued": {
+        "source_field_name": "dc.date.issued",
+        "required": true
+    },
+    "dc.contributor.author": {
+        "source_field_name": "dc.contributor.author"
+    },
+    "dc.title.alternative": {
+        "source_field_name": "dc.title.alternative"
+    },
+    "dc.publisher": {
+        "source_field_name": "dc.publisher"
+    },
+    "dc.identifier.issn": {
+        "source_field_name": "dc.identifier.issn"
+    },
+    "dc.relation.journal": {
+        "source_field_name": "dc.relation.journal"
+    },
+    "mit.journal.volume": {
+        "source_field_name": "mit.journal.volume"
+    },
+    "mit.journal.issue": {
+        "source_field_name": "mit.journal.issue"
+    },
+    "dc.language": {
+        "source_field_name": "dc.language"
+    },
+    "dc.relation.isversionof": {
+        "source_field_name": "dc.relation.isversionof"
+    }
+}

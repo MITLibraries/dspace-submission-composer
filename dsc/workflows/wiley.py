@@ -197,11 +197,14 @@ class Wiley(Workflow):
             )
         )
 
-    def item_metadata_iter(self, metadata_file: str = "metadata.csv"):
-        with smart_open.open(
-            f"s3://{self.s3_bucket}/{self.batch_path}{metadata_file}",
-        ) as metadata_file:
-            pass
+    def item_metadata_iter(self, metadata_file: str = "metadata.jsonl"):
+        """Yield item metadata from metadata JSONL file."""
+        with jsonlines.Reader(
+            smart_open.open(
+                f"s3://{self.s3_bucket}/{self.batch_path}{metadata_file}", "r"
+            )
+        ) as reader:
+            yield from reader.iter(type=dict)
 
     def prepare_batch(
         self,
@@ -218,7 +221,7 @@ class Wiley(Workflow):
             errors.append((None, str(ItemIdentifiersFileNotFoundError())))
             return item_submissions, errors
 
-        item_identifiers = self.get_item_identifiers(ids_file)
+        item_identifiers = self._get_item_identifiers(ids_file)
         self.create_metadata_file(item_identifiers)
         self.download_bitstreams(item_identifiers)
 
@@ -226,21 +229,22 @@ class Wiley(Workflow):
             # check if metadata is provided
             # item identifier is always returned by iter
             if len(item_metadata) == 1 and "item_identifier" in item_metadata:
-                errors.append(
-                    (item_metadata["item_identifier"], str(ItemMetadataNotFoundError()))
+                error = str(ItemMetadataNotFoundError())
+                logger.error(
+                    f"Failed to create item {item_metadata['item_identifier']}: {error})"
                 )
+                errors.append((item_metadata["item_identifier"], error))
                 continue
 
             # check if there are any bitstreams associated with the item submission
             if not self.get_item_bitstream_uris(
                 item_identifier=item_metadata["item_identifier"]
             ):
-                errors.append(
-                    (
-                        item_metadata["item_identifier"],
-                        str(ItemBitstreamsNotFoundError()),
-                    )
+                error = str(ItemBitstreamsNotFoundError())
+                logger.error(
+                    f"Failed to create item {item_metadata['item_identifier']}: {error})"
                 )
+                errors.append((item_metadata["item_identifier"], error))
                 continue
 
             # if item submission has associated bitstreams, save init params
@@ -254,7 +258,7 @@ class Wiley(Workflow):
 
         return item_submissions, errors
 
-    def get_item_identifiers(self, item_identifiers_file: str) -> list[str]:
+    def _get_item_identifiers(self, item_identifiers_file: str) -> list[str]:
         with smart_open.open(
             f"s3://{self.s3_bucket}/{self.workflow_name}/{item_identifiers_file}"
         ) as csvfile:
@@ -271,23 +275,15 @@ class Wiley(Workflow):
     def create_metadata_file(self, item_identifiers: list[str]) -> None:
         # TODO: Must be updated to only send a request to Crossref API
         #       if no entry in DynamoDB table with status>="ingest_success";
-        logger.info("Creating metadata CSV file")
+        logger.info("Creating metadata file")
         with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
-            results = executor.map(self.get_crossref_metadata, item_identifiers)
+            results = executor.map(self._get_crossref_metadata, item_identifiers)
             metadata = []
             for result in results:
                 metadata.append(result)
             self._write_metadata_file_to_s3(metadata)
 
-    def _write_metadata_file_to_s3(self, metadata: list[dict]):
-        logger.debug(f"Writing metadata CSV file to S3")
-        with smart_open.open(
-            f"s3://{self.s3_bucket}/{self.workflow_name}/{self.batch_path}metadata.jsonl"
-        ) as metadata_file:
-            writer = jsonlines.Writer(metadata_file)
-            writer.write_all(metadata)
-
-    def get_crossref_metadata(self, doi: str) -> dict:
+    def _get_crossref_metadata(self, doi: str) -> dict:
         url = f"{CONFIG.metadata_api_url}{doi}"
         logger.debug(f"Requesting metadata for {url}")
 
@@ -309,7 +305,17 @@ class Wiley(Workflow):
         transformed_metadata = self.metadata_transformer.transform(
             source_metadata.get("message", {})
         )
-        return {"item_identifier": doi, **transformed_metadata}
+        return {"item_identifier": doi.replace("/", "-"), **transformed_metadata}
+
+    def _write_metadata_file_to_s3(self, metadata: list[dict]):
+        """Write single JSONLines file with retrieved metadata."""
+        logger.debug(f"Writing metadata file to S3")
+        with jsonlines.Writer(
+            smart_open.open(f"s3://{self.s3_bucket}/{self.batch_path}metadata.jsonl", "w")
+        ) as writer:
+            writer.write_all(metadata)
+
+        logger.info("Completed!")
 
     def download_bitstreams(self, item_identifiers: list[str]) -> None:
         # TODO: Must be updated to only send a request to Wiley API
@@ -317,7 +323,7 @@ class Wiley(Workflow):
         logger.info("Downloading content from Wiley")
         with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
             futures = [
-                executor.submit(self.get_content, item_identifier)
+                executor.submit(self._get_content, item_identifier)
                 for item_identifier in item_identifiers
             ]
 
@@ -333,7 +339,7 @@ class Wiley(Workflow):
                     f"Failed to download {errors}/{total_futures} expected bitstreams"
                 )
 
-    def get_content(self, doi: str) -> bytes | Any | None:
+    def _get_content(self, doi: str) -> bytes | Any | None:
         url = f"{CONFIG.content_api_url}{doi}"
         logger.debug(f"Requesting PDF for {url}")
 

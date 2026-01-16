@@ -194,7 +194,7 @@ class Workflow(ABC):
 
     @abstractmethod
     def item_metadata_iter(self) -> Iterator[dict[str, Any]]:
-        """Iterate through batch metadata to yield item metadata.
+        """Yield item metadata for a batch.
 
         MUST be overridden by workflow subclasses.
         """
