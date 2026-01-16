@@ -13,7 +13,9 @@ import requests
 import smart_open
 
 from dsc.config import Config
+from dsc.db.models import ItemSubmissionDB, ItemSubmissionStatus
 from dsc.exceptions import (
+    BatchCreationFailedError,
     ItemBitstreamsNotFoundError,
     ItemIdentifiersFileNotFoundError,
     ItemMetadataNotFoundError,
@@ -206,6 +208,23 @@ class Wiley(Workflow):
         ) as reader:
             yield from reader.iter(type=dict)
 
+    def create_batch(self, ids_file: str | None = None, *, synced: bool = False) -> None:
+        """Create a batch of item submissions for processing.
+
+        A "batch" refers to a collection of item submissions that are grouped together
+        for coordinated processing, storage, and workflow execution. Each batch
+        typically consists of multiple items, each with its own metadata and
+        associated files, organized under a unique batch identifier.
+
+        This method prepares the necessary assets in S3 (programmatically as needed)
+        and records each item in the batch to DynamoDB.
+        """
+        logger.info(f"Creating batch '{self.batch_id}'")
+        item_submissions, errors = self.prepare_batch(ids_file=ids_file, synced=synced)
+        if errors:
+            logger.error(errors)
+        self._create_batch_in_db(item_submissions)
+
     def prepare_batch(
         self,
         ids_file: str | None = None,
@@ -272,20 +291,35 @@ class Wiley(Workflow):
 
             return metadata_df["item_identifier"].to_list()
 
+    def _get_item_submission(self, item_identifier: str):
+        # TODO: YES THIS IS CONFUSING
+        for item_submission in ItemSubmissionDB.scan(
+            ItemSubmissionDB.item_identifier == item_identifier
+        ):
+            return item_submission
+
     def create_metadata_file(self, item_identifiers: list[str]) -> None:
-        # TODO: Must be updated to only send a request to Crossref API
-        #       if no entry in DynamoDB table with status>="ingest_success";
         logger.info("Creating metadata file")
         with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
             results = executor.map(self._get_crossref_metadata, item_identifiers)
             metadata = []
             for result in results:
-                metadata.append(result)
+                if result:
+                    metadata.append(result)
             self._write_metadata_file_to_s3(metadata)
 
     def _get_crossref_metadata(self, doi: str) -> dict:
         url = f"{CONFIG.metadata_api_url}{doi}"
         logger.debug(f"Requesting metadata for {url}")
+
+        # TODO: not the best way to check item status in DynamoDB
+        #       explore Global Secondary Index (GSI)
+        if (
+            item_submission := self._get_item_submission(doi.replace("/", "-"))
+            and item_submission.status == ItemSubmissionStatus.INGEST_SUCCESS
+        ):
+            logger.info(f"Record {doi} already ingested")
+            return
 
         try:
             response = requests.get(
@@ -318,8 +352,6 @@ class Wiley(Workflow):
         logger.info("Completed!")
 
     def download_bitstreams(self, item_identifiers: list[str]) -> None:
-        # TODO: Must be updated to only send a request to Wiley API
-        #       if no entry in DynamoDB table with status>="ingest_success";
         logger.info("Downloading content from Wiley")
         with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
             futures = [
@@ -342,6 +374,15 @@ class Wiley(Workflow):
     def _get_content(self, doi: str) -> bytes | Any | None:
         url = f"{CONFIG.content_api_url}{doi}"
         logger.debug(f"Requesting PDF for {url}")
+
+        # TODO: not the best way to check item status in DynamoDB
+        #       explore Global Secondary Index (GSI)
+        if (
+            item_submission := self._get_item_submission(doi.replace("/", "-"))
+            and item_submission.status == ItemSubmissionStatus.INGEST_SUCCESS
+        ):
+            logger.info(f"Record {doi} already ingested")
+            return
 
         try:
             response = requests.get(url, headers=WILEY_HEADERS, timeout=30)

@@ -199,7 +199,6 @@ class Workflow(ABC):
         MUST be overridden by workflow subclasses.
         """
 
-    @final
     def create_batch(self, ids_file: str | None = None, *, synced: bool = False) -> None:
         """Create a batch of item submissions for processing.
 
