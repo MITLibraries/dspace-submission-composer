@@ -314,12 +314,10 @@ class Wiley(Workflow):
 
         # TODO: not the best way to check item status in DynamoDB
         #       explore Global Secondary Index (GSI)
-        if (
-            item_submission := self._get_item_submission(doi.replace("/", "-"))
-            and item_submission.status == ItemSubmissionStatus.INGEST_SUCCESS
-        ):
-            logger.info(f"Record {doi} already ingested")
-            return
+        if item_submission := self._get_item_submission(doi.replace("/", "-")):
+            if item_submission.status == ItemSubmissionStatus.INGEST_SUCCESS:
+                logger.info(f"Record {doi} already ingested")
+                return
 
         try:
             response = requests.get(
@@ -377,12 +375,10 @@ class Wiley(Workflow):
 
         # TODO: not the best way to check item status in DynamoDB
         #       explore Global Secondary Index (GSI)
-        if (
-            item_submission := self._get_item_submission(doi.replace("/", "-"))
-            and item_submission.status == ItemSubmissionStatus.INGEST_SUCCESS
-        ):
-            logger.info(f"Record {doi} already ingested")
-            return
+        if item_submission := self._get_item_submission(doi.replace("/", "-")):
+            if item_submission.status == ItemSubmissionStatus.INGEST_SUCCESS:
+                logger.info(f"Record {doi} already ingested")
+                return
 
         try:
             response = requests.get(url, headers=WILEY_HEADERS, timeout=30)
