@@ -157,12 +157,10 @@ class ItemSubmission:
             if hasattr(item_submission_db, attr):
                 value = getattr(item_submission_db, attr)
                 setattr(item_submission, attr, value)
-        logger.debug(
-            f"Populated record {ITEM_SUBMISSION_LOG_STR.format(
+        logger.debug(f"Populated record {ITEM_SUBMISSION_LOG_STR.format(
                 batch_id=item_submission_db.batch_id,
                 item_identifier=item_submission_db.item_identifier
-            )}"
-        )
+            )}")
         return item_submission
 
     def save(self) -> None:
@@ -178,12 +176,9 @@ class ItemSubmission:
         )
         item_submission_db.create()
 
-        logger.info(
-            f"Saved record "
-            f"{ITEM_SUBMISSION_LOG_STR.format(
+        logger.info(f"Saved record " f"{ITEM_SUBMISSION_LOG_STR.format(
                 batch_id=self.batch_id, item_identifier=self.item_identifier
-                )}"
-        )
+                )}")
 
     def upsert_db(self) -> None:
         """Upsert a record in DynamoDB from ItemSubmission.
@@ -200,12 +195,9 @@ class ItemSubmission:
         )
         item_submission_db.save()
 
-        logger.info(
-            f"Upserted record "
-            f"{ITEM_SUBMISSION_LOG_STR.format(
+        logger.info(f"Upserted record " f"{ITEM_SUBMISSION_LOG_STR.format(
                 batch_id=self.batch_id, item_identifier=self.item_identifier
-                )}"
-        )
+                )}")
 
     def ready_to_submit(self) -> bool:
         """Check if the item submission is ready to be submitted."""
@@ -216,43 +208,33 @@ class ItemSubmission:
         match self.status:
             case ItemSubmissionStatus.INGEST_SUCCESS:
                 logger.info(
-                    "Record "
-                    f"{ITEM_SUBMISSION_LOG_STR.format(batch_id=self.batch_id,
+                    f"Record {ITEM_SUBMISSION_LOG_STR.format(batch_id=self.batch_id,
                                       item_identifier=self.item_identifier)
-                    } "
-                    "already ingested, skipping submission"
+                    } " "already ingested, skipping submission"
                 )
             case ItemSubmissionStatus.SUBMIT_SUCCESS:
                 logger.info(
-                    f"Record "
-                    f"{ITEM_SUBMISSION_LOG_STR.format(batch_id=self.batch_id,
+                    f"Record " f"{ITEM_SUBMISSION_LOG_STR.format(batch_id=self.batch_id,
                                       item_identifier=self.item_identifier)
-                    } "
-                    " already submitted, skipping submission"
+                    } " " already submitted, skipping submission"
                 )
             case ItemSubmissionStatus.MAX_RETRIES_REACHED:
                 logger.info(
-                    f"Record "
-                    f"{ITEM_SUBMISSION_LOG_STR.format(batch_id=self.batch_id,
+                    f"Record " f"{ITEM_SUBMISSION_LOG_STR.format(batch_id=self.batch_id,
                                       item_identifier=self.item_identifier)
-                    } "
-                    "max retries reached, skipping submission"
+                    } " "max retries reached, skipping submission"
                 )
             case None:
                 logger.info(
-                    f"Record "
-                    f"{ITEM_SUBMISSION_LOG_STR.format(batch_id=self.batch_id,
+                    f"Record " f"{ITEM_SUBMISSION_LOG_STR.format(batch_id=self.batch_id,
                                       item_identifier=self.item_identifier)
-                    } "
-                    " status unknown, skipping submission"
+                    } " " status unknown, skipping submission"
                 )
             case _:
                 logger.debug(
-                    f"Record "
-                    f"{ITEM_SUBMISSION_LOG_STR.format(batch_id=self.batch_id,
+                    f"Record " f"{ITEM_SUBMISSION_LOG_STR.format(batch_id=self.batch_id,
                                       item_identifier=self.item_identifier)
-                    } "
-                    "allowed for submission"
+                    } " "allowed for submission"
                 )
                 ready_to_submit = True
 
