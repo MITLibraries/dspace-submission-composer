@@ -1,15 +1,10 @@
 import logging
 from collections.abc import Iterator
-from typing import Any
 
 import pandas as pd
 import smart_open
 
-from dsc.exceptions import (
-    ItemBitstreamsNotFoundError,
-    ReconcileFailedMissingBitstreamsError,
-)
-from dsc.item_submission import ItemSubmission
+from dsc.exceptions import ItemBitstreamsNotFoundError
 from dsc.utilities.aws import S3Client
 from dsc.workflows.base import Workflow
 
@@ -38,21 +33,7 @@ class SimpleCSV(Workflow):
             )
         )
 
-    def reconcile_item(self, item_submission: ItemSubmission) -> bool:
-        """Check whether ItemSubmission is associated with any bitstreams.
-
-        This method will match bitstreams to an item submission by filtering the
-        list of URIs to those that include the item identifier as recorded
-        in the metadata CSV file. If it finds any matches, the item
-        submission is reconciled.
-        """
-        if not self.get_item_bitstream_uris(item_submission.item_identifier):
-            raise ReconcileFailedMissingBitstreamsError
-        return True
-
-    def item_metadata_iter(
-        self, metadata_file: str = "metadata.csv"
-    ) -> Iterator[dict[str, Any]]:
+    def item_metadata_iter(self, metadata_file: str = "metadata.csv") -> Iterator[dict]:
         """Yield dicts of item metadata from metadata CSV file.
 
         Args:
@@ -90,7 +71,7 @@ class SimpleCSV(Workflow):
             metadata_df = metadata_df.dropna(how="all")
 
             # replace all NaN values with None
-            metadata_df = metadata_df.where(pd.notna(metadata_df), None)
+            metadata_df = metadata_df.mask(metadata_df.isna(), None)
 
             for _, row in metadata_df.iterrows():
                 yield row.to_dict()

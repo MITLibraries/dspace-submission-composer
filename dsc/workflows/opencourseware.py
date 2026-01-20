@@ -7,8 +7,7 @@ from typing import Any, ClassVar
 
 import smart_open
 
-from dsc.exceptions import ItemMetadataNotFoundError, ReconcileFailedMissingMetadataError
-from dsc.item_submission import ItemSubmission
+from dsc.exceptions import ItemMetadataNotFoundError
 from dsc.utilities.aws.s3 import S3Client
 from dsc.workflows.base import Workflow
 
@@ -343,21 +342,6 @@ class OpenCourseWare(Workflow):
                 exclude_prefixes=self.exclude_prefixes,
             )
         )
-
-    def reconcile_item(self, item_submission: ItemSubmission) -> bool:
-        """Check whether ItemSubmission includes metadata.
-
-        If the source metadata only includes the item identifier, this suggests
-        that metadata (data.json) was not provided in the OCW zip file
-        and is therefore not reconciled. Otherwise, the item is reconciled.
-        """
-        if not item_submission.source_metadata or (
-            item_submission
-            and len(item_submission.source_metadata) == 1
-            and "item_identifier" in item_submission.source_metadata
-        ):
-            raise ReconcileFailedMissingMetadataError
-        return True
 
     def item_metadata_iter(self) -> Iterator[dict[str, Any]]:
         """Yield item metadata from metadata JSON file in the zip file.

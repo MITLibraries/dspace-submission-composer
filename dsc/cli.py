@@ -1,5 +1,3 @@
-# ruff: noqa: TD002, TD003, FIX002
-
 import datetime
 import logging
 import subprocess
@@ -73,20 +71,6 @@ def post_main_group_subcommand(
             datetime.timedelta(seconds=perf_counter() - ctx.obj["start_time"]),
         ),
     )
-
-
-# TODO: Remove 'reconcile' CLI command after DSC step function is updated
-@main.command()
-@click.pass_context
-def reconcile(ctx: click.Context) -> None:
-    """Reconcile bitstreams with item identifiers from the metadata."""
-    workflow = ctx.obj["workflow"]
-
-    reconciled = workflow.reconcile_items()
-
-    if not reconciled:
-        logger.error("Failed to reconcile bitstreams and metadata")
-        ctx.exit(1)
 
 
 @main.command()
@@ -292,7 +276,7 @@ def submit(
     collection_handle: str,
     email_recipients: str | None = None,
 ) -> None:
-    """Send a batch of item submissions to DSS."""
+    """Queue a batch of item submissions for DSS."""
     workflow = ctx.obj["workflow"]
     workflow.submit_items(collection_handle)
 
@@ -312,7 +296,7 @@ def submit(
     required=True,
 )
 def finalize(ctx: click.Context, email_recipients: str) -> None:
-    """Process the result messages from the DSC output queue."""
+    """Analyze ingest results for a given batch."""
     workflow = ctx.obj["workflow"]
     workflow.finalize_items()
     workflow.send_report(

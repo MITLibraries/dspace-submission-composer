@@ -238,13 +238,13 @@ class ItemSubmission:
                     } "
                     "max retries reached, skipping submission"
                 )
-            case None | ItemSubmissionStatus.RECONCILE_FAILED:
+            case None:
                 logger.info(
                     f"Record "
                     f"{ITEM_SUBMISSION_LOG_STR.format(batch_id=self.batch_id,
                                       item_identifier=self.item_identifier)
                     } "
-                    " not reconciled, skipping submission"
+                    " status unknown, skipping submission"
                 )
             case _:
                 logger.debug(

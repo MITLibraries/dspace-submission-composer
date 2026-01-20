@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import itertools
 import json
 import logging
 from abc import ABC, abstractmethod
@@ -17,10 +16,6 @@ from dsc.exceptions import (
     BatchCreationFailedError,
     InvalidSQSMessageError,
     InvalidWorkflowNameError,
-    ReconcileFailedError,
-    ReconcileFailedMissingBitstreamsError,
-    ReconcileFoundBitstreamsWithoutMetadataWarning,
-    ReconcileFoundMetadataWithoutBitstreamsWarning,
 )
 from dsc.item_submission import ItemSubmission
 from dsc.reports import Report
@@ -258,136 +253,6 @@ class Workflow(ABC):
             item_submission.status = ItemSubmissionStatus.BATCH_CREATED
             item_submission.status_details = None
             item_submission.save()
-
-    @final
-    def reconcile_items(self) -> bool:
-        """Reconcile item submissions for a batch.
-
-        This method loops through the item metadata, creating an
-        instance of ItemSubmission with data loaded from a corresponding
-        record in DynamoDB (if it exists). For each ItemSubmission,
-        the method calls a workflow-specific reconcile method to
-        determine if it includes the required submission assets (bitstreams
-        and metadata), recording the results along the way.
-
-        After going through each ItemSubmission, the method provides an overall
-        summary of the results and returns a boolean indicating the status
-        for the batch:
-            - If any item submissions failed reconcile, returns False
-            - If all item submissions were reconciled, returns True
-
-        NOTE: This method is likely the first time a record will be inserted
-        into DynamoDB for each item submission. If already present,
-        its status will be updated.
-
-        TODO: Reconcile methods will be deprecated after end-to-end testing.
-        """
-        reconciled_items = {}  # key=item_identifier, value=list of bitstream URIs
-        bitstreams_without_metadata = []  # list of bitstream URIs
-        metadata_without_bitstreams = []  # list of item identifiers
-
-        # loop through each item metadata
-        for item_metadata in self.item_metadata_iter():
-            item_submission = ItemSubmission.get(
-                batch_id=self.batch_id,
-                item_identifier=item_metadata["item_identifier"],
-            )
-
-            # if no corresponding record in DynamoDB, skip
-            if not item_submission:
-                continue
-
-            # attach source metadata
-            item_submission.source_metadata = item_metadata
-
-            # get reconcile status and status details
-            status_details = None
-            try:
-                self.reconcile_item(item_submission)
-            except ReconcileFailedError as exception:
-                reconcile_status = ItemSubmissionStatus.RECONCILE_FAILED
-                status_details = str(exception)
-
-                if isinstance(exception, ReconcileFailedMissingBitstreamsError):
-                    metadata_without_bitstreams.append(item_submission.item_identifier)
-            else:
-                reconcile_status = ItemSubmissionStatus.RECONCILE_SUCCESS
-                reconciled_items[item_submission.item_identifier] = (
-                    self.get_item_bitstream_uris(item_submission.item_identifier)
-                )
-
-            # update the table if not yet reconciled
-            if item_submission.status in [
-                None,
-                ItemSubmissionStatus.RECONCILE_FAILED,
-            ]:
-                item_submission.last_run_date = self.run_date
-                item_submission.status = reconcile_status
-                item_submission.status_details = status_details
-                item_submission.upsert_db()
-
-                logger.debug(
-                    "Updated status for the item submission(item_identifier="
-                    f"{item_submission.item_identifier}): {item_submission.status}"
-                )
-
-        # check for unmatched bitstreams
-        matched_bitstream_uris = reconciled_items.values()
-        bitstreams_without_metadata.extend(
-            list(
-                set(self.batch_bitstream_uris)
-                - set(itertools.chain(*matched_bitstream_uris))
-            )
-        )
-
-        # log results
-        reconcile_summary = {
-            "reconciled": len(reconciled_items),
-            "bitstreams_without_metadata": len(bitstreams_without_metadata),
-            "metadata_without_bitstreams": len(metadata_without_bitstreams),
-        }
-        logger.info(
-            f"Ran reconcile for batch '{self.batch_id}': {json.dumps(reconcile_summary)}"
-        )
-        if any((bitstreams_without_metadata, metadata_without_bitstreams)):
-            logger.warning("Failed to reconcile bitstreams and metadata")
-
-            if bitstreams_without_metadata:
-                logger.warning(
-                    ReconcileFoundBitstreamsWithoutMetadataWarning(
-                        bitstreams_without_metadata
-                    )
-                )
-
-            if metadata_without_bitstreams:
-                logger.warning(
-                    ReconcileFoundMetadataWithoutBitstreamsWarning(
-                        metadata_without_bitstreams
-                    )
-                )
-            return False
-
-        logger.info(
-            "Successfully reconciled bitstreams and metadata for all "
-            f"{len(reconciled_items)} item(s)"
-        )
-        return True
-
-    def reconcile_item(self, _item_submission: ItemSubmission) -> bool:
-        """Reconcile bitstreams and metadata for an item.
-
-        Items in DSpace represent a "work" and combine metadata and files,
-        known as "bitstreams". For any given workflow, this method ensures
-        the existence of both bitstreams and metadata for each item in the
-        batch, verifying that all provided bitstreams can be linked to a
-        metadata record and vice versa.
-
-        If an item fails reconcile, this method should raise
-        dsc.exceptions.ReconcileFailed*Error. Otherwise, return True.
-
-        TODO: Reconcile methods will be deprecated after end-to-end testing.
-        """
-        return False
 
     @final
     def submit_items(self, collection_handle: str) -> list:
