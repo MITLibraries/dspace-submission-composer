@@ -96,11 +96,10 @@ Options:
   --help                    Show this message and exit.
 
 Commands:
-  create     Create a batch of item submissions.
-  finalize   Process the result messages from the DSS output queue...
-  reconcile  Reconcile bitstreams with item identifiers from the metadata.
-  submit     Send a batch of item submissions to the DSpace Submission...
-  sync       Sync data between two directories using the aws s3 sync...
+  create    Create a batch of item submissions.
+  finalize  Analyze ingest results for a given batch.
+  submit    Queue a batch of item submissions for DSS.
+  sync      Sync data between two directories using the aws s3 sync command.
 ```
 
 ### `pipenv run dsc -w <workflow-name> -b <batch-id> create`
@@ -133,7 +132,7 @@ Options:
 ```text
 Usage: -c submit [OPTIONS]
 
-  Send a batch of item submissions to DSS.
+  Queue a batch of item submissions for DSS.
 
 Options:
   -c, --collection-handle TEXT  The handle of the DSpace collection to which
@@ -148,7 +147,7 @@ Options:
 ```text
 Usage: -c finalize [OPTIONS]
 
-  Process the result messages from the DSC output queue.
+  Analyze ingest results for a given batch.
 
 Options:
   -e, --email-recipients TEXT  The recipients of the submission results email

@@ -69,13 +69,13 @@ def test_base_workflow_submit_items_success(
         item_identifier="123",
         batch_id="batch-aaa",
         workflow_name="test",
-        status=ItemSubmissionStatus.RECONCILE_SUCCESS,
+        status=ItemSubmissionStatus.BATCH_CREATED,
     ).create()
     ItemSubmissionDB(
         item_identifier="789",
         batch_id="batch-aaa",
         workflow_name="test",
-        status=ItemSubmissionStatus.RECONCILE_SUCCESS,
+        status=ItemSubmissionStatus.BATCH_CREATED,
     ).create()
     items = base_workflow_instance.submit_items(collection_handle="123.4/5678")
 
@@ -104,7 +104,7 @@ def test_base_workflow_submit_items_failed_ready_to_submit_is_skipped(
         item_identifier="789",
         batch_id="batch-aaa",
         workflow_name="test",
-        status=ItemSubmissionStatus.RECONCILE_SUCCESS,
+        status=ItemSubmissionStatus.BATCH_CREATED,
     ).create()
     items = base_workflow_instance.submit_items(collection_handle="123.4/5678")
 
@@ -145,13 +145,13 @@ def test_base_workflow_submit_items_exceptions_handled(
         item_identifier="123",
         batch_id="batch-aaa",
         workflow_name="test",
-        status=ItemSubmissionStatus.RECONCILE_SUCCESS,
+        status=ItemSubmissionStatus.BATCH_CREATED,
     ).create()
     ItemSubmissionDB(
         item_identifier="789",
         batch_id="batch-aaa",
         workflow_name="test",
-        status=ItemSubmissionStatus.RECONCILE_SUCCESS,
+        status=ItemSubmissionStatus.BATCH_CREATED,
     ).create()
     items = base_workflow_instance.submit_items(collection_handle="123.4/5678")
 

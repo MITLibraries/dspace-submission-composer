@@ -22,8 +22,6 @@ ITEM_SUBMISSION_LOG_STR = (
 
 class ItemSubmissionStatus(StrEnum):
     BATCH_CREATED = "batch_created"
-    RECONCILE_SUCCESS = "reconcile_success"
-    RECONCILE_FAILED = "reconcile_failed"
     SUBMIT_SUCCESS = "submit_success"
     SUBMIT_FAILED = "submit_failed"
     INGEST_SUCCESS = "ingest_success"

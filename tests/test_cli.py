@@ -129,13 +129,13 @@ def test_submit_success(
         item_identifier="123",
         batch_id="batch-aaa",
         workflow_name="test",
-        status=ItemSubmissionStatus.RECONCILE_SUCCESS,
+        status=ItemSubmissionStatus.BATCH_CREATED,
     ).create()
     ItemSubmissionDB(
         item_identifier="789",
         batch_id="batch-aaa",
         workflow_name="test",
-        status=ItemSubmissionStatus.RECONCILE_SUCCESS,
+        status=ItemSubmissionStatus.BATCH_CREATED,
     ).create()
 
     expected_submission_summary = {"total": 2, "submitted": 2, "skipped": 0, "errors": 0}

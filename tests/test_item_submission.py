@@ -71,7 +71,7 @@ def test_itemsubmission_create_success():
 def test_itemsubmission_upsert_db_success(
     item_submission_instance, mocked_item_submission_db
 ):
-    item_submission_instance.status = ItemSubmissionStatus.RECONCILE_SUCCESS
+    item_submission_instance.status = ItemSubmissionStatus.BATCH_CREATED
     item_submission_instance.status_details = "Test update"
     item_submission_instance.submit_attempts = 1
 
@@ -81,7 +81,7 @@ def test_itemsubmission_upsert_db_success(
         hash_key=item_submission_instance.batch_id,
         range_key=item_submission_instance.item_identifier,
     )
-    assert record.status == ItemSubmissionStatus.RECONCILE_SUCCESS
+    assert record.status == ItemSubmissionStatus.BATCH_CREATED
     assert record.status_details == "Test update"
     assert record.submit_attempts == 1
     assert record.workflow_name == item_submission_instance.workflow_name
@@ -123,11 +123,6 @@ def test_itemsubmission_ready_to_submit_with_none_status(item_submission_instanc
     assert item_submission_instance.ready_to_submit() is False
 
 
-def test_itemsubmission_ready_to_submit_with_reconcile_failed(item_submission_instance):
-    item_submission_instance.status = ItemSubmissionStatus.RECONCILE_FAILED
-    assert item_submission_instance.ready_to_submit() is False
-
-
 def test_itemsubmission_ready_to_submit_with_ingest_success(item_submission_instance):
     item_submission_instance.status = ItemSubmissionStatus.INGEST_SUCCESS
     assert item_submission_instance.ready_to_submit() is False
@@ -143,8 +138,10 @@ def test_itemsubmission_ready_to_submit_with_max_retries(item_submission_instanc
     assert item_submission_instance.ready_to_submit() is False
 
 
-def test_itemsubmission_ready_to_submit_with_reconcile_success(item_submission_instance):
-    item_submission_instance.status = ItemSubmissionStatus.RECONCILE_SUCCESS
+def test_itemsubmission_ready_to_submit_with_batch_created_success(
+    item_submission_instance,
+):
+    item_submission_instance.status = ItemSubmissionStatus.BATCH_CREATED
     assert item_submission_instance.ready_to_submit() is True
 
 

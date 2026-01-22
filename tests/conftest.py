@@ -45,9 +45,6 @@ class TestWorkflow(Workflow):
             "s3://dsc/test/batch-aaa/789_01.pdf",
         ]
 
-    def reconcile_item(self, _item_submission):
-        return True, None
-
     def item_metadata_iter(self):
         yield from [
             {

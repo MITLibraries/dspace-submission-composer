@@ -62,7 +62,7 @@ def test_workflow_specific_processing_wrong_status_skipped(
         workflow_name="archivesspace",
         dspace_handle="handle/123",
         source_system_identifier="archives/456",
-        status=ItemSubmissionStatus.RECONCILE_SUCCESS,
+        status=ItemSubmissionStatus.INGEST_FAILED,
         last_run_date=run_date,
     ).create()
     s3_client.client.create_bucket(Bucket="output-bucket")
