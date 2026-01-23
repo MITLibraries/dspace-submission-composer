@@ -103,6 +103,13 @@ def post_main_group_subcommand(
     ),
 )
 @click.option(
+    "--ids-file",
+    help=(
+        "Name of file containing item identifiers; "
+        "required for the following workflows: [wiley]"
+    ),
+)
+@click.option(
     "-e",
     "--email-recipients",
     help="The recipients of the batch creation results email as a comma-delimited string",
@@ -115,10 +122,14 @@ def create(
     sync_dry_run: bool = False,
     sync_source: str | None = None,
     sync_destination: str | None = None,
+    ids_file: str | None = None,
     email_recipients: str | None = None,
 ) -> None:
     """Create a batch of item submissions."""
     workflow = ctx.obj["workflow"]
+
+    if ids_file and workflow.workflow_name not in ["wiley"]:
+        raise click.BadParameter("The param --ids-file is not used for this workflow")
 
     if sync_data:
         try:
@@ -135,7 +146,7 @@ def create(
             ctx.exit(exception.exit_code)
 
     try:
-        workflow.create_batch(synced=sync_data)
+        workflow.create_batch(ids_file, synced=sync_data)
         errors = None
     except BatchCreationFailedError as exception:
         logger.error("Failed to create batch")  # noqa: TRY400

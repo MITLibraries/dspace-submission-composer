@@ -8,9 +8,11 @@ boto3 = "*"
 boto3-stubs = {extras = ["essential","ses"], version = "*"}
 click = "*"
 jinja2 = "*"
+jsonlines = "*"
 jsonschema = "*"
 pandas = "*"
 pynamodb = "*"
+requests = "*"
 sentry-sdk = "*"
 smart_open = {extras = ["s3"], version = "*"}
 

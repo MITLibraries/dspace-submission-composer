@@ -390,6 +390,7 @@ class OpenCourseWare(Workflow):
 
     def prepare_batch(
         self,
+        _ids_file: str | None = None,
         *,
         synced: bool = False,  # noqa: ARG002
     ) -> tuple[list, ...]:

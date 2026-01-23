@@ -1,6 +1,7 @@
 import logging
 from collections.abc import Iterator
 
+import numpy as np
 import pandas as pd
 import smart_open
 
@@ -71,13 +72,18 @@ class SimpleCSV(Workflow):
             metadata_df = metadata_df.dropna(how="all")
 
             # replace all NaN values with None
+<<<<<<< HEAD
             metadata_df = metadata_df.mask(metadata_df.isna(), None)
+=======
+            metadata_df = metadata_df.replace({np.nan: None})
+>>>>>>> c02fc82 ([wip] implement Wiley workflow)
 
             for _, row in metadata_df.iterrows():
                 yield row.to_dict()
 
     def prepare_batch(
         self,
+        _ids_file: str | None = None,
         *,
         synced: bool = False,  # noqa: ARG002
     ) -> tuple[list, ...]:

@@ -8,5 +8,6 @@ from dsc.workflows.base import Workflow
 from dsc.workflows.base.simple_csv import SimpleCSV
 from dsc.workflows.opencourseware import OpenCourseWare
 from dsc.workflows.sccs import SCCS
+from dsc.workflows.wiley import Wiley
 
-__all__ = ["SCCS", "ArchivesSpace", "OpenCourseWare", "SimpleCSV", "Workflow"]
+__all__ = ["SCCS", "ArchivesSpace", "OpenCourseWare", "SimpleCSV", "Wiley", "Workflow"]
