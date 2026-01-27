@@ -379,9 +379,11 @@ class OpenCourseWare(Workflow):
                 Given an S3 URI "s3://dsc/opencourseware/batch-00/123.zip",
                 then file = "opencourseware/batch-00/123.zip".
         """
-        with smart_open.open(file, "rb") as file_input, zipfile.ZipFile(
-            file_input
-        ) as zip_file, zip_file.open("data.json") as json_file:
+        with (
+            smart_open.open(file, "rb") as file_input,
+            zipfile.ZipFile(file_input) as zip_file,
+            zip_file.open("data.json") as json_file,
+        ):
             return json.load(json_file)
 
     def _parse_item_identifier(self, file: str) -> str:
