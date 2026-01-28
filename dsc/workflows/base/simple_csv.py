@@ -1,6 +1,7 @@
 import logging
 from collections.abc import Iterator
 
+import numpy as np
 import pandas as pd
 import smart_open
 
@@ -70,11 +71,12 @@ class SimpleCSV(Workflow):
             # drop any rows where all values are missing
             metadata_df = metadata_df.dropna(how="all")
 
-            # replace all NaN values with None
-            metadata_df = metadata_df.mask(metadata_df.isna(), None)
-
             for _, row in metadata_df.iterrows():
-                yield row.to_dict()
+                # replace all NaN values with None
+                yield {
+                    k: (None if isinstance(v, float) and np.isnan(v) else v)
+                    for k, v in row.items()
+                }
 
     def prepare_batch(
         self,

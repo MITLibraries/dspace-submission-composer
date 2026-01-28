@@ -1,8 +1,4 @@
 FROM python:3.12-slim as build
-WORKDIR /app
-COPY . .
-
-RUN pip install --no-cache-dir --upgrade pip pipenv
 
 RUN apt-get update && apt-get upgrade -y && \
     apt-get install -y git && \
@@ -11,7 +7,19 @@ RUN apt-get update && apt-get upgrade -y && \
     curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip" && \
     unzip awscliv2.zip && ./aws/install 
 
-COPY Pipfile* /
-RUN pipenv install
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /bin/uv
+ENV UV_SYSTEM_PYTHON=1
+ENV PYTHONPATH=/app
 
-ENTRYPOINT ["pipenv", "run", "dsc"]
+WORKDIR /app
+
+# Copy project metadata
+COPY pyproject.toml ./
+
+# Install package into system python
+RUN uv pip install --system .
+
+# Copy CLI application
+COPY dsc ./dsc
+
+ENTRYPOINT ["dsc"]

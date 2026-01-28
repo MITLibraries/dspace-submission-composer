@@ -2,6 +2,38 @@
 # For MIT developers, we strongly recommend copying the pyproject.toml template from:
 # https://mitlibraries.atlassian.net/wiki/spaces/IN/pages/3432415247/Python+Project+Linters#Template-for-pyproject.toml
 
+[project]
+name = "dsc"
+version = "1.0" # See https://packaging.python.org/en/latest/guides/writing-pyproject-toml/#version
+requires-python = "~=3.12.0"
+
+dependencies = [
+    "boto3>=1.42.30",
+    "boto3-stubs[essential, ses]>=1.42.30",
+    "click>=8.3.1",
+    "jinja2>=3.1.6",
+    "jsonschema>=4.26.0",
+    "pandas>=2.3.3",
+    "pynamodb>=6.1.0",
+    "sentry-sdk>=2.50.0",
+    "smart_open[s3]>=7.5.0"
+]
+
+[dependency-groups]
+dev = [
+    "black>=26.1.0",
+    "coveralls>=4.0.2",
+    "freezegun>=1.5.5",
+    "moto[server]>=5.1.20",
+    "mypy>=1.19.1",
+    "pandas-stubs>=2.3.3.260113",
+    "pip-audit>=2.10.0",
+    "pre-commit>=4.5.1",
+    "pytest>=9.0.2",
+    "ruff>=0.14.13",
+    "types-jsonschema>=4.26.0.20260109"
+]
+
 [tool.black]
 line-length = 90
 
@@ -72,3 +104,13 @@ max-doc-length = 90
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"
+
+[project.scripts]
+dsc = "dsc.cli:main"
+
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+py-modules = ["dsc"]

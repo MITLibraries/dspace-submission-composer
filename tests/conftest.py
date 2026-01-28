@@ -289,9 +289,10 @@ def mocked_sqs_output():
 
 @pytest.fixture
 def opencourseware_source_metadata():
-    with zipfile.ZipFile(
-        "tests/fixtures/opencourseware/123.zip", "r"
-    ) as zip_file, zip_file.open("data.json") as file:
+    with (
+        zipfile.ZipFile("tests/fixtures/opencourseware/123.zip", "r") as zip_file,
+        zip_file.open("data.json") as file,
+    ):
         return json.load(file)
 
 

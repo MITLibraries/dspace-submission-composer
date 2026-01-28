@@ -1,6 +1,5 @@
 import io
 
-import numpy as np
 import pandas as pd
 
 
@@ -54,7 +53,7 @@ def test_workflow_simple_csv_item_metadata_iter_processing_success(
     simple_csv_workflow_instance, mocked_s3
 ):
     metadata_df = pd.DataFrame(
-        {"filename": ["123.pdf", "456.pdf"], "TITLE": ["Cheeses of the World", np.nan]}
+        {"filename": ["123.pdf", "456.pdf"], "TITLE": ["Cheeses of the World", ""]}
     )
 
     # upload to mocked S3 bucket
