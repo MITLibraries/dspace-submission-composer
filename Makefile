@@ -93,23 +93,23 @@ check-arch:
 	if [[ "$(CPU_ARCH)" != "linux/amd64" && "$(CPU_ARCH)" != "linux/arm64" ]]; then \
 		echo "Invalid CPU_ARCH: $(CPU_ARCH)"; exit 1; \
 	fi; \
-    if [[ -f $$ARCH_FILE ]]; then \
-  		echo "latest-$(shell echo $(CPU_ARCH) | cut -d'/' -f2)" > .arch_tag; \
+	if [[ -f $$ARCH_FILE ]]; then \
+		echo "latest-$(shell echo $(CPU_ARCH) | cut -d'/' -f2)" > .arch_tag; \
 	else \
 		echo "latest" > .arch_tag; \
 	fi
 
 dist-dev: check-arch ## Build docker container (intended for developer-based manual build)
-    @ARCH_TAG=$$(cat .arch_tag); \
-    docker buildx inspect $(ECR_NAME_DEV) >/dev/null 2>&1 || docker buildx create --name $(ECR_NAME_DEV) --use; \
-    docker buildx use $(ECR_NAME_DEV); \
-    docker buildx build --platform $(CPU_ARCH) \
-    		--load \
-    		--tag $(ECR_URL_DEV):$$ARCH_TAG \
-    		--tag $(ECR_URL_DEV):make-$$ARCH_TAG \
-    		--tag $(ECR_URL_DEV):make-$(shell git describe --always) \
-    		--tag $(ECR_NAME_DEV):$$ARCH_TAG \
-    		.
+	@ARCH_TAG=$$(cat .arch_tag); \
+	docker buildx inspect $(ECR_NAME_DEV) >/dev/null 2>&1 || docker buildx create --name $(ECR_NAME_DEV) --use; \
+	docker buildx use $(ECR_NAME_DEV); \
+	docker buildx build --platform $(CPU_ARCH) \
+			--load \
+			--tag $(ECR_URL_DEV):$$ARCH_TAG \
+			--tag $(ECR_URL_DEV):make-$$ARCH_TAG \
+			--tag $(ECR_URL_DEV):make-$(shell git describe --always) \
+			--tag $(ECR_NAME_DEV):$$ARCH_TAG \
+			.
 
 publish-dev: dist-dev ## Build, tag and push (intended for developer-based manual publish)
 	@ARCH_TAG=$$(cat .arch_tag); \
@@ -129,11 +129,11 @@ publish-dev: dist-dev ## Build, tag and push (intended for developer-based manua
 #		--image-uri $(ECR_URL_DEV):make-$$ARCH_TAG
 
 docker-clean: ## Clean up Docker detritus
-    @ARCH_TAG=$$(cat .arch_tag); \
-    echo "Cleaning up Docker leftovers (containers, images, builders)"; \
-    docker rmi -f $(ECR_URL_DEV):$$ARCH_TAG; \
-    docker rmi -f $(ECR_URL_DEV):make-$$ARCH_TAG; \
-    docker rmi -f $(ECR_URL_DEV):make-$(shell git describe --always) || true; \
-    docker rmi -f $(ECR_NAME_DEV):$$ARCH_TAG || true; \
-    docker buildx rm $(ECR_NAME_DEV) || true
-    @rm -rf .arch_tag
+	@ARCH_TAG=$$(cat .arch_tag); \
+	echo "Cleaning up Docker leftovers (containers, images, builders)"; \
+	docker rmi -f $(ECR_URL_DEV):$$ARCH_TAG; \
+	docker rmi -f $(ECR_URL_DEV):make-$$ARCH_TAG; \
+	docker rmi -f $(ECR_URL_DEV):make-$(shell git describe --always) || true; \
+	docker rmi -f $(ECR_NAME_DEV):$$ARCH_TAG || true; \
+	docker buildx rm $(ECR_NAME_DEV) || true
+	@rm -rf .arch_tag
