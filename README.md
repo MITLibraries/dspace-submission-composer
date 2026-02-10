@@ -82,4 +82,4 @@ This is a repository that provides the DSpace Submission Composer. The following
 
 * Owner: See [CODEOWNERS](./.github/CODEOWNERS)
 * Team: See [CODEOWNERS](./.github/CODEOWNERS)
-* Last Maintenance: 2025-03
+* Last Maintenance: 2026-02
