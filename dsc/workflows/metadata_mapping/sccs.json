@@ -20,6 +20,9 @@
         "source_field_name": "dc.type",
         "language": "en_US"
     },
+    "dc.type.uri": {
+        "source_field_name": "dc.type.uri"
+    },
     "dc.source": {
         "source_field_name": "dc.source",
         "language": "en_US"
@@ -43,6 +46,9 @@
     },
     "dc.date.issued": {
         "source_field_name": "dc.date.issued"
+    },
+    "dc.date.submitted": {
+        "source_field_name": "dc.date.submitted"
     },
     "dc.rights": {
         "source_field_name": "dc.rights",
