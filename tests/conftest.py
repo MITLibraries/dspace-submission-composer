@@ -15,13 +15,10 @@ from moto.server import ThreadedMotoServer
 from dsc.config import Config
 from dsc.db.models import ItemSubmissionDB, ItemSubmissionStatus
 from dsc.item_submission import ItemSubmission
-from dsc.utilities.aws.s3 import S3Client
-from dsc.utilities.aws.ses import SESClient
-from dsc.utilities.aws.sqs import SQSClient
-from dsc.workflows import OpenCourseWare
-from dsc.workflows.archivesspace import ArchivesSpace
-from dsc.workflows.base import Workflow
-from dsc.workflows.base.simple_csv import SimpleCSV
+from dsc.utils.aws.s3 import S3Client
+from dsc.utils.aws.ses import SESClient
+from dsc.utils.aws.sqs import SQSClient
+from dsc.workflows import ArchivesSpace, OpenCourseWare, SimpleCSV, Workflow
 
 
 # Test Workflow classes ######################
