@@ -18,91 +18,18 @@ from dsc.item_submission import ItemSubmission
 from dsc.utilities.aws.s3 import S3Client
 from dsc.utilities.aws.ses import SESClient
 from dsc.utilities.aws.sqs import SQSClient
-from dsc.workflows import ArchivesSpace, OpenCourseWare, SimpleCSV, Workflow
+from dsc.workflows.archivesspace import ArchivesSpace
+from dsc.workflows.opencourseware import OpenCourseWareTransformer
+from tests.fixtures.workflows import TestOpenCourseWare, TestSimpleCSV, TestWorkflow
+
+#########################
+# Test Workflow classes
+#########################
 
 
-# Test Workflow classes ######################
-class TestWorkflow(Workflow):
-
-    workflow_name: str = "test"
-    submission_system: str = "Test@MIT"
-
-    @property
-    def metadata_mapping_path(self) -> str:
-        return "tests/fixtures/test_metadata_mapping.json"
-
-    @property
-    def output_queue(self) -> str:
-        return "mock-output-queue"
-
-    def get_batch_bitstream_uris(self) -> list[str]:
-        return [
-            "s3://dsc/test/batch-aaa/123_01.pdf",
-            "s3://dsc/test/batch-aaa/123_02.pdf",
-            "s3://dsc/test/batch-aaa/789_01.pdf",
-        ]
-
-    def item_metadata_iter(self):
-        yield from [
-            {
-                "title": "Title",
-                "contributor": "Author 1|Author 2",
-                "item_identifier": "123",
-            },
-            {
-                "title": "2nd Title",
-                "contributor": "Author 3|Author 4",
-                "item_identifier": "789",
-            },
-        ]
-
-    def _prepare_batch(self, *, synced: bool = False):  # noqa: ARG002
-        return (
-            [
-                ItemSubmission(
-                    batch_id="batch-aaa",
-                    item_identifier="123",
-                    workflow_name="test",
-                ),
-                ItemSubmission(
-                    batch_id="batch-aaa",
-                    item_identifier="789",
-                    workflow_name="test",
-                ),
-            ],
-            [],
-        )
-
-
-class TestOpenCourseWare(OpenCourseWare):
-
-    @property
-    def output_queue(self) -> str:
-        return "mock-output-queue"
-
-
-class TestSimpleCSV(SimpleCSV):
-
-    workflow_name = "simple-csv"
-    submission_system: str = "Test@MIT"
-
-    @property
-    def metadata_mapping_path(self) -> str:
-        return "tests/fixtures/test_metadata_mapping.json"
-
-    @property
-    def item_identifier_column_names(self) -> list[str]:
-        return ["item_identifier", "filename"]
-
-    @property
-    def output_queue(self) -> str:
-        return "mock-output-queue"
-
-
-# Test Workflow instances ####################
 @pytest.fixture
 @freeze_time("2025-01-01 09:00:00")
-def base_workflow_instance(item_metadata, metadata_mapping, mocked_s3):
+def base_workflow_instance(metadata_mapping, mocked_s3):
     return TestWorkflow(batch_id="batch-aaa")
 
 
@@ -122,7 +49,7 @@ def opencourseware_workflow_instance():
     return TestOpenCourseWare(batch_id="batch-aaa")
 
 
-# Test fixtures ##############################
+# Test fixtures
 @pytest.fixture(autouse=True)
 def _test_env(monkeypatch):
     monkeypatch.setenv("SENTRY_DSN", "None")
@@ -155,44 +82,44 @@ def config_instance():
 
 
 @pytest.fixture
-def dspace_metadata():
-    return {
-        "metadata": [
-            {
-                "key": "dc.title",
-                "language": "en_US",
-                "value": "Title",
-            },
-            {
-                "key": "dc.contributor",
-                "language": None,
-                "value": "Author 1",
-            },
-            {
-                "key": "dc.contributor",
-                "language": None,
-                "value": "Author 2",
-            },
-        ]
-    }
-
-
-@pytest.fixture
-def item_metadata():
+def item_submission_source_metadata():
     return {
         "title": "Title",
+        "date": 2026,
         "contributor": "Author 1|Author 2",
         "item_identifier": "123",
     }
 
 
 @pytest.fixture
-def item_submission_instance(dspace_metadata):
+def item_submission_dspace_metadata():
+    return {
+        "item_identifier": "123",
+        "dc.title": "Title",
+        "dc.date.issued": "2026",
+        "dc.contributor.author": ["Author 1", "Author 2"],
+    }
+
+
+@pytest.fixture
+def item_submission_dspace_metadataentry():
+    return {
+        "metadata": [
+            {"key": "dc.title", "value": "Title"},
+            {"key": "dc.date.issued", "value": "2026"},
+            {"key": "dc.contributor.author", "value": "Author 1"},
+            {"key": "dc.contributor.author", "value": "Author 2"},
+        ]
+    }
+
+
+@pytest.fixture
+def item_submission_instance(item_submission_dspace_metadata):
     return ItemSubmission(
         batch_id="batch-aaa",
         item_identifier="123",
         workflow_name="test",
-        dspace_metadata=dspace_metadata,
+        dspace_metadata=item_submission_dspace_metadata,
         bitstream_s3_uris=[
             "s3://dsc/workflow/folder/123_01.pdf",
             "s3://dsc/workflow/folder/123_02.pdf",
@@ -241,13 +168,13 @@ def mocked_s3(config_instance):
 
 
 @pytest.fixture
-def mocked_s3_simple_csv(mocked_s3, item_metadata):
+def mocked_s3_simple_csv(mocked_s3, item_submission_source_metadata):
     # write in-memory metadata CSV file
     csv_buffer = StringIO()
-    fieldnames = item_metadata.keys()
+    fieldnames = item_submission_source_metadata.keys()
     writer = csv.DictWriter(csv_buffer, fieldnames=fieldnames)
     writer.writeheader()
-    writer.writerows([item_metadata])
+    writer.writerows([item_submission_source_metadata])
 
     # seek to the beginning of the in-memory file before uploading
     csv_buffer.seek(0)
@@ -282,15 +209,6 @@ def mocked_sqs_output():
         sqs = boto3.client("sqs", region_name="us-east-1")
         sqs.create_queue(QueueName="mock-output-queue")
         yield sqs
-
-
-@pytest.fixture
-def opencourseware_source_metadata():
-    with (
-        zipfile.ZipFile("tests/fixtures/opencourseware/123.zip", "r") as zip_file,
-        zip_file.open("data.json") as file,
-    ):
-        return json.load(file)
 
 
 @pytest.fixture
@@ -395,4 +313,27 @@ def submission_message_body():
                 }
             ],
         }
+    )
+
+
+#########################
+# OpenCourseWare fixtures
+#########################
+
+
+@pytest.fixture
+def opencourseware_itemsubmission_source_metadata():
+    with (
+        zipfile.ZipFile("tests/fixtures/opencourseware/123.zip", "r") as zip_file,
+        zip_file.open("data.json") as file,
+    ):
+        return json.load(file)
+
+
+@pytest.fixture
+def opencourseware_itemsubmission_dspace_metadata(
+    opencourseware_itemsubmission_source_metadata,
+):
+    return OpenCourseWareTransformer.transform(
+        opencourseware_itemsubmission_source_metadata
     )

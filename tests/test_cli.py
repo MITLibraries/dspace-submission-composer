@@ -122,9 +122,25 @@ def test_submit_success(
     s3_client,
 ):
     caplog.set_level("DEBUG")
+
+    # mock upload bitstreams
     s3_client.put_file(file_content="", bucket="dsc", key="test/batch-aaa/123_001.pdf")
     s3_client.put_file(file_content="", bucket="dsc", key="test/batch-aaa/123_002.jpg")
     s3_client.put_file(file_content="", bucket="dsc", key="test/batch-aaa/789_001.pdf")
+
+    # mock upload dspace metadata json
+    s3_client.put_file(
+        file_content="",
+        bucket="dsc",
+        key="test/batch-aaa/dspace_metadata/123_metadata.json",
+    )
+    s3_client.put_file(
+        file_content="",
+        bucket="dsc",
+        key="test/batch-aaa/dspace_metadata/789_metadata.json",
+    )
+
+    # mock current state of Dynamodb table
     ItemSubmissionDB(
         item_identifier="123",
         batch_id="batch-aaa",
@@ -161,15 +177,7 @@ def test_submit_success(
         "for batch 'batch-aaa'"
     ) in caplog.text
     assert "Preparing submission for item: 123" in caplog.text
-    assert (
-        "Metadata uploaded to S3: s3://dsc/test/batch-aaa/dspace_metadata/123_metadata.json"
-        in caplog.text
-    )
     assert "Preparing submission for item: 789" in caplog.text
-    assert (
-        "Metadata uploaded to S3: s3://dsc/test/batch-aaa/dspace_metadata/789_metadata.json"
-        in caplog.text
-    )
     assert json.dumps(expected_submission_summary) in caplog.text
     assert "Application exiting" in caplog.text
     assert "Total time elapsed" in caplog.text
