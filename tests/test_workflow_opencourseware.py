@@ -6,7 +6,9 @@ import pytest
 from dsc.item_submission import ItemSubmission
 
 
-@patch("dsc.workflows.opencourseware.OpenCourseWare._read_metadata_from_zip_file")
+@patch(
+    "dsc.workflows.opencourseware.workflow.OpenCourseWare._read_metadata_from_zip_file"
+)
 def test_workflow_ocw_metadata_mapping_dspace_metadata_success(
     mock_opencourseware_read_metadata_from_zip_file,
     caplog,
@@ -102,7 +104,9 @@ def test_workflow_ocw_metadata_mapping_dspace_metadata_success(
     ]
 
 
-@patch("dsc.workflows.opencourseware.OpenCourseWare._read_metadata_from_zip_file")
+@patch(
+    "dsc.workflows.opencourseware.workflow.OpenCourseWare._read_metadata_from_zip_file"
+)
 def test_workflow_ocw_prepare_batch_success(
     mock_opencourseware_read_metadata_from_zip_file,
     mocked_item_submission_db,
@@ -132,7 +136,9 @@ def test_workflow_ocw_prepare_batch_success(
     )
 
 
-@patch("dsc.workflows.opencourseware.OpenCourseWare._read_metadata_from_zip_file")
+@patch(
+    "dsc.workflows.opencourseware.workflow.OpenCourseWare._read_metadata_from_zip_file"
+)
 def test_workflow_ocw_item_metadata_iter_success(
     mock_opencourseware_read_metadata_from_zip_file,
     caplog,

@@ -1,4 +1,4 @@
-from dsc.workflows import SimpleCSV
+from dsc.workflows.simple_csv import SimpleCSV
 
 
 class SCCS(SimpleCSV):
@@ -13,7 +13,7 @@ class SCCS(SimpleCSV):
 
     @property
     def metadata_mapping_path(self) -> str:
-        return "dsc/workflows/metadata_mapping/sccs.json"
+        return "dsc/workflows/sccs/metadata_mapping.json"
 
     @property
     def item_identifier_column_names(self) -> list[str]:
