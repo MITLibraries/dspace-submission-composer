@@ -6,6 +6,7 @@ import pandas as pd
 import smart_open
 
 from dsc.exceptions import ItemBitstreamsNotFoundError
+from dsc.item_submission import ItemSubmission
 from dsc.utilities.aws import S3Client
 from dsc.workflows.base import Workflow
 
@@ -114,11 +115,11 @@ class SimpleCSV(Workflow):
 
             # if item submission has associated bitstreams, save init params
             item_submissions.append(
-                {
-                    "batch_id": self.batch_id,
-                    "item_identifier": item_metadata["item_identifier"],
-                    "workflow_name": self.workflow_name,
-                }
+                ItemSubmission(
+                    batch_id=self.batch_id,
+                    item_identifier=item_metadata["item_identifier"],
+                    workflow_name=self.workflow_name,
+                )
             )
 
         return item_submissions, errors

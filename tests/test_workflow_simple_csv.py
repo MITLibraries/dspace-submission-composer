@@ -2,6 +2,8 @@ import io
 
 import pandas as pd
 
+from dsc.item_submission import ItemSubmission
+
 
 def test_workflow_simple_csv_prepare_batch_success(
     mocked_s3_simple_csv,
@@ -20,11 +22,11 @@ def test_workflow_simple_csv_prepare_batch_success(
     )
     assert simple_csv_workflow_instance.prepare_batch() == (
         [
-            {
-                "batch_id": "batch-aaa",
-                "item_identifier": "123",
-                "workflow_name": "simple-csv",
-            }
+            ItemSubmission(
+                batch_id="batch-aaa",
+                item_identifier="123",
+                workflow_name="simple-csv",
+            )
         ],
         [],
     )

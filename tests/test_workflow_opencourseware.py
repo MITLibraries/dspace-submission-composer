@@ -126,11 +126,11 @@ def test_workflow_ocw_prepare_batch_success(
 
     assert opencourseware_workflow_instance.prepare_batch() == (
         [
-            {
-                "batch_id": "batch-aaa",
-                "item_identifier": "123",
-                "workflow_name": "opencourseware",
-            }
+            ItemSubmission(
+                batch_id="batch-aaa",
+                item_identifier="123",
+                workflow_name="opencourseware",
+            )
         ],
         [],
     )

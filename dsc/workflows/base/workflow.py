@@ -232,23 +232,21 @@ class Workflow(ABC):
         MUST be overridden by workflow subclasses.
 
         Returns:
-            A tuple of item submissions (init params) represented as a
-            list of dicts and errors represented as a list of tuples
+            A tuple containing list of ItemSubmission's and
+            errors represented as a list of tuples
             containing the item identifier and the error message.
         """
         pass  # noqa: PIE790
 
     @final
-    def _create_batch_in_db(self, item_submissions: list[dict]) -> None:
+    def _create_batch_in_db(self, item_submissions: list[ItemSubmission]) -> None:
         """Write records for a batch of item submissions to DynamoDB.
 
-        This method loops through the item submissions (init params)
-        represented as a list dicts. For each item submission, the
-        method creates an instance of ItemSubmission and saves the
+        For each ItemSubmission, the method updates the last_run_date,
+        status, and status_details attributes and saves the
         record to DynamoDB.
         """
-        for item_submission_init_params in item_submissions:
-            item_submission = ItemSubmission.create(**item_submission_init_params)
+        for item_submission in item_submissions:
             item_submission.last_run_date = self.run_date
             item_submission.status = ItemSubmissionStatus.BATCH_CREATED
             item_submission.status_details = None

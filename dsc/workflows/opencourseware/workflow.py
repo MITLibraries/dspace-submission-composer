@@ -7,6 +7,7 @@ from typing import Any
 import smart_open
 
 from dsc.exceptions import ItemMetadataNotFoundError
+from dsc.item_submission import ItemSubmission
 from dsc.utilities.aws.s3 import S3Client
 from dsc.workflows.base import Workflow
 from dsc.workflows.opencourseware import OpenCourseWareTransformer
@@ -125,11 +126,11 @@ class OpenCourseWare(Workflow):
 
             # if item submission includes metadata, save init params
             item_submissions.append(
-                {
-                    "batch_id": self.batch_id,
-                    "item_identifier": item_metadata["item_identifier"],
-                    "workflow_name": self.workflow_name,
-                }
+                ItemSubmission(
+                    batch_id=self.batch_id,
+                    item_identifier=item_metadata["item_identifier"],
+                    workflow_name=self.workflow_name,
+                )
             )
 
         return item_submissions, errors

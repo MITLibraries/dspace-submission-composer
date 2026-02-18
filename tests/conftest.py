@@ -59,16 +59,16 @@ class TestWorkflow(Workflow):
     def prepare_batch(self, *, synced: bool = False):  # noqa: ARG002
         return (
             [
-                {
-                    "batch_id": "batch-aaa",
-                    "item_identifier": "123",
-                    "workflow_name": "test",
-                },
-                {
-                    "batch_id": "batch-aaa",
-                    "item_identifier": "789",
-                    "workflow_name": "test",
-                },
+                ItemSubmission(
+                    batch_id="batch-aaa",
+                    item_identifier="123",
+                    workflow_name="test",
+                ),
+                ItemSubmission(
+                    batch_id="batch-aaa",
+                    item_identifier="789",
+                    workflow_name="test",
+                ),
             ],
             [],
         )
