@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import logging
+from collections import defaultdict
 from dataclasses import dataclass, fields
 from typing import TYPE_CHECKING, Any
 
@@ -12,8 +13,7 @@ from dsc.config import Config
 from dsc.db.models import ITEM_SUBMISSION_LOG_STR, ItemSubmissionDB, ItemSubmissionStatus
 from dsc.exceptions import (
     DSpaceMetadataUploadError,
-    InvalidDSpaceMetadataError,
-    ItemMetadatMissingRequiredFieldError,
+    ItemMetadataMissingRequiredFieldError,
     SQSMessageSendError,
 )
 from dsc.utilities.aws.s3 import S3Client
@@ -176,9 +176,9 @@ class ItemSubmission:
         )
         item_submission_db.create()
 
-        logger.info(f"Saved record " f"{ITEM_SUBMISSION_LOG_STR.format(
-                batch_id=self.batch_id, item_identifier=self.item_identifier
-                )}")
+        logger.info(f"Saved record {ITEM_SUBMISSION_LOG_STR.format(
+            batch_id=self.batch_id, item_identifier=self.item_identifier
+            )}")
 
     def upsert_db(self) -> None:
         """Upsert a record in DynamoDB from ItemSubmission.
@@ -195,9 +195,9 @@ class ItemSubmission:
         )
         item_submission_db.save()
 
-        logger.info(f"Upserted record " f"{ITEM_SUBMISSION_LOG_STR.format(
-                batch_id=self.batch_id, item_identifier=self.item_identifier
-                )}")
+        logger.info(f"Upserted record {ITEM_SUBMISSION_LOG_STR.format(
+            batch_id=self.batch_id, item_identifier=self.item_identifier
+            )}")
 
     def ready_to_submit(self) -> bool:
         """Check if the item submission is ready to be submitted."""
@@ -209,32 +209,31 @@ class ItemSubmission:
             case ItemSubmissionStatus.INGEST_SUCCESS:
                 logger.info(
                     f"Record {ITEM_SUBMISSION_LOG_STR.format(batch_id=self.batch_id,
-                                      item_identifier=self.item_identifier)
-                    } " "already ingested, skipping submission"
+                        item_identifier=self.item_identifier)} "
+                    "already ingested, skipping submission"
                 )
             case ItemSubmissionStatus.SUBMIT_SUCCESS:
                 logger.info(
-                    f"Record " f"{ITEM_SUBMISSION_LOG_STR.format(batch_id=self.batch_id,
-                                      item_identifier=self.item_identifier)
-                    } " " already submitted, skipping submission"
+                    f"Record {ITEM_SUBMISSION_LOG_STR.format(batch_id=self.batch_id,
+                        item_identifier=self.item_identifier)} "
+                    " already submitted, skipping submission"
                 )
             case ItemSubmissionStatus.MAX_RETRIES_REACHED:
                 logger.info(
-                    f"Record " f"{ITEM_SUBMISSION_LOG_STR.format(batch_id=self.batch_id,
-                                      item_identifier=self.item_identifier)
-                    } " "max retries reached, skipping submission"
+                    f"Record {ITEM_SUBMISSION_LOG_STR.format(batch_id=self.batch_id,
+                        item_identifier=self.item_identifier)} "
+                    "max retries reached, skipping submission"
                 )
             case None:
                 logger.info(
-                    f"Record " f"{ITEM_SUBMISSION_LOG_STR.format(batch_id=self.batch_id,
-                                      item_identifier=self.item_identifier)
-                    } " " status unknown, skipping submission"
+                    f"Record {ITEM_SUBMISSION_LOG_STR.format(batch_id=self.batch_id,
+                        item_identifier=self.item_identifier)} "
+                    "status unknown, skipping submission"
                 )
             case _:
                 logger.debug(
-                    f"Record " f"{ITEM_SUBMISSION_LOG_STR.format(batch_id=self.batch_id,
-                                      item_identifier=self.item_identifier)
-                    } " "allowed for submission"
+                    f"Record {ITEM_SUBMISSION_LOG_STR.format(batch_id=self.batch_id,
+                        item_identifier=self.item_identifier)} allowed for submission"
                 )
                 ready_to_submit = True
 
@@ -248,93 +247,48 @@ class ItemSubmission:
         if self.ingest_attempts > CONFIG.retry_threshold:
             self.status = ItemSubmissionStatus.MAX_RETRIES_REACHED
 
-    def prepare_dspace_metadata(
-        self, metadata_mapping: dict, item_metadata: dict, s3_bucket: str, batch_path: str
-    ) -> None:
+    def prepare_dspace_metadata(self, s3_bucket: str, batch_path: str) -> str:
         """Prepare DSpace metadata for the item submission."""
-        self.create_dspace_metadata(
-            item_metadata=item_metadata,
-            metadata_mapping=metadata_mapping,
-        )
-        self.validate_dspace_metadata()
-        self.upload_dspace_metadata(bucket=s3_bucket, prefix=batch_path)
+        self.dspace_metadata = self._create_dspace_metadataentry()
+        return self._upload_dspace_metadata(bucket=s3_bucket, prefix=batch_path)
 
-    def create_dspace_metadata(
-        self, item_metadata: dict[str, Any], metadata_mapping: dict
-    ) -> None:
-        """Create DSpace metadata from the item's source metadata.
+    def _create_dspace_metadataentry(self) -> None | dict:
+        """Format transformed metadata for DSpace REST API.
 
-        A metadata mapping is a dict with the format seen below:
-
-        {
-            "dc.contributor": {
-                "source_field_name": "contributor",
-                "language": "<language>",
-                "delimiter": "<delimiting character>",
-                "required": true | false
-            }
-        }
-
-        When setting up the metadata mapping JSON file, "language" and "delimiter"
-        can be omitted from the file if not applicable. Required fields ("item_identifier"
-        and "title") must be set as required (true); if "required" is not listed as a
-        a config, the field defaults as not required (false).
-
-        Args:
-            item_metadata: Item metadata from which the DSpace metadata will be derived.
-            metadata_mapping: A mapping of DSpace metadata fields to source metadata
-            fields.
+        This method follows the specs for a 'MetadataEntry Object' for
+        the DSpace 6 REST API:
+        https://wiki.lyrasis.org/display/DSDOC6x/REST+API#RESTAPI-MetadataEntryO
         """
-        metadata_entries = []
-        for field_name, field_mapping in metadata_mapping.items():
-            if field_name not in ["item_identifier"]:
+        if not self.dspace_metadata:
+            return None
 
-                field_value = item_metadata.get(field_mapping["source_field_name"])
-                if not field_value and field_mapping.get("required", False):
-                    raise ItemMetadatMissingRequiredFieldError(
-                        "Item metadata missing required field: '"
-                        f"{field_mapping["source_field_name"]}'"
-                    )
+        metadataentry = defaultdict(list)
 
-                if field_value:
-                    if isinstance(field_value, list):
-                        field_values = field_value
-                    elif delimiter := field_mapping.get("delimiter"):
-                        field_values = field_value.split(delimiter)
-                    else:
-                        field_values = [field_value]
+        for field, value in self.dspace_metadata.items():
+            if field == "item_identifier":
+                continue
 
-                    metadata_entries.extend(
-                        [
-                            {
-                                "key": field_name,
-                                "value": value,
-                                "language": field_mapping.get("language"),
-                            }
-                            for value in field_values
-                        ]
-                    )
-        self.dspace_metadata = {"metadata": metadata_entries}
+            if not value and field in ["dc.title", "dc.date.issued"]:
+                raise ItemMetadataMissingRequiredFieldError(
+                    f"Item metadata missing required field: {field}"
+                )
 
-    def validate_dspace_metadata(self) -> bool:
-        """Validate that DSpace metadata follows the expected format for DSpace 6.x.
+            if value:
+                value_list = value if isinstance(value, list) else [value]
 
-        Args:
-            dspace_metadata: DSpace metadata to be validated.
-        """
-        valid = False
-        if self.dspace_metadata and self.dspace_metadata.get("metadata") is not None:
-            for element in self.dspace_metadata["metadata"]:
-                if element.get("key") is not None and element.get("value") is not None:
-                    valid = True
-            logger.debug("Valid DSpace metadata created")
-        else:
-            raise InvalidDSpaceMetadataError(
-                f"Invalid DSpace metadata created: {self.dspace_metadata} ",
-            )
-        return valid
+                metadataentry["metadata"].extend(
+                    [
+                        {
+                            "key": field,
+                            "value": _value,
+                        }
+                        for _value in value_list
+                    ]
+                )
 
-    def upload_dspace_metadata(self, bucket: str, prefix: str) -> None:
+        return dict(metadataentry)
+
+    def _upload_dspace_metadata(self, bucket: str, prefix: str) -> str:
         """Upload DSpace metadata to S3 using the specified bucket and keyname.
 
         Args:
@@ -361,7 +315,7 @@ class ItemSubmission:
 
         metadata_s3_uri = f"s3://{bucket}/{metadata_s3_key}"
         logger.info(f"Metadata uploaded to S3: {metadata_s3_uri}")
-        self.metadata_s3_uri = metadata_s3_uri
+        return metadata_s3_uri
 
     def send_submission_message(
         self,

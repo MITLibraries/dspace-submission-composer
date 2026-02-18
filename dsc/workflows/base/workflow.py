@@ -14,12 +14,14 @@ from dsc.config import Config
 from dsc.db.models import ItemSubmissionStatus
 from dsc.exceptions import (
     BatchCreationFailedError,
+    DSpaceMetadataUploadError,
     InvalidSQSMessageError,
     InvalidWorkflowNameError,
+    ItemMetadataMissingRequiredFieldError,
 )
 from dsc.item_submission import ItemSubmission
 from dsc.reports import Report
-from dsc.utilities.aws import SESClient, SQSClient
+from dsc.utilities.aws import S3Client, SESClient, SQSClient
 from dsc.utilities.validate.schemas import RESULT_MESSAGE_ATTRIBUTES, RESULT_MESSAGE_BODY
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -128,6 +130,7 @@ class Workflow(ABC):
 
         # cache list of bitstreams
         self._batch_bitstream_uris: list[str] | None = None
+        self._batch_dspace_metadata_json_uris: list[str] | None = None
 
     @property
     @abstractmethod
@@ -158,6 +161,19 @@ class Workflow(ABC):
         if not self._batch_bitstream_uris:
             self._batch_bitstream_uris = self.get_batch_bitstream_uris()
         return self._batch_bitstream_uris
+
+    @property
+    def batch_dspace_metadata_json_uris(self) -> list[str]:
+        if not self._batch_dspace_metadata_json_uris:
+            s3_client = S3Client()
+            self._batch_dspace_metadata_json_uris = list(
+                s3_client.files_iter(
+                    bucket=self.s3_bucket,
+                    prefix=f"{self.batch_path}dspace_metadata/",
+                    file_type=".json",
+                )
+            )
+        return self._batch_dspace_metadata_json_uris
 
     @property
     def retry_threshold(self) -> int:
@@ -192,6 +208,12 @@ class Workflow(ABC):
         """Get list of bitstreams URIs for an item."""
         return [uri for uri in self.batch_bitstream_uris if item_identifier in uri]
 
+    @final
+    def get_item_dspace_metadata_json_uri(self, item_identifier: str) -> str:
+        return next(
+            uri for uri in self.batch_dspace_metadata_json_uris if item_identifier in uri
+        )
+
     @abstractmethod
     def item_metadata_iter(self) -> Iterator[dict[str, Any]]:
         """Iterate through batch metadata to yield item metadata.
@@ -214,6 +236,13 @@ class Workflow(ABC):
         item_submissions, errors = self._prepare_batch(synced=synced)
         if errors:
             raise BatchCreationFailedError(errors)
+
+        _dspace_metadata_uris, errors = self._create_dspace_metadata_json(
+            item_submissions
+        )
+        if errors:
+            raise BatchCreationFailedError(errors)
+
         self._create_batch_in_db(item_submissions)
 
     @abstractmethod
@@ -237,6 +266,25 @@ class Workflow(ABC):
             containing the item identifier and the error message.
         """
         pass  # noqa: PIE790
+
+    @final
+    def _create_dspace_metadata_json(
+        self, item_submissions: list[ItemSubmission]
+    ) -> tuple[list, ...]:
+        dspace_metadata_uris = []
+        errors = []
+        for item_submission in item_submissions:
+            try:
+                uri = item_submission.prepare_dspace_metadata(
+                    self.s3_bucket, self.batch_path
+                )
+                dspace_metadata_uris.append(uri)
+            except (
+                DSpaceMetadataUploadError,
+                ItemMetadataMissingRequiredFieldError,
+            ) as exception:
+                errors.append((item_submission.item_identifier, str(exception)))
+        return dspace_metadata_uris, errors
 
     @final
     def _create_batch_in_db(self, item_submissions: list[ItemSubmission]) -> None:
@@ -269,11 +317,6 @@ class Workflow(ABC):
             f"for batch '{self.batch_id}'"
         )
 
-        batch_metadata = {
-            item_metadata["item_identifier"]: item_metadata
-            for item_metadata in self.item_metadata_iter()
-        }
-
         items = []
         for item_submission in ItemSubmission.get_batch(self.batch_id):
 
@@ -288,11 +331,8 @@ class Workflow(ABC):
                 continue
             try:
                 # prepare submission assets
-                item_submission.prepare_dspace_metadata(
-                    metadata_mapping=self.metadata_mapping,
-                    item_metadata=batch_metadata[item_identifier],
-                    s3_bucket=self.s3_bucket,
-                    batch_path=self.batch_path,
+                item_submission.metadata_s3_uri = self.get_item_dspace_metadata_json_uri(
+                    item_identifier
                 )
                 item_submission.bitstream_s3_uris = self.get_item_bitstream_uris(
                     item_identifier

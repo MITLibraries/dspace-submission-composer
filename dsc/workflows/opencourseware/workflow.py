@@ -124,12 +124,18 @@ class OpenCourseWare(Workflow):
                 )
                 continue
 
-            # if item submission includes metadata, save init params
+            # copy transformed metadata, excluding 'item_identifier'
+            dspace_metadata = {
+                k: v for k, v in item_metadata.items() if k != "item_identifier"
+            }
+
+            # create ItemSubmission
             item_submissions.append(
                 ItemSubmission(
                     batch_id=self.batch_id,
                     item_identifier=item_metadata["item_identifier"],
                     workflow_name=self.workflow_name,
+                    dspace_metadata=dspace_metadata,
                 )
             )
 
