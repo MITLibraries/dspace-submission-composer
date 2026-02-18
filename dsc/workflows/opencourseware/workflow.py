@@ -60,10 +60,15 @@ class OpenCourseWare(Workflow):
 
             transformed_metadata = self.metadata_transformer.transform(source_metadata)
 
-            yield {
-                "item_identifier": self._parse_item_identifier(file),
-                **transformed_metadata,
-            }
+            if transformed_metadata:
+                yield {
+                    "item_identifier": self._parse_item_identifier(file),
+                    **transformed_metadata,
+                }
+            else:
+                yield {
+                    "item_identifier": self._parse_item_identifier(file),
+                }
 
     def _read_metadata_from_zip_file(self, file: str) -> dict[str, str]:
         """Read source metadata JSON file in zip archive.
