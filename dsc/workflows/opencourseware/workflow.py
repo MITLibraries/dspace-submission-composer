@@ -94,7 +94,7 @@ class OpenCourseWare(Workflow):
         """Parse item identifier from bitstream zip file."""
         return file.split("/")[-1].removesuffix(".zip")
 
-    def prepare_batch(
+    def _prepare_batch(
         self,
         *,
         synced: bool = False,  # noqa: ARG002

@@ -20,7 +20,7 @@ def test_workflow_simple_csv_prepare_batch_success(
         bucket="dsc",
         key="simple-csv/batch-aaa/123_002.pdf",
     )
-    assert simple_csv_workflow_instance.prepare_batch() == (
+    assert simple_csv_workflow_instance._prepare_batch() == (  # noqa: SLF001
         [
             ItemSubmission(
                 batch_id="batch-aaa",
@@ -36,7 +36,7 @@ def test_workflow_simple_csv_prepare_batch_track_errors(
     mocked_s3_simple_csv,
     simple_csv_workflow_instance,
 ):
-    assert simple_csv_workflow_instance.prepare_batch() == (
+    assert simple_csv_workflow_instance._prepare_batch() == (  # noqa: SLF001
         [],
         [("123", "No bitstreams found for the item submission")],
     )

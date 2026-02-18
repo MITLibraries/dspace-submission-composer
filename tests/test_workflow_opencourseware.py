@@ -124,7 +124,7 @@ def test_workflow_ocw_prepare_batch_success(
         opencourseware_source_metadata
     )
 
-    assert opencourseware_workflow_instance.prepare_batch() == (
+    assert opencourseware_workflow_instance._prepare_batch() == (
         [
             ItemSubmission(
                 batch_id="batch-aaa",

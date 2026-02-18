@@ -79,7 +79,7 @@ class SimpleCSV(Workflow):
                     for k, v in row.items()
                 }
 
-    def prepare_batch(
+    def _prepare_batch(
         self,
         *,
         synced: bool = False,  # noqa: ARG002

@@ -211,13 +211,13 @@ class Workflow(ABC):
         This method prepares the necessary assets in S3 (programmatically as needed)
         and records each item in the batch to DynamoDB.
         """
-        item_submissions, errors = self.prepare_batch(synced=synced)
+        item_submissions, errors = self._prepare_batch(synced=synced)
         if errors:
             raise BatchCreationFailedError(errors)
         self._create_batch_in_db(item_submissions)
 
     @abstractmethod
-    def prepare_batch(self, *, synced: bool = False) -> tuple[list, ...]:
+    def _prepare_batch(self, *, synced: bool = False) -> tuple[list, ...]:
         """Prepare batch submission assets in S3.
 
         This method performs the required steps to prepare a batch

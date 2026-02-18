@@ -56,7 +56,7 @@ class TestWorkflow(Workflow):
             },
         ]
 
-    def prepare_batch(self, *, synced: bool = False):  # noqa: ARG002
+    def _prepare_batch(self, *, synced: bool = False):  # noqa: ARG002
         return (
             [
                 ItemSubmission(

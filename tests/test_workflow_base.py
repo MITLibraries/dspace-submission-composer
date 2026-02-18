@@ -44,7 +44,7 @@ def test_base_workflow_get_workflow_invalid_workflow_name_raises_error(
 def test_base_workflow_create_batch_in_db_success(
     base_workflow_instance, mocked_item_submission_db
 ):
-    item_submissions, _ = base_workflow_instance.prepare_batch()
+    item_submissions, _ = base_workflow_instance._prepare_batch()  # noqa: SLF001
     base_workflow_instance._create_batch_in_db(item_submissions)  # noqa: SLF001
     item_submission = ItemSubmissionDB.get(hash_key="batch-aaa", range_key="123")
 
