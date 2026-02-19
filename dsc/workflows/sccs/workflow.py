@@ -18,9 +18,5 @@ class SCCS(SimpleCSV):
         return SCCSTransformer
 
     @property
-    def metadata_mapping_path(self) -> str:
-        return "dsc/workflows/sccs/metadata_mapping.json"
-
-    @property
     def item_identifier_column_names(self) -> list[str]:
         return ["item_identifier", "filename"]

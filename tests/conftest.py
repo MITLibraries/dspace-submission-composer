@@ -29,12 +29,12 @@ from tests.fixtures.workflows import TestOpenCourseWare, TestSimpleCSV, TestWork
 
 @pytest.fixture
 @freeze_time("2025-01-01 09:00:00")
-def base_workflow_instance(metadata_mapping, mocked_s3):
+def base_workflow_instance(mocked_s3):
     return TestWorkflow(batch_id="batch-aaa")
 
 
 @pytest.fixture
-def simple_csv_workflow_instance(metadata_mapping):
+def simple_csv_workflow_instance():
     return TestSimpleCSV(batch_id="batch-aaa")
 
 
@@ -125,12 +125,6 @@ def item_submission_instance(item_submission_dspace_metadata):
             "s3://dsc/workflow/folder/123_02.pdf",
         ],
     )
-
-
-@pytest.fixture
-def metadata_mapping():
-    with open("tests/fixtures/test_metadata_mapping.json") as mapping_file:
-        return json.load(mapping_file)
 
 
 @pytest.fixture

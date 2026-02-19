@@ -29,10 +29,6 @@ class OpenCourseWare(Workflow):
     def metadata_transformer(self) -> type[OpenCourseWareTransformer]:
         return OpenCourseWareTransformer
 
-    @property
-    def metadata_mapping_path(self) -> str:
-        return "dsc/workflows/opencourseware/metadata_mapping.json"
-
     def get_batch_bitstream_uris(self) -> list[str]:
         """Get list of URIs for all zipfiles within the batch folder."""
         s3_client = S3Client()

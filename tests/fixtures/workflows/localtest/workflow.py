@@ -15,10 +15,6 @@ class TestWorkflow(Workflow):
         return TestTransformer
 
     @property
-    def metadata_mapping_path(self) -> str:
-        return "tests/fixtures/test_metadata_mapping.json"
-
-    @property
     def output_queue(self) -> str:
         return "mock-output-queue"
 
@@ -78,10 +74,6 @@ class TestSimpleCSV(SimpleCSV):
     @property
     def metadata_transformer(self) -> type[TestTransformer]:
         return TestTransformer
-
-    @property
-    def metadata_mapping_path(self) -> str:
-        return "tests/fixtures/test_metadata_mapping.json"
 
     @property
     def item_identifier_column_names(self) -> list[str]:

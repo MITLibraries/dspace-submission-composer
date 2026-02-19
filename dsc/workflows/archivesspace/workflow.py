@@ -29,10 +29,6 @@ class ArchivesSpace(SimpleCSV):
         return ArchivesSpaceTransformer
 
     @property
-    def metadata_mapping_path(self) -> str:
-        return "dsc/workflows/archivesspace/metadata_mapping.json"
-
-    @property
     def output_path(self) -> str:
         return "output-bucket"
 

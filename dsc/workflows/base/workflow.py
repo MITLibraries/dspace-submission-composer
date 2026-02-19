@@ -138,16 +138,6 @@ class Workflow(ABC):
     def metadata_transformer(self) -> type[Transformer]:
         """Transformer for source metadata."""
 
-    @property
-    @abstractmethod
-    def metadata_mapping_path(self) -> str:
-        """Path to the JSON metadata mapping file for the workflow."""
-
-    @property
-    def metadata_mapping(self) -> dict:
-        with open(self.metadata_mapping_path) as mapping_file:
-            return json.load(mapping_file)
-
     @final
     @property
     def s3_bucket(self) -> str:
