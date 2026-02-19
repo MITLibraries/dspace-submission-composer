@@ -24,7 +24,10 @@ class OpenCourseWare(Workflow):
     """
 
     workflow_name: str = "opencourseware"
-    metadata_transformer = OpenCourseWareTransformer
+
+    @property
+    def metadata_transformer(self) -> type[OpenCourseWareTransformer]:
+        return OpenCourseWareTransformer
 
     @property
     def metadata_mapping_path(self) -> str:
@@ -43,7 +46,7 @@ class OpenCourseWare(Workflow):
         )
 
     def item_metadata_iter(self) -> Iterator[dict[str, Any]]:
-        """Yield item metadata from metadata JSON file in the zip file.
+        """Yield transformed metadata from metadata JSON file in the zip file.
 
         If the zip file does not include a metadata JSON file (data.json),
         this method yields a dict containing only the item identifier.
@@ -52,6 +55,10 @@ class OpenCourseWare(Workflow):
 
         NOTE: Item identifiers are retrieved from the filenames of the zip
         files, which follow the naming format "<item_identifier>.zip".
+
+        Yields:
+            A dict containing the item identifier and Dublin Core metadata
+            for DSpace.
         """
         for file in self.batch_bitstream_uris:
             try:

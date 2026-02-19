@@ -30,6 +30,7 @@ if TYPE_CHECKING:  # pragma: no cover
     from mypy_boto3_sqs.type_defs import MessageTypeDef
 
     from dsc.reports import Report
+    from dsc.workflows.base import Transformer
 
 logger = logging.getLogger(__name__)
 CONFIG = Config()
@@ -131,6 +132,11 @@ class Workflow(ABC):
         # cache list of bitstreams
         self._batch_bitstream_uris: list[str] | None = None
         self._batch_dspace_metadata_json_uris: list[str] | None = None
+
+    @property
+    @abstractmethod
+    def metadata_transformer(self) -> type[Transformer]:
+        """Transformer for source metadata."""
 
     @property
     @abstractmethod
