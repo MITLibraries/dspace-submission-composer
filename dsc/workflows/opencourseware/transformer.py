@@ -1,40 +1,30 @@
-import inspect
-import json
-import logging
-import zipfile
-from collections.abc import Iterable, Iterator
-from typing import Any, ClassVar
+from collections.abc import Iterable
+from typing import ClassVar
 
-import smart_open
-
-from dsc.exceptions import ItemMetadataNotFoundError
-from dsc.utilities.aws.s3 import S3Client
-from dsc.workflows.base import Workflow
-
-logger = logging.getLogger(__name__)
+from dsc.workflows.base import Transformer
 
 
-class OpenCourseWareTransformer:
+class OpenCourseWareTransformer(Transformer):
     """Transformer for OpenCourseWare (OCW) source metadata."""
 
-    fields: Iterable[str] = [
-        # fields with derived values
-        "dc_title",
-        "dc_date_issued",
-        "dc_description_abstract",
-        "dc_contributor_author",
-        "dc_contributor_department",
-        "creativework_learningresourcetype",
-        "dc_subject",
-        "dc_identifier_other",
-        "dc_coverage_temporal",
-        "dc_audience_educationlevel",
-        # fields with static values
-        "dc_type",
-        "dc_rights",
-        "dc_rights_uri",
-        "dc_language_iso",
-    ]
+    @classmethod
+    def optional_fields(cls) -> Iterable[str]:
+        return [
+            # fields with derived values
+            "dc.description.abstract",
+            "dc.contributor.author",
+            "dc.contributor.department",
+            "creativework.learningresourcetype",
+            "dc.subject",
+            "dc.identifier.other",
+            "dc.coverage.temporal",
+            "dc.audience.educationlevel",
+            # fields with static values
+            "dc.type",
+            "dc.rights",
+            "dc.rights.uri",
+            "dc.language.iso",
+        ]
 
     department_mappings: ClassVar = {
         "1": "Massachusetts Institute of Technology. Department of Civil and Environmental Engineering",  # noqa: E501
@@ -75,27 +65,6 @@ class OpenCourseWareTransformer:
         "ESG": "MIT Experimental Study Group",
         "EC": "Edgerton Center (Massachusetts Institute of Technology)",
     }
-
-    @classmethod
-    def transform(cls, source_metadata: dict) -> dict:
-        """Transform source metadata."""
-        transformed_metadata: dict[str, Any] = {}
-
-        if not source_metadata:
-            return transformed_metadata
-
-        for field in cls.fields:
-            field_method = getattr(cls, field)
-            formatted_field_name = field.replace("_", ".")
-
-            # check if 'source_metadata' is in signature
-            signature = inspect.signature(field_method)
-            if "source_metadata" in signature.parameters:
-                transformed_metadata[formatted_field_name] = field_method(source_metadata)
-            else:
-                transformed_metadata[formatted_field_name] = field_method()
-
-        return transformed_metadata
 
     @classmethod
     def dc_title(cls, source_metadata: dict) -> str:
@@ -314,119 +283,3 @@ class OpenCourseWareTransformer:
     @classmethod
     def dc_language_iso(cls) -> str:
         return "en_US"
-
-
-class OpenCourseWare(Workflow):
-    """Workflow for OpenCourseWare (OCW) deposits.
-
-    The deposits managed by this workflow are requested by the
-    Scholarly Communications and Collections Strategy (SCCS) department
-    and were previously deposited into DSpace@MIT by Technical services staff.
-    """
-
-    workflow_name: str = "opencourseware"
-    metadata_transformer = OpenCourseWareTransformer
-
-    @property
-    def metadata_mapping_path(self) -> str:
-        return "dsc/workflows/metadata_mapping/opencourseware.json"
-
-    def get_batch_bitstream_uris(self) -> list[str]:
-        """Get list of URIs for all zipfiles within the batch folder."""
-        s3_client = S3Client()
-        return list(
-            s3_client.files_iter(
-                bucket=self.s3_bucket,
-                prefix=self.batch_path,
-                file_type=".zip",
-                exclude_prefixes=self.exclude_prefixes,
-            )
-        )
-
-    def item_metadata_iter(self) -> Iterator[dict[str, Any]]:
-        """Yield item metadata from metadata JSON file in the zip file.
-
-        If the zip file does not include a metadata JSON file (data.json),
-        this method yields a dict containing only the item identifier.
-        Otherwise, a dict containing the item identifier and transformed metadata
-        is yielded.
-
-        NOTE: Item identifiers are retrieved from the filenames of the zip
-        files, which follow the naming format "<item_identifier>.zip".
-        """
-        for file in self.batch_bitstream_uris:
-            try:
-                source_metadata = self._read_metadata_from_zip_file(file)
-            except FileNotFoundError:
-                source_metadata = {}
-
-            transformed_metadata = self.metadata_transformer.transform(source_metadata)
-
-            yield {
-                "item_identifier": self._parse_item_identifier(file),
-                **transformed_metadata,
-            }
-
-    def _read_metadata_from_zip_file(self, file: str) -> dict[str, str]:
-        """Read source metadata JSON file in zip archive.
-
-        This method expects a JSON file called "data.json" at the root
-        level of the the zip file.
-
-        Args:
-            file: Object prefix for bitstream zip file, formatted as the
-                path from the S3 bucket to the file.
-                Given an S3 URI "s3://dsc/opencourseware/batch-00/123.zip",
-                then file = "opencourseware/batch-00/123.zip".
-        """
-        with (
-            smart_open.open(file, "rb") as file_input,
-            zipfile.ZipFile(file_input) as zip_file,
-            zip_file.open("data.json") as json_file,
-        ):
-            return json.load(json_file)
-
-    def _parse_item_identifier(self, file: str) -> str:
-        """Parse item identifier from bitstream zip file."""
-        return file.split("/")[-1].removesuffix(".zip")
-
-    def prepare_batch(
-        self,
-        *,
-        synced: bool = False,  # noqa: ARG002
-    ) -> tuple[list, ...]:
-        """Prepare a batch of item submissions, given a batch of zip files.
-
-        For this workflow, the expected number of item submissions is determined
-        by the number of zip files in the batch folder. This method will iterate
-        over the yielded transformed metadata, checking whether metadata is provided:
-
-        - If only the item identifier is provided and no other metadata is available,
-          an error is recorded
-        - If metadata is present, init params are generated for the item submission
-
-        For the OpenCourseWare workflow, the batch preparation steps are the same
-        for synced vs. non-synced workflows.
-        """
-        item_submissions = []
-        errors = []
-
-        for item_metadata in self.item_metadata_iter():
-            # check if metadata is provided
-            # item identifier is always returned by iter
-            if len(item_metadata) == 1 and "item_identifier" in item_metadata:
-                errors.append(
-                    (item_metadata["item_identifier"], str(ItemMetadataNotFoundError()))
-                )
-                continue
-
-            # if item submission includes metadata, save init params
-            item_submissions.append(
-                {
-                    "batch_id": self.batch_id,
-                    "item_identifier": item_metadata["item_identifier"],
-                    "workflow_name": self.workflow_name,
-                }
-            )
-
-        return item_submissions, errors

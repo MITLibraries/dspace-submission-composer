@@ -3,13 +3,10 @@ from datetime import UTC, datetime
 from unittest.mock import patch
 
 import pytest
-from botocore.exceptions import ClientError
 from freezegun import freeze_time
 
 from dsc.db.models import ItemSubmissionDB, ItemSubmissionStatus
-from dsc.exceptions import (
-    InvalidWorkflowNameError,
-)
+from dsc.exceptions import InvalidWorkflowNameError, SQSMessageSendError
 from dsc.reports import FinalizeReport
 from dsc.workflows.base import Workflow
 
@@ -19,10 +16,6 @@ def test_base_workflow_init_with_defaults_success():
     workflow_instance = workflow_class(batch_id="batch-aaa")
     assert workflow_instance.workflow_name == "test"
     assert workflow_instance.submission_system == "Test@MIT"
-    assert (
-        workflow_instance.metadata_mapping_path
-        == "tests/fixtures/test_metadata_mapping.json"
-    )
     assert workflow_instance.batch_id == "batch-aaa"
     assert workflow_instance.s3_bucket == "dsc"
     assert workflow_instance.output_queue == "mock-output-queue"
@@ -44,7 +37,7 @@ def test_base_workflow_get_workflow_invalid_workflow_name_raises_error(
 def test_base_workflow_create_batch_in_db_success(
     base_workflow_instance, mocked_item_submission_db
 ):
-    item_submissions, _ = base_workflow_instance.prepare_batch()
+    item_submissions, _ = base_workflow_instance._prepare_batch()  # noqa: SLF001
     base_workflow_instance._create_batch_in_db(item_submissions)  # noqa: SLF001
     item_submission = ItemSubmissionDB.get(hash_key="batch-aaa", range_key="123")
 
@@ -62,9 +55,25 @@ def test_base_workflow_submit_items_success(
     mocked_item_submission_db,
 ):
     caplog.set_level("DEBUG")
+
+    # mock upload bitstreams
     s3_client.put_file(file_content="", bucket="dsc", key="test/batch-aaa/123_01.pdf")
     s3_client.put_file(file_content="", bucket="dsc", key="test/batch-aaa/123_02.jpg")
     s3_client.put_file(file_content="", bucket="dsc", key="test/batch-aaa/789_01.pdf")
+
+    # mock upload dspace metadata json
+    s3_client.put_file(
+        file_content="",
+        bucket="dsc",
+        key="test/batch-aaa/dspace_metadata/123_metadata.json",
+    )
+    s3_client.put_file(
+        file_content="",
+        bucket="dsc",
+        key="test/batch-aaa/dspace_metadata/789_metadata.json",
+    )
+
+    # mock current state of Dynamodb table
     ItemSubmissionDB(
         item_identifier="123",
         batch_id="batch-aaa",
@@ -77,6 +86,7 @@ def test_base_workflow_submit_items_success(
         workflow_name="test",
         status=ItemSubmissionStatus.BATCH_CREATED,
     ).create()
+
     items = base_workflow_instance.submit_items(collection_handle="123.4/5678")
 
     expected_submission_summary = {"total": 2, "submitted": 2, "skipped": 0, "errors": 0}
@@ -85,15 +95,30 @@ def test_base_workflow_submit_items_success(
     assert json.dumps(expected_submission_summary) in caplog.text
 
 
-def test_base_workflow_submit_items_failed_ready_to_submit_is_skipped(
+def test_base_workflow_submit_items_skips_ingested_item(
     caplog,
     base_workflow_instance,
+    s3_client,
     mocked_s3,
     mocked_sqs_input,
     mocked_sqs_output,
     mocked_item_submission_db,
 ):
     caplog.set_level("DEBUG")
+
+    # mock upload dspace metadata json
+    s3_client.put_file(
+        file_content="",
+        bucket="dsc",
+        key="test/batch-aaa/dspace_metadata/123_metadata.json",
+    )
+    s3_client.put_file(
+        file_content="",
+        bucket="dsc",
+        key="test/batch-aaa/dspace_metadata/789_metadata.json",
+    )
+
+    # mock current state of Dynamodb table
     ItemSubmissionDB(
         item_identifier="123",
         batch_id="batch-aaa",
@@ -123,6 +148,7 @@ def test_base_workflow_submit_items_exceptions_handled(
     mocked_method,
     caplog,
     base_workflow_instance,
+    s3_client,
     mocked_s3,
     mocked_sqs_input,
     mocked_sqs_output,
@@ -130,17 +156,23 @@ def test_base_workflow_submit_items_exceptions_handled(
 ):
     side_effect = [
         {"MessageId": "abcd", "ResponseMetadata": {"HTTPStatusCode": 200}},
-        ClientError(
-            {
-                "Error": {
-                    "Code": "InvalidParameterValue",
-                    "Message": "The specified S3 bucket does not exist.",
-                }
-            },
-            "SendMessage",
-        ),
+        SQSMessageSendError,
     ]
     mocked_method.side_effect = side_effect
+
+    # mock upload dspace metadata json
+    s3_client.put_file(
+        file_content="",
+        bucket="dsc",
+        key="test/batch-aaa/dspace_metadata/123_metadata.json",
+    )
+    s3_client.put_file(
+        file_content="",
+        bucket="dsc",
+        key="test/batch-aaa/dspace_metadata/789_metadata.json",
+    )
+
+    # mock current state of Dynamodb table
     ItemSubmissionDB(
         item_identifier="123",
         batch_id="batch-aaa",

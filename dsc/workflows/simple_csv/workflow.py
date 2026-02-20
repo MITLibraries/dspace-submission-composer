@@ -1,4 +1,5 @@
 import logging
+from abc import abstractmethod
 from collections.abc import Iterator
 
 import numpy as np
@@ -6,8 +7,9 @@ import pandas as pd
 import smart_open
 
 from dsc.exceptions import ItemBitstreamsNotFoundError
+from dsc.item_submission import ItemSubmission
 from dsc.utilities.aws import S3Client
-from dsc.workflows.base import Workflow
+from dsc.workflows.base import Transformer, Workflow
 
 logger = logging.getLogger(__name__)
 
@@ -20,6 +22,11 @@ class SimpleCSV(Workflow):
     """
 
     workflow_name: str = "simple-csv"
+
+    @property
+    @abstractmethod
+    def metadata_transformer(self) -> type[Transformer]:
+        """Transformer for source metadata."""
 
     @property
     def item_identifier_column_names(self) -> list[str]:
@@ -35,14 +42,25 @@ class SimpleCSV(Workflow):
         )
 
     def item_metadata_iter(self, metadata_file: str = "metadata.csv") -> Iterator[dict]:
-        """Yield dicts of item metadata from metadata CSV file.
+        """Yield transformed metadata from metadata CSV file.
+
+        This method will read rows from the metadata CSV file then call
+        self.metadata_transformer.transform to generate Dublin Core
+        metadata for DSpace. A dict where keys = dc.element.qualifier and
+        value = transformed/mapped value is returned. For logging purposes,
+        the dict includes an entry for 'item_identifier'.
+
+        If self.metadata_transformer.transform returns None (i.e.,
+        something went wrong with transformation), the yielded dict will
+        only include the 'item_identifier'.
 
         Args:
             metadata_file: Metadata CSV filename with the filename extension
                 (.csv) included. Defaults to 'metadata.csv'.
 
         Yields:
-            Item metadata.
+            A dict containing the item identifier and Dublin Core metadata
+            for DSpace.
         """
         with smart_open.open(
             f"s3://{self.s3_bucket}/{self.batch_path}{metadata_file}",
@@ -73,12 +91,26 @@ class SimpleCSV(Workflow):
 
             for _, row in metadata_df.iterrows():
                 # replace all NaN values with None
-                yield {
+                source_metadata = {
                     k: (None if isinstance(v, float) and np.isnan(v) else v)
                     for k, v in row.items()
                 }
 
-    def prepare_batch(
+                transformed_metadata = self.metadata_transformer.transform(
+                    source_metadata
+                )
+
+                if transformed_metadata:
+                    yield {
+                        "item_identifier": source_metadata["item_identifier"],
+                        **transformed_metadata,
+                    }
+                else:
+                    yield {
+                        "item_identifier": source_metadata["item_identifier"],
+                    }
+
+    def _prepare_batch(
         self,
         *,
         synced: bool = False,  # noqa: ARG002
@@ -112,13 +144,19 @@ class SimpleCSV(Workflow):
                 )
                 continue
 
-            # if item submission has associated bitstreams, save init params
+            # copy transformed metadata, excluding 'item_identifier'
+            dspace_metadata = {
+                k: v for k, v in item_metadata.items() if k != "item_identifier"
+            }
+
+            # create ItemSubmission
             item_submissions.append(
-                {
-                    "batch_id": self.batch_id,
-                    "item_identifier": item_metadata["item_identifier"],
-                    "workflow_name": self.workflow_name,
-                }
+                ItemSubmission(
+                    batch_id=self.batch_id,
+                    item_identifier=item_metadata["item_identifier"],
+                    workflow_name=self.workflow_name,
+                    dspace_metadata=dspace_metadata,
+                )
             )
 
         return item_submissions, errors

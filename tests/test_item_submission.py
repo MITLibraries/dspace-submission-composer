@@ -7,15 +7,15 @@ from botocore.exceptions import ClientError
 from dsc.db.models import ItemSubmissionDB, ItemSubmissionStatus
 from dsc.exceptions import (
     DSpaceMetadataUploadError,
-    InvalidDSpaceMetadataError,
-    ItemMetadatMissingRequiredFieldError,
     SQSMessageSendError,
 )
 from dsc.item_submission import ItemSubmission
 
 
-def test_itemsubmission_init_success(item_submission_instance, dspace_metadata):
-    assert item_submission_instance.dspace_metadata == dspace_metadata
+def test_itemsubmission_init_success(
+    item_submission_instance, item_submission_dspace_metadata
+):
+    assert item_submission_instance.dspace_metadata == item_submission_dspace_metadata
     assert item_submission_instance.bitstream_s3_uris == [
         "s3://dsc/workflow/folder/123_01.pdf",
         "s3://dsc/workflow/folder/123_02.pdf",
@@ -155,65 +155,41 @@ def test_itemsubmission_ready_to_submit_with_ingest_failed(item_submission_insta
     assert item_submission_instance.ready_to_submit() is True
 
 
-def test_itemsubmission_create_dspace_metadata_success(
-    item_submission_instance, item_metadata, metadata_mapping
+def test_itemsubmission_create_dspace_metadataentry_success(
+    item_submission_instance,
 ):
-    item_metadata["topics"] = [
+    item_submission_instance.dspace_metadata["dc.subject"] = [
         "Topic Header - Topic Subheading - Topic Name",
         "Topic Header 2 - Topic Subheading 2 - Topic Name 2",
     ]
-    item_submission_instance.create_dspace_metadata(item_metadata, metadata_mapping)
-    assert item_submission_instance.dspace_metadata == {
+    assert item_submission_instance._create_dspace_metadataentry() == {  # noqa: SLF001
         "metadata": [
-            {"key": "dc.title", "language": "en_US", "value": "Title"},
-            {"key": "dc.contributor", "language": None, "value": "Author 1"},
-            {"key": "dc.contributor", "language": None, "value": "Author 2"},
+            {"key": "dc.title", "value": "Title"},
+            {"key": "dc.date.issued", "value": "2026"},
+            {"key": "dc.contributor.author", "value": "Author 1"},
+            {"key": "dc.contributor.author", "value": "Author 2"},
             {
                 "key": "dc.subject",
-                "language": None,
                 "value": "Topic Header - Topic Subheading - Topic Name",
             },
             {
                 "key": "dc.subject",
-                "language": None,
                 "value": "Topic Header 2 - Topic Subheading 2 - Topic Name 2",
             },
         ]
     }
 
 
-def test_itemsubmission_create_dspace_metadata_required_field_missing_raises_exception(
-    item_submission_instance, item_metadata, metadata_mapping
-):
-    item_metadata.pop("title")
-    with pytest.raises(ItemMetadatMissingRequiredFieldError):
-        item_submission_instance.create_dspace_metadata(item_metadata, metadata_mapping)
-
-
-def test_itemsubmission_validate_dspace_metadata_success(
-    item_submission_instance,
-    dspace_metadata,
-):
-    item_submission_instance.dspace_metadata = dspace_metadata
-    assert item_submission_instance.validate_dspace_metadata()
-
-
-def test_itemsubmission_validate_dspace_metadata_invalid_raises_exception(
-    item_submission_instance,
-):
-    item_submission_instance.dspace_metadata = {}
-    with pytest.raises(InvalidDSpaceMetadataError):
-        item_submission_instance.validate_dspace_metadata()
-
-
 def test_itemsubmission_upload_dspace_metadata_success(
     mocked_s3, item_submission_instance, s3_client
 ):
-    item_submission_instance.upload_dspace_metadata("dsc", "workflow/folder/")
     assert (
-        item_submission_instance.metadata_s3_uri
+        item_submission_instance._upload_dspace_metadata(  # noqa: SLF001
+            "dsc", "workflow/folder/"
+        )
         == "s3://dsc/workflow/folder/dspace_metadata/123_metadata.json"
     )
+
     response = s3_client.client.get_object(
         Bucket="dsc", Key="workflow/folder/dspace_metadata/123_metadata.json"
     )
@@ -236,7 +212,7 @@ def test_itemsubmission_upload_dspace_metadata_raises_custom_exception(
     with pytest.raises(
         DSpaceMetadataUploadError, match="The specified bucket does not exist"
     ):
-        item_submission_instance.upload_dspace_metadata(
+        item_submission_instance._upload_dspace_metadata(  # noqa: SLF001
             bucket="dsc", prefix="test/batch-bbb/"
         )
 

@@ -5,7 +5,8 @@ import smart_open
 
 from dsc.db.models import ItemSubmissionStatus
 from dsc.item_submission import ItemSubmission
-from dsc.workflows.base.simple_csv import SimpleCSV
+from dsc.workflows.archivesspace import ArchivesSpaceTransformer
+from dsc.workflows.simple_csv import SimpleCSV
 
 logger = logging.getLogger(__name__)
 
@@ -24,8 +25,8 @@ class ArchivesSpace(SimpleCSV):
     submission_system: str = "Dome"
 
     @property
-    def metadata_mapping_path(self) -> str:
-        return "dsc/workflows/metadata_mapping/archivesspace.json"
+    def metadata_transformer(self) -> type[ArchivesSpaceTransformer]:
+        return ArchivesSpaceTransformer
 
     @property
     def output_path(self) -> str:

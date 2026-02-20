@@ -14,7 +14,7 @@ class InvalidWorkflowNameError(Exception):
     pass
 
 
-class ItemMetadatMissingRequiredFieldError(Exception):
+class ItemMetadataMissingRequiredFieldError(Exception):
     pass
 
 

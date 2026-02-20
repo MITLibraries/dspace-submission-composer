@@ -6,108 +6,15 @@ import pytest
 from dsc.item_submission import ItemSubmission
 
 
-@patch("dsc.workflows.opencourseware.OpenCourseWare._read_metadata_from_zip_file")
-def test_workflow_ocw_metadata_mapping_dspace_metadata_success(
-    mock_opencourseware_read_metadata_from_zip_file,
-    caplog,
-    mocked_s3,
-    opencourseware_source_metadata,
-    opencourseware_workflow_instance,
-    s3_client,
-):
-    s3_client.put_file(
-        file_content="",
-        bucket="dsc",
-        key="opencourseware/batch-aaa/123.zip",
-    )
-    mock_opencourseware_read_metadata_from_zip_file.return_value = (
-        opencourseware_source_metadata
-    )
-
-    item_submission = ItemSubmission(
-        batch_id="aaa", item_identifier="123", workflow_name="opencourseware"
-    )
-    item_submission.create_dspace_metadata(
-        item_metadata=next(opencourseware_workflow_instance.item_metadata_iter()),
-        metadata_mapping=opencourseware_workflow_instance.metadata_mapping,
-    )
-
-    assert item_submission.dspace_metadata["metadata"] == [
-        {
-            "key": "dc.title",
-            "value": "14.02 Principles of Macroeconomics, Fall 2004",
-            "language": None,
-        },
-        {"key": "dc.date.issued", "value": "2004", "language": None},
-        {
-            "key": "dc.description.abstract",
-            "value": (
-                "This course provides an overview of the following macroeconomic "
-                "issues: the determination of output, employment, unemployment, "
-                "interest rates, and inflation. Monetary and fiscal policies are "
-                "discussed, as are public debt and international economic issues. "
-                "This course also introduces basic models of macroeconomics and "
-                "illustrates principles with the experience of the United States "
-                "and other economies.\n"
-            ),
-            "language": None,
-        },
-        {"key": "dc.contributor.author", "value": "Caballero, Ricardo", "language": None},
-        {
-            "key": "dc.contributor.department",
-            "value": "Massachusetts Institute of Technology. Department of Economics",
-            "language": None,
-        },
-        {
-            "key": "creativework.learningresourcetype",
-            "value": "Problem Sets with Solutions",
-            "language": None,
-        },
-        {
-            "key": "creativework.learningresourcetype",
-            "value": "Exams with Solutions",
-            "language": None,
-        },
-        {
-            "key": "creativework.learningresourcetype",
-            "value": "Lecture Notes",
-            "language": None,
-        },
-        {
-            "key": "dc.subject",
-            "value": "Social Science - Economics - International Economics",
-            "language": None,
-        },
-        {
-            "key": "dc.subject",
-            "value": "Social Science - Economics - Macroeconomics",
-            "language": None,
-        },
-        {"key": "dc.identifier.other", "value": "14.02", "language": None},
-        {"key": "dc.identifier.other", "value": "14.02-Fall2004", "language": None},
-        {"key": "dc.coverage.temporal", "value": "Fall 2004", "language": None},
-        {"key": "dc.audience.educationlevel", "value": "Undergraduate", "language": None},
-        {"key": "dc.type", "value": "Learning Object", "language": None},
-        {
-            "key": "dc.rights",
-            "value": "Attribution-NonCommercial-NoDerivs 4.0 United States",
-            "language": None,
-        },
-        {
-            "key": "dc.rights.uri",
-            "value": "https://creativecommons.org/licenses/by-nc-nd/4.0/deed.en",
-            "language": None,
-        },
-        {"key": "dc.language.iso", "value": "en_US", "language": None},
-    ]
-
-
-@patch("dsc.workflows.opencourseware.OpenCourseWare._read_metadata_from_zip_file")
+@patch(
+    "dsc.workflows.opencourseware.workflow.OpenCourseWare._read_metadata_from_zip_file"
+)
 def test_workflow_ocw_prepare_batch_success(
     mock_opencourseware_read_metadata_from_zip_file,
     mocked_item_submission_db,
     mocked_s3,
-    opencourseware_source_metadata,
+    opencourseware_itemsubmission_source_metadata,
+    opencourseware_itemsubmission_dspace_metadata,
     opencourseware_workflow_instance,
     s3_client,
 ):
@@ -117,27 +24,125 @@ def test_workflow_ocw_prepare_batch_success(
         key="opencourseware/batch-aaa/123.zip",
     )
     mock_opencourseware_read_metadata_from_zip_file.return_value = (
-        opencourseware_source_metadata
+        opencourseware_itemsubmission_source_metadata
     )
 
-    assert opencourseware_workflow_instance.prepare_batch() == (
+    assert opencourseware_workflow_instance._prepare_batch() == (
         [
-            {
-                "batch_id": "batch-aaa",
-                "item_identifier": "123",
-                "workflow_name": "opencourseware",
-            }
+            ItemSubmission(
+                batch_id="batch-aaa",
+                item_identifier="123",
+                workflow_name="opencourseware",
+                dspace_metadata=opencourseware_itemsubmission_dspace_metadata,
+            )
         ],
         [],
     )
 
 
-@patch("dsc.workflows.opencourseware.OpenCourseWare._read_metadata_from_zip_file")
+@patch(
+    "dsc.workflows.opencourseware.workflow.OpenCourseWare._read_metadata_from_zip_file"
+)
+def test_workflow_ocw_itemsubmission_create_dspace_metadataentry_success(
+    mock_opencourseware_read_metadata_from_zip_file,
+    caplog,
+    mocked_s3,
+    opencourseware_itemsubmission_source_metadata,
+    opencourseware_itemsubmission_dspace_metadata,
+    s3_client,
+):
+    s3_client.put_file(
+        file_content="",
+        bucket="dsc",
+        key="opencourseware/batch-aaa/123.zip",
+    )
+    mock_opencourseware_read_metadata_from_zip_file.return_value = (
+        opencourseware_itemsubmission_source_metadata
+    )
+
+    item_submission = ItemSubmission(
+        batch_id="aaa",
+        item_identifier="123",
+        workflow_name="opencourseware",
+        dspace_metadata=opencourseware_itemsubmission_dspace_metadata,
+    )
+
+    assert item_submission._create_dspace_metadataentry() == {
+        "metadata": [
+            {
+                "key": "dc.title",
+                "value": "14.02 Principles of Macroeconomics, Fall 2004",
+            },
+            {"key": "dc.date.issued", "value": "2004"},
+            {
+                "key": "dc.description.abstract",
+                "value": (
+                    "This course provides an overview of the following macroeconomic "
+                    "issues: the determination of output, employment, unemployment, "
+                    "interest rates, and inflation. Monetary and fiscal policies are "
+                    "discussed, as are public debt and international economic issues. "
+                    "This course also introduces basic models of macroeconomics and "
+                    "illustrates principles with the experience of the United States "
+                    "and other economies.\n"
+                ),
+            },
+            {
+                "key": "dc.contributor.author",
+                "value": "Caballero, Ricardo",
+            },
+            {
+                "key": "dc.contributor.department",
+                "value": "Massachusetts Institute of Technology. Department of Economics",
+            },
+            {
+                "key": "creativework.learningresourcetype",
+                "value": "Problem Sets with Solutions",
+            },
+            {
+                "key": "creativework.learningresourcetype",
+                "value": "Exams with Solutions",
+            },
+            {
+                "key": "creativework.learningresourcetype",
+                "value": "Lecture Notes",
+            },
+            {
+                "key": "dc.subject",
+                "value": "Social Science - Economics - International Economics",
+            },
+            {
+                "key": "dc.subject",
+                "value": "Social Science - Economics - Macroeconomics",
+            },
+            {"key": "dc.identifier.other", "value": "14.02"},
+            {"key": "dc.identifier.other", "value": "14.02-Fall2004"},
+            {"key": "dc.coverage.temporal", "value": "Fall 2004"},
+            {
+                "key": "dc.audience.educationlevel",
+                "value": "Undergraduate",
+            },
+            {"key": "dc.type", "value": "Learning Object"},
+            {
+                "key": "dc.rights",
+                "value": "Attribution-NonCommercial-NoDerivs 4.0 United States",
+            },
+            {
+                "key": "dc.rights.uri",
+                "value": "https://creativecommons.org/licenses/by-nc-nd/4.0/deed.en",
+            },
+            {"key": "dc.language.iso", "value": "en_US"},
+        ]
+    }
+
+
+@patch(
+    "dsc.workflows.opencourseware.workflow.OpenCourseWare._read_metadata_from_zip_file"
+)
 def test_workflow_ocw_item_metadata_iter_success(
     mock_opencourseware_read_metadata_from_zip_file,
     caplog,
     mocked_s3,
-    opencourseware_source_metadata,
+    opencourseware_itemsubmission_source_metadata,
     opencourseware_workflow_instance,
     s3_client,
 ):
@@ -147,7 +152,7 @@ def test_workflow_ocw_item_metadata_iter_success(
         key="opencourseware/batch-aaa/123.zip",
     )
     mock_opencourseware_read_metadata_from_zip_file.return_value = (
-        opencourseware_source_metadata
+        opencourseware_itemsubmission_source_metadata
     )
     assert next(opencourseware_workflow_instance.item_metadata_iter()) == {
         "item_identifier": "123",
@@ -186,7 +191,7 @@ def test_workflow_ocw_item_metadata_iter_success(
 
 def test_workflow_ocw_read_metadata_from_zip_file_success(
     mocked_s3,
-    opencourseware_source_metadata,
+    opencourseware_itemsubmission_source_metadata,
     opencourseware_workflow_instance,
 ):
     """Read source metadata JSON file from test zip file.
@@ -205,7 +210,7 @@ def test_workflow_ocw_read_metadata_from_zip_file_success(
         opencourseware_workflow_instance._read_metadata_from_zip_file(
             "s3://dsc/opencourseware/batch-aaa/123.zip"
         )
-        == opencourseware_source_metadata
+        == opencourseware_itemsubmission_source_metadata
     )
 
 
