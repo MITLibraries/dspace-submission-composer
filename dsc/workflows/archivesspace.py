@@ -50,9 +50,7 @@ class ArchivesSpace(SimpleCSV):
         ]
         for item_submission in successful_item_submissions:
             handle_uri_mapping[item_submission.source_system_identifier] = (
-                item_submission.dspace_handle
-                if item_submission.dspace_handle
-                else "DSpace handle not set, possible error"
+                item_submission.dspace_handle or "DSpace handle not set, possible error"
             )
         if not handle_uri_mapping:
             logger.info(
@@ -66,9 +64,7 @@ class ArchivesSpace(SimpleCSV):
                 {
                     "ao_uri": item.source_system_identifier,
                     "dspace_handle": (
-                        item.dspace_handle
-                        if item.dspace_handle
-                        else "DSpace handle not set, possible error"
+                        item.dspace_handle or "DSpace handle not set, possible error"
                     ),
                 }
                 for item in successful_item_submissions
