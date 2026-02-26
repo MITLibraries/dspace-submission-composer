@@ -32,74 +32,49 @@ def test_workflow_ocw_metadata_mapping_dspace_metadata_success(
         metadata_mapping=opencourseware_workflow_instance.metadata_mapping,
     )
 
-    assert item_submission.dspace_metadata["metadata"] == [
-        {
-            "key": "dc.title",
-            "value": "14.02 Principles of Macroeconomics, Fall 2004",
-            "language": None,
-        },
-        {"key": "dc.date.issued", "value": "2004", "language": None},
-        {
-            "key": "dc.description.abstract",
-            "value": (
-                "This course provides an overview of the following macroeconomic "
-                "issues: the determination of output, employment, unemployment, "
-                "interest rates, and inflation. Monetary and fiscal policies are "
-                "discussed, as are public debt and international economic issues. "
-                "This course also introduces basic models of macroeconomics and "
-                "illustrates principles with the experience of the United States "
-                "and other economies.\n"
-            ),
-            "language": None,
-        },
-        {"key": "dc.contributor.author", "value": "Caballero, Ricardo", "language": None},
-        {
-            "key": "dc.contributor.department",
-            "value": "Massachusetts Institute of Technology. Department of Economics",
-            "language": None,
-        },
-        {
-            "key": "creativework.learningresourcetype",
-            "value": "Problem Sets with Solutions",
-            "language": None,
-        },
-        {
-            "key": "creativework.learningresourcetype",
-            "value": "Exams with Solutions",
-            "language": None,
-        },
-        {
-            "key": "creativework.learningresourcetype",
-            "value": "Lecture Notes",
-            "language": None,
-        },
-        {
-            "key": "dc.subject",
-            "value": "Social Science - Economics - International Economics",
-            "language": None,
-        },
-        {
-            "key": "dc.subject",
-            "value": "Social Science - Economics - Macroeconomics",
-            "language": None,
-        },
-        {"key": "dc.identifier.other", "value": "14.02", "language": None},
-        {"key": "dc.identifier.other", "value": "14.02-Fall2004", "language": None},
-        {"key": "dc.coverage.temporal", "value": "Fall 2004", "language": None},
-        {"key": "dc.audience.educationlevel", "value": "Undergraduate", "language": None},
-        {"key": "dc.type", "value": "Learning Object", "language": None},
-        {
-            "key": "dc.rights",
-            "value": "Attribution-NonCommercial-NoDerivs 4.0 United States",
-            "language": None,
-        },
-        {
-            "key": "dc.rights.uri",
-            "value": "https://creativecommons.org/licenses/by-nc-nd/4.0/deed.en",
-            "language": None,
-        },
-        {"key": "dc.language.iso", "value": "en_US", "language": None},
-    ]
+    assert item_submission.dspace_metadata == {
+        "dc.title": [
+            {
+                "value": "14.02 Principles of Macroeconomics, Fall 2004",
+            }
+        ],
+        "dc.date.issued": [{"value": "2004"}],
+        "dc.description.abstract": [
+            {
+                "value": (
+                    "This course provides an overview of the following macroeconomic "
+                    "issues: the determination of output, employment, unemployment, "
+                    "interest rates, and inflation. Monetary and fiscal policies are "
+                    "discussed, as are public debt and international economic issues. "
+                    "This course also introduces basic models of macroeconomics and "
+                    "illustrates principles with the experience of the United States "
+                    "and other economies.\n"
+                )
+            }
+        ],
+        "dc.contributor.author": [{"value": "Caballero, Ricardo"}],
+        "dc.contributor.department": [
+            {"value": "Massachusetts Institute of Technology. Department of Economics"}
+        ],
+        "creativework.learningresourcetype": [
+            {"value": "Problem Sets with Solutions"},
+            {"value": "Exams with Solutions"},
+            {"value": "Lecture Notes"},
+        ],
+        "dc.subject": [
+            {"value": "Social Science - Economics - International Economics"},
+            {"value": "Social Science - Economics - Macroeconomics"},
+        ],
+        "dc.identifier.other": [{"value": "14.02"}, {"value": "14.02-Fall2004"}],
+        "dc.coverage.temporal": [{"value": "Fall 2004"}],
+        "dc.audience.educationlevel": [{"value": "Undergraduate"}],
+        "dc.type": [{"value": "Learning Object"}],
+        "dc.rights": [{"value": "Attribution-NonCommercial-NoDerivs 4.0 United States"}],
+        "dc.rights.uri": [
+            {"value": "https://creativecommons.org/licenses/by-nc-nd/4.0/deed.en"}
+        ],
+        "dc.language.iso": [{"value": "en_US"}],
+    }
 
 
 @patch("dsc.workflows.opencourseware.OpenCourseWare._read_metadata_from_zip_file")
