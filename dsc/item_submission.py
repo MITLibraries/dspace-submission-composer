@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import logging
+from collections import defaultdict
 from dataclasses import dataclass, fields
 from typing import TYPE_CHECKING, Any
 
@@ -12,7 +13,6 @@ from dsc.config import Config
 from dsc.db.models import ITEM_SUBMISSION_LOG_STR, ItemSubmissionDB, ItemSubmissionStatus
 from dsc.exceptions import (
     DSpaceMetadataUploadError,
-    InvalidDSpaceMetadataError,
     ItemMetadatMissingRequiredFieldError,
     SQSMessageSendError,
 )
@@ -256,13 +256,12 @@ class ItemSubmission:
             item_metadata=item_metadata,
             metadata_mapping=metadata_mapping,
         )
-        self.validate_dspace_metadata()
         self.upload_dspace_metadata(bucket=s3_bucket, prefix=batch_path)
 
     def create_dspace_metadata(
         self, item_metadata: dict[str, Any], metadata_mapping: dict
     ) -> None:
-        """Create DSpace metadata from the item's source metadata.
+        """Create item metadata for DSpace 8.
 
         A metadata mapping is a dict with the format seen below:
 
@@ -285,9 +284,10 @@ class ItemSubmission:
             metadata_mapping: A mapping of DSpace metadata fields to source metadata
             fields.
         """
-        metadata_entries = []
+        metadata = defaultdict(list)
+
         for field_name, field_mapping in metadata_mapping.items():
-            if field_name not in ["item_identifier"]:
+            if field_name != "item_identifier":
 
                 field_value = item_metadata.get(field_mapping["source_field_name"])
                 if not field_value and field_mapping.get("required", False):
@@ -304,35 +304,10 @@ class ItemSubmission:
                     else:
                         field_values = [field_value]
 
-                    metadata_entries.extend(
-                        [
-                            {
-                                "key": field_name,
-                                "value": value,
-                                "language": field_mapping.get("language"),
-                            }
-                            for value in field_values
-                        ]
+                    metadata[field_name].extend(
+                        [{"value": value} for value in field_values]
                     )
-        self.dspace_metadata = {"metadata": metadata_entries}
-
-    def validate_dspace_metadata(self) -> bool:
-        """Validate that DSpace metadata follows the expected format for DSpace 6.x.
-
-        Args:
-            dspace_metadata: DSpace metadata to be validated.
-        """
-        valid = False
-        if self.dspace_metadata and self.dspace_metadata.get("metadata") is not None:
-            for element in self.dspace_metadata["metadata"]:
-                if element.get("key") is not None and element.get("value") is not None:
-                    valid = True
-            logger.debug("Valid DSpace metadata created")
-        else:
-            raise InvalidDSpaceMetadataError(
-                f"Invalid DSpace metadata created: {self.dspace_metadata} ",
-            )
-        return valid
+        self.dspace_metadata = dict(metadata)
 
     def upload_dspace_metadata(self, bucket: str, prefix: str) -> None:
         """Upload DSpace metadata to S3 using the specified bucket and keyname.

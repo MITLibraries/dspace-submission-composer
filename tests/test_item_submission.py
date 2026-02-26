@@ -7,7 +7,6 @@ from botocore.exceptions import ClientError
 from dsc.db.models import ItemSubmissionDB, ItemSubmissionStatus
 from dsc.exceptions import (
     DSpaceMetadataUploadError,
-    InvalidDSpaceMetadataError,
     ItemMetadatMissingRequiredFieldError,
     SQSMessageSendError,
 )
@@ -164,21 +163,14 @@ def test_itemsubmission_create_dspace_metadata_success(
     ]
     item_submission_instance.create_dspace_metadata(item_metadata, metadata_mapping)
     assert item_submission_instance.dspace_metadata == {
-        "metadata": [
-            {"key": "dc.title", "language": "en_US", "value": "Title"},
-            {"key": "dc.contributor", "language": None, "value": "Author 1"},
-            {"key": "dc.contributor", "language": None, "value": "Author 2"},
+        "dc.title": [{"value": "Title"}],
+        "dc.contributor": [{"value": "Author 1"}, {"value": "Author 2"}],
+        "dc.subject": [
             {
-                "key": "dc.subject",
-                "language": None,
                 "value": "Topic Header - Topic Subheading - Topic Name",
             },
-            {
-                "key": "dc.subject",
-                "language": None,
-                "value": "Topic Header 2 - Topic Subheading 2 - Topic Name 2",
-            },
-        ]
+            {"value": "Topic Header 2 - Topic Subheading 2 - Topic Name 2"},
+        ],
     }
 
 
@@ -188,22 +180,6 @@ def test_itemsubmission_create_dspace_metadata_required_field_missing_raises_exc
     item_metadata.pop("title")
     with pytest.raises(ItemMetadatMissingRequiredFieldError):
         item_submission_instance.create_dspace_metadata(item_metadata, metadata_mapping)
-
-
-def test_itemsubmission_validate_dspace_metadata_success(
-    item_submission_instance,
-    dspace_metadata,
-):
-    item_submission_instance.dspace_metadata = dspace_metadata
-    assert item_submission_instance.validate_dspace_metadata()
-
-
-def test_itemsubmission_validate_dspace_metadata_invalid_raises_exception(
-    item_submission_instance,
-):
-    item_submission_instance.dspace_metadata = {}
-    with pytest.raises(InvalidDSpaceMetadataError):
-        item_submission_instance.validate_dspace_metadata()
 
 
 def test_itemsubmission_upload_dspace_metadata_success(
