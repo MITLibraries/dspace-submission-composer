@@ -6,7 +6,7 @@ import pandas as pd
 import smart_open
 
 from dsc.exceptions import ItemBitstreamsNotFoundError
-from dsc.utilities.aws import S3Client
+from dsc.utils.aws import S3Client
 from dsc.workflows.base import Workflow
 
 logger = logging.getLogger(__name__)

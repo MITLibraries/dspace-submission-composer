@@ -196,7 +196,7 @@ def test_itemsubmission_upload_dspace_metadata_success(
     assert response["ResponseMetadata"]["HTTPStatusCode"] == HTTPStatus.OK
 
 
-@patch("dsc.utilities.aws.s3.S3Client.put_file")
+@patch("dsc.utils.aws.s3.S3Client.put_file")
 def test_itemsubmission_upload_dspace_metadata_raises_custom_exception(
     mock_put_file, item_submission_instance, mocked_item_submission_db
 ):
@@ -253,7 +253,7 @@ def test_itemsubmission_send_submission_message_raises_value_error(
         )
 
 
-@patch("dsc.utilities.aws.sqs.SQSClient.send")
+@patch("dsc.utils.aws.sqs.SQSClient.send")
 def test_itemsubmission_send_submission_message_raises_custom_exception(
     mock_send,
     mocked_sqs_input,

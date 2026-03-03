@@ -16,8 +16,8 @@ from dsc.exceptions import (
     ItemMetadatMissingRequiredFieldError,
     SQSMessageSendError,
 )
-from dsc.utilities.aws.s3 import S3Client
-from dsc.utilities.aws.sqs import SQSClient
+from dsc.utils.aws.s3 import S3Client
+from dsc.utils.aws.sqs import SQSClient
 
 if TYPE_CHECKING:  # pragma: no cover
     from collections.abc import Iterator
