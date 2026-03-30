@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import subprocess
 from typing import TYPE_CHECKING
 
 import boto3
@@ -107,3 +108,53 @@ class S3Client:
                         continue
 
                     yield f"s3://{bucket}/{content["Key"]}"
+
+
+def run_aws_cli_sync(
+    source: str,
+    destination: str,
+    exclude_patterns: list[str] | None = None,
+    *,
+    dry_run: bool = False,
+) -> int:
+    logger.info(f"Syncing data from {source} to {destination}")
+
+    args = ["aws", "s3", "sync", source, destination, "--delete"]
+
+    # add optional args
+    # exclude all files or objects from the command that matches the specified patterns
+    if exclude_patterns:
+        for pattern in exclude_patterns:
+            args.extend(["--exclude", pattern])
+
+    # displays the operations that would be performed without actually running
+    if dry_run:
+        args.append("--dryrun")
+
+    process = subprocess.Popen(  # noqa: S603
+        args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
+    )
+
+    # log process output (stdout and stderr) in real-time
+    if process.stdout:
+        for line in process.stdout:
+            if line:
+                logger.info(line)
+    else:
+        logger.info("No changes detected in source, no sync required")
+
+    if process.stderr:
+        for line in process.stderr:
+            if line:
+                logger.error(line)
+
+    # wait for the process to complete
+    process.wait()
+    return_code = process.returncode
+
+    if return_code != 0:
+        logger.error(f"Failed to sync (exit code: {return_code})")
+    else:
+        logger.info("Sync completed successfully")
+
+    return return_code
