@@ -239,7 +239,7 @@ class Workflow(ABC):
         pass  # noqa: PIE790
 
     @final
-    def _create_batch_in_db(self, item_submissions: list[dict]) -> None:
+    def _create_batch_in_db(self, item_submissions: list[ItemSubmission]) -> None:
         """Write records for a batch of item submissions to DynamoDB.
 
         This method loops through the item submissions (init params)
@@ -247,8 +247,7 @@ class Workflow(ABC):
         method creates an instance of ItemSubmission and saves the
         record to DynamoDB.
         """
-        for item_submission_init_params in item_submissions:
-            item_submission = ItemSubmission.create(**item_submission_init_params)
+        for item_submission in item_submissions:
             item_submission.last_run_date = self.run_date
             item_submission.status = ItemSubmissionStatus.BATCH_CREATED
             item_submission.status_details = None
