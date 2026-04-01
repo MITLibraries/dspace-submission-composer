@@ -6,16 +6,14 @@ import pytest
 from botocore.exceptions import ClientError
 
 
-def test_s3_client_archive_file_with_new_key_success(mocked_s3, s3_client):
+def test_s3_client_move_file_success(mocked_s3, s3_client):
     s3_client.put_file(
         file_content="",
         bucket="dsc",
         key="test.csv",
     )
-    s3_client.archive_file_with_new_key(
-        bucket="dsc",
-        key="test.csv",
-        archived_key_prefix="archived",
+    s3_client.move_file(
+        source_file="s3://dsc/test.csv", destination_file="s3://dsc/archived/test.csv"
     )
     with pytest.raises(
         ClientError,

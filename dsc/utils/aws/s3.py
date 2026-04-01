@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 import subprocess
 from typing import TYPE_CHECKING
+from urllib.parse import urlparse
 
 import boto3
 
@@ -18,25 +19,39 @@ class S3Client:
     def __init__(self) -> None:
         self.client = boto3.client("s3")
 
-    def archive_file_with_new_key(
-        self, bucket: str, key: str, archived_key_prefix: str
+    def move_file(
+        self,
+        source_file: str,
+        destination_file: str,
     ) -> None:
         """Update the key of the specified file to archive it from processing.
 
         Args:
-            bucket: The S3 bucket containing the files to be archived.
-            key: The key of the file to archive.
-            archived_key_prefix: The prefix to be applied to the archived file.
+            source_file: S3 URI to source object to copy.
+            destination_file: S3 URI to destination object.
         """
+        parsed_source_uri = urlparse(source_file, allow_fragments=False)
+        parsed_destination_uri = urlparse(destination_file, allow_fragments=False)
+
+        source_bucket, source_key = (
+            parsed_source_uri.netloc,
+            parsed_source_uri.path.lstrip("/"),
+        )
+        destination_bucket, destination_key = (
+            parsed_destination_uri.netloc,
+            parsed_destination_uri.path.lstrip("/"),
+        )
+
         self.client.copy_object(
-            Bucket=bucket,
-            CopySource=f"{bucket}/{key}",
-            Key=f"{archived_key_prefix}/{key}",
+            Bucket=destination_bucket,
+            CopySource=f"{source_bucket}/{source_key}",
+            Key=destination_key,
         )
         self.client.delete_object(
-            Bucket=bucket,
-            Key=key,
+            Bucket=source_bucket,
+            Key=source_key,
         )
+        logger.debug(f"Moved file from {source_file} to {destination_file}")
 
     def put_file(
         self,
