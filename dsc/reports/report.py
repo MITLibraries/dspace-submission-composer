@@ -126,7 +126,6 @@ class Report(ABC):
 
 
 class CreateReport(Report):
-
     def __init__(
         self, workflow_name: str, batch_id: str, errors: list[tuple] | None = None
     ):
@@ -182,7 +181,6 @@ class CreateReport(Report):
 
 
 class SubmitReport(Report):
-
     @property
     def subject(self) -> str:
         return f"DSC Submit Results - {self.workflow_name}, batch='{self.batch_id}'"

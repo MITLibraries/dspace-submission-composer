@@ -23,7 +23,6 @@ from dsc.workflows import ArchivesSpace, OpenCourseWare, SimpleCSV, Workflow
 
 # Test Workflow classes ######################
 class TestWorkflow(Workflow):
-
     workflow_name: str = "test"
     submission_system: str = "Test@MIT"
 
@@ -75,14 +74,12 @@ class TestWorkflow(Workflow):
 
 
 class TestOpenCourseWare(OpenCourseWare):
-
     @property
     def output_queue(self) -> str:
         return "mock-output-queue"
 
 
 class TestSimpleCSV(SimpleCSV):
-
     workflow_name = "simple-csv"
     submission_system: str = "Test@MIT"
 

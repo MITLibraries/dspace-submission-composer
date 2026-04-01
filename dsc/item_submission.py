@@ -157,10 +157,14 @@ class ItemSubmission:
             if hasattr(item_submission_db, attr):
                 value = getattr(item_submission_db, attr)
                 setattr(item_submission, attr, value)
-        logger.debug(f"Populated record {ITEM_SUBMISSION_LOG_STR.format(
-                batch_id=item_submission_db.batch_id,
-                item_identifier=item_submission_db.item_identifier
-            )}")
+        logger.debug(
+            f"Populated record {
+                ITEM_SUBMISSION_LOG_STR.format(
+                    batch_id=item_submission_db.batch_id,
+                    item_identifier=item_submission_db.item_identifier,
+                )
+            }"
+        )
         return item_submission
 
     def save(self) -> None:
@@ -176,9 +180,14 @@ class ItemSubmission:
         )
         item_submission_db.create()
 
-        logger.info(f"Saved record " f"{ITEM_SUBMISSION_LOG_STR.format(
-                batch_id=self.batch_id, item_identifier=self.item_identifier
-                )}")
+        logger.info(
+            f"Saved record "
+            f"{
+                ITEM_SUBMISSION_LOG_STR.format(
+                    batch_id=self.batch_id, item_identifier=self.item_identifier
+                )
+            }"
+        )
 
     def upsert_db(self) -> None:
         """Upsert a record in DynamoDB from ItemSubmission.
@@ -195,9 +204,14 @@ class ItemSubmission:
         )
         item_submission_db.save()
 
-        logger.info(f"Upserted record " f"{ITEM_SUBMISSION_LOG_STR.format(
-                batch_id=self.batch_id, item_identifier=self.item_identifier
-                )}")
+        logger.info(
+            f"Upserted record "
+            f"{
+                ITEM_SUBMISSION_LOG_STR.format(
+                    batch_id=self.batch_id, item_identifier=self.item_identifier
+                )
+            }"
+        )
 
     def ready_to_submit(self) -> bool:
         """Check if the item submission is ready to be submitted."""
@@ -208,33 +222,52 @@ class ItemSubmission:
         match self.status:
             case ItemSubmissionStatus.INGEST_SUCCESS:
                 logger.info(
-                    f"Record {ITEM_SUBMISSION_LOG_STR.format(batch_id=self.batch_id,
-                                      item_identifier=self.item_identifier)
-                    } " "already ingested, skipping submission"
+                    f"Record {
+                        ITEM_SUBMISSION_LOG_STR.format(
+                            batch_id=self.batch_id, item_identifier=self.item_identifier
+                        )
+                    } "
+                    "already ingested, skipping submission"
                 )
             case ItemSubmissionStatus.SUBMIT_SUCCESS:
                 logger.info(
-                    f"Record " f"{ITEM_SUBMISSION_LOG_STR.format(batch_id=self.batch_id,
-                                      item_identifier=self.item_identifier)
-                    } " " already submitted, skipping submission"
+                    f"Record "
+                    f"{
+                        ITEM_SUBMISSION_LOG_STR.format(
+                            batch_id=self.batch_id, item_identifier=self.item_identifier
+                        )
+                    } "
+                    " already submitted, skipping submission"
                 )
             case ItemSubmissionStatus.MAX_RETRIES_REACHED:
                 logger.info(
-                    f"Record " f"{ITEM_SUBMISSION_LOG_STR.format(batch_id=self.batch_id,
-                                      item_identifier=self.item_identifier)
-                    } " "max retries reached, skipping submission"
+                    f"Record "
+                    f"{
+                        ITEM_SUBMISSION_LOG_STR.format(
+                            batch_id=self.batch_id, item_identifier=self.item_identifier
+                        )
+                    } "
+                    "max retries reached, skipping submission"
                 )
             case None:
                 logger.info(
-                    f"Record " f"{ITEM_SUBMISSION_LOG_STR.format(batch_id=self.batch_id,
-                                      item_identifier=self.item_identifier)
-                    } " " status unknown, skipping submission"
+                    f"Record "
+                    f"{
+                        ITEM_SUBMISSION_LOG_STR.format(
+                            batch_id=self.batch_id, item_identifier=self.item_identifier
+                        )
+                    } "
+                    " status unknown, skipping submission"
                 )
             case _:
                 logger.debug(
-                    f"Record " f"{ITEM_SUBMISSION_LOG_STR.format(batch_id=self.batch_id,
-                                      item_identifier=self.item_identifier)
-                    } " "allowed for submission"
+                    f"Record "
+                    f"{
+                        ITEM_SUBMISSION_LOG_STR.format(
+                            batch_id=self.batch_id, item_identifier=self.item_identifier
+                        )
+                    } "
+                    "allowed for submission"
                 )
                 ready_to_submit = True
 
@@ -288,12 +321,11 @@ class ItemSubmission:
 
         for field_name, field_mapping in metadata_mapping.items():
             if field_name != "item_identifier":
-
                 field_value = item_metadata.get(field_mapping["source_field_name"])
                 if not field_value and field_mapping.get("required", False):
                     raise ItemMetadatMissingRequiredFieldError(
                         "Item metadata missing required field: '"
-                        f"{field_mapping["source_field_name"]}'"
+                        f"{field_mapping['source_field_name']}'"
                     )
 
                 if field_value:

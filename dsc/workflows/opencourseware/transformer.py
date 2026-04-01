@@ -189,7 +189,7 @@ class OpenCourseWareTransformer:
         ):
             return ""
         instructor_name = (
-            f"{last_name}, {first_name} {instructor_details.get("middle_initial", "")}"
+            f"{last_name}, {first_name} {instructor_details.get('middle_initial', '')}"
         )
         return instructor_name.strip()
 

@@ -106,4 +106,4 @@ class S3Client:
                     ):
                         continue
 
-                    yield f"s3://{bucket}/{content["Key"]}"
+                    yield f"s3://{bucket}/{content['Key']}"
