@@ -224,7 +224,6 @@ def sync(
     "-c",
     "--collection-handle",
     help="The handle of the DSpace collection to which the batch will be submitted",
-    required=True,
 )
 @click.option(
     "-e",

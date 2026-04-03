@@ -85,7 +85,36 @@ def test_base_workflow_submit_items_success(
     assert json.dumps(expected_submission_summary) in caplog.text
 
 
-def test_base_workflow_submit_items_failed_ready_to_submit_is_skipped(
+def test_base_workflow_submit_items_no_collection_handle_raises_error(
+    caplog,
+    base_workflow_instance,
+    s3_client,
+    mocked_s3,
+    mocked_sqs_input,
+    mocked_sqs_output,
+    mocked_item_submission_db,
+):
+    caplog.set_level("DEBUG")
+    s3_client.put_file(file_content="", bucket="dsc", key="test/batch-aaa/123_01.pdf")
+    s3_client.put_file(file_content="", bucket="dsc", key="test/batch-aaa/123_02.jpg")
+    s3_client.put_file(file_content="", bucket="dsc", key="test/batch-aaa/789_01.pdf")
+    ItemSubmissionDB(
+        item_identifier="123",
+        batch_id="batch-aaa",
+        workflow_name="test",
+        status=ItemSubmissionStatus.BATCH_CREATED,
+    ).create()
+    ItemSubmissionDB(
+        item_identifier="789",
+        batch_id="batch-aaa",
+        workflow_name="test",
+        status=ItemSubmissionStatus.BATCH_CREATED,
+    ).create()
+    with pytest.raises(NotImplementedError):
+        _ = base_workflow_instance.submit_items()
+
+
+def test_base_workflow_submit_items_ready_to_submit_false_is_skipped(
     caplog,
     base_workflow_instance,
     mocked_s3,

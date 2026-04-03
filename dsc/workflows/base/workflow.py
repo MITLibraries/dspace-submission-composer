@@ -253,8 +253,7 @@ class Workflow(ABC):
             item_submission.status_details = None
             item_submission.save()
 
-    @final
-    def submit_items(self, collection_handle: str) -> list:
+    def submit_items(self, collection_handle: str | None = None) -> list:
         """Submit items to the DSpace Submission Service according to the workflow class.
 
         Args:
@@ -299,12 +298,16 @@ class Workflow(ABC):
                     item_identifier
                 )
 
+                item_submission.collection_handle = (
+                    collection_handle or self._get_item_collection_handle()
+                )
+
                 # Send submission message to DSS input queue
                 response = item_submission.send_submission_message(
                     self.workflow_name,
                     self.output_queue,
                     self.submission_system,
-                    collection_handle,
+                    item_submission.collection_handle,
                 )
 
                 # Record details of the item submission message
@@ -322,6 +325,8 @@ class Workflow(ABC):
                 item_submission.status_details = None
                 item_submission.submit_attempts += 1
                 item_submission.upsert_db()
+            except NotImplementedError:
+                raise
             except Exception as exception:  # noqa: BLE001
                 self.submission_summary["errors"] += 1
                 item_submission.status = ItemSubmissionStatus.SUBMIT_FAILED
@@ -334,6 +339,19 @@ class Workflow(ABC):
             f"for batch '{self.batch_id}': {json.dumps(self.submission_summary)}"
         )
         return items
+
+    def _get_item_collection_handle(self) -> str:
+        """Get collection handle for an item submission.
+
+        This method is required for workflows where the collection handle for an item
+        must be derived dynamically based on the provided item metadata.
+
+        OPTIONAL override by workflow subclasses.
+        """
+        raise NotImplementedError(
+            f"The '{self.workflow_name}' workflow expects collection_handle"
+            "when calling submit_items()"
+        )
 
     @final
     def finalize_items(self) -> None:

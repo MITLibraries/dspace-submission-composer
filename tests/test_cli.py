@@ -175,6 +175,58 @@ def test_submit_success(
     assert "Total time elapsed" in caplog.text
 
 
+@freeze_time("2025-01-01 09:00:00")
+def test_submit_without_collection_handle_success(
+    caplog,
+    runner,
+    mocked_s3,
+    mocked_ses,
+    mocked_sqs_input,
+    mocked_item_submission_db,
+    base_workflow_instance,
+    s3_client,
+):
+    caplog.set_level("DEBUG")
+    s3_client.put_file(file_content="", bucket="dsc", key="test/batch-aaa/123_001.pdf")
+    s3_client.put_file(file_content="", bucket="dsc", key="test/batch-aaa/123_002.jpg")
+    s3_client.put_file(file_content="", bucket="dsc", key="test/batch-aaa/789_001.pdf")
+    ItemSubmissionDB(
+        item_identifier="123",
+        batch_id="batch-aaa",
+        workflow_name="test",
+        status=ItemSubmissionStatus.BATCH_CREATED,
+    ).create()
+    ItemSubmissionDB(
+        item_identifier="789",
+        batch_id="batch-aaa",
+        workflow_name="test",
+        status=ItemSubmissionStatus.BATCH_CREATED,
+    ).create()
+
+    result = runner.invoke(
+        main,
+        [
+            "--verbose",
+            "--workflow-name",
+            "test",
+            "--batch-id",
+            "batch-aaa",
+            "submit",
+            "--email-recipients",
+            "test@test.test,test2@test.test",
+        ],
+    )
+    assert result.exit_code == 1
+    assert (
+        "Submitting messages to the DSS input queue 'mock-input-queue' "
+        "for batch 'batch-aaa'"
+    ) in caplog.text
+    assert (
+        "Metadata uploaded to S3: s3://dsc/test/batch-aaa/dspace_metadata/123_metadata.json"
+        in caplog.text
+    )
+
+
 def test_finalize_success(
     caplog,
     runner,

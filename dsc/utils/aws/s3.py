@@ -24,7 +24,10 @@ class S3Client:
         source_file: str,
         destination_file: str,
     ) -> None:
-        """Update the key of the specified file to archive it from processing.
+        """Move an S3 object to another location.
+
+        Like the AWS CLI 'mv' command, this method copies the source object or file
+        to the specified destination and then deletes the source object or file.
 
         Args:
             source_file: S3 URI to source object to copy.
@@ -128,8 +131,8 @@ class S3Client:
 def run_aws_cli_sync(
     source: str,
     destination: str,
-    exclude_patterns: list[str] | None = None,
     *,
+    exclude_patterns: list[str] | None = None,
     dry_run: bool = False,
 ) -> int:
     logger.info(f"Syncing data from {source} to {destination}")
@@ -141,8 +144,7 @@ def run_aws_cli_sync(
     if exclude_patterns:
         for pattern in exclude_patterns:
             args.extend(["--exclude", pattern])
-
-    # displays the operations that would be performed without actually running
+    # only display operations that would be performed without execution
     if dry_run:
         args.append("--dryrun")
 
