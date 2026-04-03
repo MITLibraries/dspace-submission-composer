@@ -19,7 +19,7 @@ from dsc.exceptions import (
 )
 from dsc.item_submission import ItemSubmission
 from dsc.reports import CreateReport, FinalizeReport, SubmitReport
-from dsc.utils.aws import SESClient, SQSClient
+from dsc.utils.aws import MetricsClient, SESClient, SQSClient
 from dsc.utils.validate.schemas import RESULT_MESSAGE_ATTRIBUTES, RESULT_MESSAGE_BODY
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -129,6 +129,11 @@ class Workflow(ABC):
             "submitted": 0,
             "skipped": 0,
             "errors": 0,
+        }
+        self.metrics_client = MetricsClient()
+        self.metrics_dimensions = {
+            "application": "dsc",
+            "workflow_name": self.workflow_name,
         }
 
         # cache list of bitstreams
@@ -328,6 +333,12 @@ class Workflow(ABC):
                 item_submission.status_details = None
                 item_submission.submit_attempts += 1
                 item_submission.upsert_db()
+                self.metrics_client.publish_single_metric(
+                    metric_name="item_submitted",
+                    value=1,
+                    unit="Count",
+                    metric_dimensions=self.metrics_dimensions,
+                )
             except NotImplementedError:
                 raise
             except Exception as exception:  # noqa: BLE001
@@ -336,6 +347,13 @@ class Workflow(ABC):
                 item_submission.status_details = str(exception)
                 item_submission.submit_attempts += 1
                 item_submission.upsert_db()
+
+                self.metrics_client.publish_single_metric(
+                    metric_name="submission_error",
+                    value=1,
+                    unit="Count",
+                    metric_dimensions=self.metrics_dimensions,
+                )
 
         logger.info(
             f"Submitted messages to the DSS input queue '{CONFIG.sqs_queue_dss_input}' "
@@ -421,11 +439,26 @@ class Workflow(ABC):
                 )
                 sqs_results_summary["ingest_success"] += 1
                 logger.debug(f"Record {log_str} was ingested")
+
+                self.metrics_client.publish_single_metric(
+                    metric_name="ingested_item",
+                    value=1,
+                    unit="Count",
+                    metric_dimensions=self.metrics_dimensions,
+                )
             elif result_message.result_type == "error":
                 item_submission.status = ItemSubmissionStatus.INGEST_FAILED
                 item_submission.status_details = result_message.error_info
                 sqs_results_summary["ingest_failed"] += 1
                 logger.debug(f"Record {log_str} failed to ingest")
+
+                self.metrics_client.publish_single_metric(
+                    metric_name="ingest_error",
+                    value=1,
+                    unit="Count",
+                    metric_dimensions=self.metrics_dimensions,
+                )
+
             else:
                 item_submission.status = ItemSubmissionStatus.INGEST_UNKNOWN
                 sqs_results_summary["ingest_unknown"] += 1

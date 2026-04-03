@@ -5,6 +5,15 @@ from collections.abc import Iterable
 
 import sentry_sdk
 
+METRICS_NAMESPACE = "dso"
+
+METRICS = [
+    "item_submitted",  # item submitted to DSS
+    "submission_error",  # error during submission to DSS
+    "ingested_item",  # item ingested successfully into DSpace
+    "ingest_error",  # error during attempted item ingest into DSpace
+]
+
 
 class Config:
     REQUIRED_ENV_VARS: Iterable[str] = [
