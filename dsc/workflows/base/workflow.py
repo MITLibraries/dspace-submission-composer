@@ -101,7 +101,7 @@ class Workflow(ABC):
     """A base workflow class from which other workflow classes are derived."""
 
     workflow_name: str = "base"
-    submission_system: str = "DSpace@MIT"
+    submission_system: str = "IR-8"
 
     def __init__(self, batch_id: str) -> None:
         """Initialize base instance.
