@@ -3,10 +3,11 @@
 from __future__ import annotations
 
 import logging
+from dataclasses import dataclass
 
 import boto3
 
-from dsc.config import METRICS, METRICS_NAMESPACE
+from dsc.config import METRICS_NAMESPACE
 
 logger = logging.getLogger(__name__)
 
@@ -43,84 +44,66 @@ UNIT_VALUES = frozenset(
 )
 
 
+@dataclass
+class Metric:
+    """A class representing a single metric to be published to CloudWatch."""
+
+    name: str
+    value: int
+    unit: str
+    dimensions: dict[str, str] | None = None
+
+
 class MetricsClient:
     """A simple client to record metrics to AWS CloudWatch."""
 
-    def __init__(self) -> None:
+    def __init__(self, allowed_metrics: set[str] | None = None) -> None:
         """Initialize the MetricsClient."""
-        self.cloudwatch = boto3.client("cloudwatch")
-        self.batch_metrics: list[dict] = []
+        self.namespace = METRICS_NAMESPACE
+        self.allowed_metrics: set[str] | None = allowed_metrics
+        self._cloudwatch = boto3.client("cloudwatch")
+        self.batch_metrics: list[Metric] = []
 
     def publish_single_metric(
         self,
-        metric_name: str,
-        value: int,
-        unit: str,
-        metric_dimensions: dict[str, str] | None = None,
+        metric: Metric,
     ) -> None:
-        """Publish a single metric to CloudWatch.
+        """Publish a single metric to CloudWatch."""
+        self._validate_metric(metric)
+        self._push_metric_data([metric])
 
-        Args:
-            metric_name: The name of the metric to publish.
-            value: The value of the metric.
-            unit: The unit of the metric.
-            metric_dimensions: Optional dictionary of dimension names and values.
-
-        Raises:
-            ValueError: If unit is invalid.
-        """
-        metric_data = self._validate_and_build_metric_data(
-            metric_name, value, unit, metric_dimensions
-        )
-        self._push_metric_data([metric_data])
-
-    def _validate_and_build_metric_data(
+    def _validate_metric(
         self,
-        metric_name: str,
-        value: int,
-        unit: str,
-        metric_dimensions: dict[str, str] | None = None,
-    ) -> dict:
-        """Validate and build a metric data dictionary for CloudWatch.
+        metric: Metric,
+    ) -> bool:
+        """Validate that a metric has required fields and allowed unit.
 
         Args:
-            metric_name: The name of the metric.
-            value: The value of the metric.
-            unit: The unit of the metric.
-            metric_dimensions: Optional dictionary of dimension names and values.
-
-        Returns:
-            A metric data dictionary formatted for CloudWatch.
+            metric: The Metric instance to validate.
         """
-        self._approved_metric(metric_name)
-        self._validate_unit(unit)
-        dimensions = [
-            {"Name": name, "Value": dim_value}
-            for name, dim_value in (
-                metric_dimensions.items() if metric_dimensions else []
+        if not all(hasattr(metric, attr) for attr in ["name", "value", "unit"]):
+            raise ValueError(
+                f"Metric must have 'name', 'value', and 'unit' attributes. Invalid "
+                f"metric: {metric}"
             )
-        ]
-        return {
-            "MetricName": metric_name,
-            "Value": value,
-            "Unit": unit,
-            "Dimensions": dimensions,
-        }
+        self._allowed_metric(metric.name)
+        self._validate_metric_unit(metric.unit)
+        return True
 
-    def _approved_metric(self, metric_name: str) -> bool:
-        """Check if a metric name is in the approved list of metrics for the application.
+    def _allowed_metric(self, metric_name: str) -> bool:
+        """Check if a metric name is in the allowed list of metrics for the application.
 
         Args:
             metric_name: The name of the metric to check.
         """
-        if metric_name not in METRICS:
+        if self.allowed_metrics and metric_name not in self.allowed_metrics:
             raise ValueError(
-                f"Metric name '{metric_name}' is not in the approved list of metrics: "
-                f"{', '.join(METRICS)}"
+                f"Metric name '{metric_name}' is not in the allowed list of metrics: "
+                f"{', '.join(self.allowed_metrics)}"
             )
         return True
 
-    def _validate_unit(self, unit: str) -> None:
+    def _validate_metric_unit(self, unit: str) -> bool:
         """Validate that metric unit is allowed by AWS CloudWatch.
 
         Args:
@@ -133,66 +116,75 @@ class MetricsClient:
             raise ValueError(
                 f"Invalid unit '{unit}'. Must be one of: {', '.join(UNIT_VALUES)}"
             )
+        return True
 
-    def _push_metric_data(self, metric_data: list[dict]) -> None:
-        """Push metric data to CloudWatch.
+    def _push_metric_data(self, metrics: list[Metric]) -> None:
+        """Push metrics to CloudWatch.
 
         Args:
-            metric_data: List of metric dictionaries to push.
+            metrics: List of metric instances to push.
         """
+        if not metrics:
+            logger.info("No metrics to publish.")
+            return
+
         try:
-            self.cloudwatch.put_metric_data(
-                Namespace=METRICS_NAMESPACE, MetricData=metric_data
+            metric_data = []
+            for metric in metrics:
+                metric_dict = {
+                    "MetricName": metric.name,
+                    "Value": metric.value,
+                    "Unit": metric.unit,
+                }
+                if metric.dimensions:
+                    metric_dict["Dimensions"] = [
+                        {"Name": key, "Value": value}
+                        for key, value in metric.dimensions.items()
+                    ]
+                metric_data.append(metric_dict)
+
+            self._cloudwatch.put_metric_data(
+                Namespace=self.namespace,
+                MetricData=metric_data,
             )
-            logger.info(f"Published metric with {metric_data} to CloudWatch.")
+            logger.info(
+                f"Published {len(metrics)} metric(s) to CloudWatch namespace "
+                f"'{self.namespace}'."
+            )
         except Exception:
             logger.exception(
-                f"Failed to publish metric with {metric_data} to CloudWatch."
+                f"Failed to publish {len(metrics)} metric(s) to CloudWatch: "
             )
+            raise
 
-    def add_metric_to_batch(
-        self,
-        metric_name: str,
-        value: int,
-        unit: str,
-        metric_dimensions: dict[str, str] | None = None,
-    ) -> None:
-        """Add a metric to the batch for later publishing.
+    def add_metric_to_batch(self, metric: Metric) -> None:
+        """Add a metric to the batch queue.
 
         Args:
-            metric_name: The name of the metric.
-            value: The value of the metric.
-            unit: The unit of the metric.
-            metric_dimensions: Optional dictionary of dimension names and values.
-
-        Raises:
-            ValueError: If unit is invalid.
+            metric: The metric to add to the batch.
         """
-        metric_data = self._validate_and_build_metric_data(
-            metric_name, value, unit, metric_dimensions
-        )
-        self.batch_metrics.append(metric_data)
+        self._validate_metric(metric)
+        self.batch_metrics.append(metric)
 
     def publish_batch_metrics(self, batch_size: int = 20) -> None:
-        """Publish all accumulated batch metrics to CloudWatch.
+        """Publish a batch of metrics to CloudWatch.
 
-        Raises:
-            ValueError: If any metric has an invalid unit or missing required fields.
+        Clears the batch queue after publishing.
+
+        Args:
+            batch_size: Number of metrics to publish in each batch.
         """
         if not self.batch_metrics:
             logger.info("No metrics to publish.")
             return
 
-        # Validate all metrics before publishing
-        for metric in self.batch_metrics:
-            if not all(key in metric for key in ["MetricName", "Value", "Unit"]):
-                raise ValueError(
-                    f"Each metric must contain 'MetricName', 'Value', and 'Unit'. "
-                    f"Invalid metric: {metric}"
-                )
-            self._approved_metric(metric["MetricName"])
-            self._validate_unit(metric["Unit"])
+        try:
+            # Re-validate all metrics before publishing to CloudWatch
+            for metric in self.batch_metrics:
+                self._validate_metric(metric)
 
-        for x in range(0, len(self.batch_metrics), batch_size):
-            self._push_metric_data(self.batch_metrics[x : x + batch_size])
-        self.batch_metrics.clear()
+            for x in range(0, len(self.batch_metrics), batch_size):
+                batch = self.batch_metrics[x : x + batch_size]
+                self._push_metric_data(batch)
+        finally:
+            self.batch_metrics.clear()

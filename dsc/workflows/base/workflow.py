@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING, Any, ClassVar, Literal, final
 import jsonschema
 import jsonschema.exceptions
 
-from dsc.config import Config
+from dsc.config import ALLOWED_METRICS, Config
 from dsc.db.models import ItemSubmissionStatus
 from dsc.exceptions import (
     BatchCreationFailedError,
@@ -19,7 +19,7 @@ from dsc.exceptions import (
 )
 from dsc.item_submission import ItemSubmission
 from dsc.reports import CreateReport, FinalizeReport, SubmitReport
-from dsc.utils.aws import MetricsClient, SESClient, SQSClient
+from dsc.utils.aws import Metric, MetricsClient, SESClient, SQSClient
 from dsc.utils.validate.schemas import RESULT_MESSAGE_ATTRIBUTES, RESULT_MESSAGE_BODY
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -130,7 +130,7 @@ class Workflow(ABC):
             "skipped": 0,
             "errors": 0,
         }
-        self.metrics_client = MetricsClient()
+        self.metrics_client = MetricsClient(allowed_metrics=ALLOWED_METRICS)
         self.metrics_dimensions = {
             "application": "dsc",
             "workflow_name": self.workflow_name,
@@ -334,10 +334,12 @@ class Workflow(ABC):
                 item_submission.submit_attempts += 1
                 item_submission.upsert_db()
                 self.metrics_client.publish_single_metric(
-                    metric_name="item_submitted",
-                    value=1,
-                    unit="Count",
-                    metric_dimensions=self.metrics_dimensions,
+                    Metric(
+                        name="item_submitted",
+                        value=1,
+                        unit="Count",
+                        dimensions=self.metrics_dimensions,
+                    )
                 )
             except NotImplementedError:
                 raise
@@ -349,10 +351,12 @@ class Workflow(ABC):
                 item_submission.upsert_db()
 
                 self.metrics_client.publish_single_metric(
-                    metric_name="submission_error",
-                    value=1,
-                    unit="Count",
-                    metric_dimensions=self.metrics_dimensions,
+                    Metric(
+                        name="submission_error",
+                        value=1,
+                        unit="Count",
+                        dimensions=self.metrics_dimensions,
+                    )
                 )
 
         logger.info(
@@ -441,10 +445,12 @@ class Workflow(ABC):
                 logger.debug(f"Record {log_str} was ingested")
 
                 self.metrics_client.publish_single_metric(
-                    metric_name="ingested_item",
-                    value=1,
-                    unit="Count",
-                    metric_dimensions=self.metrics_dimensions,
+                    Metric(
+                        name="ingested_item",
+                        value=1,
+                        unit="Count",
+                        dimensions=self.metrics_dimensions,
+                    )
                 )
             elif result_message.result_type == "error":
                 item_submission.status = ItemSubmissionStatus.INGEST_FAILED
@@ -453,10 +459,12 @@ class Workflow(ABC):
                 logger.debug(f"Record {log_str} failed to ingest")
 
                 self.metrics_client.publish_single_metric(
-                    metric_name="ingest_error",
-                    value=1,
-                    unit="Count",
-                    metric_dimensions=self.metrics_dimensions,
+                    Metric(
+                        name="ingest_error",
+                        value=1,
+                        unit="Count",
+                        dimensions=self.metrics_dimensions,
+                    )
                 )
 
             else:
