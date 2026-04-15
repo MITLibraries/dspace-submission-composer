@@ -7,8 +7,6 @@ from dataclasses import dataclass
 
 import boto3
 
-from dsc.config import METRICS_NAMESPACE
-
 logger = logging.getLogger(__name__)
 
 
@@ -52,25 +50,26 @@ class Metric:
     value: int
     unit: str
     dimensions: dict[str, str] | None = None
+    namespace: str | None = None
 
 
 class MetricsClient:
     """A simple client to record metrics to AWS CloudWatch."""
 
-    def __init__(self, allowed_metrics: set[str] | None = None) -> None:
+    def __init__(self, namespace: str, allowed_metrics: set[str] | None = None) -> None:
         """Initialize the MetricsClient."""
-        self.namespace = METRICS_NAMESPACE
+        self.namespace = namespace
         self.allowed_metrics: set[str] | None = allowed_metrics
         self._cloudwatch = boto3.client("cloudwatch")
         self.batch_metrics: list[Metric] = []
 
-    def publish_single_metric(
+    def publish_metric(
         self,
         metric: Metric,
     ) -> None:
         """Publish a single metric to CloudWatch."""
         self._validate_metric(metric)
-        self._push_metric_data([metric])
+        self._publish_metrics([metric])
 
     def _validate_metric(
         self,
@@ -118,7 +117,7 @@ class MetricsClient:
             )
         return True
 
-    def _push_metric_data(self, metrics: list[Metric]) -> None:
+    def _publish_metrics(self, metrics: list[Metric]) -> None:
         """Push metrics to CloudWatch.
 
         Args:
@@ -127,10 +126,10 @@ class MetricsClient:
         if not metrics:
             logger.info("No metrics to publish.")
             return
-
         try:
             metric_data = []
             for metric in metrics:
+                self._validate_namespace(metric)
                 metric_dict = {
                     "MetricName": metric.name,
                     "Value": metric.value,
@@ -144,7 +143,7 @@ class MetricsClient:
                 metric_data.append(metric_dict)
 
             self._cloudwatch.put_metric_data(
-                Namespace=self.namespace,
+                Namespace=metric.namespace or self.namespace,
                 MetricData=metric_data,
             )
             logger.info(
@@ -157,16 +156,26 @@ class MetricsClient:
             )
             raise
 
-    def add_metric_to_batch(self, metric: Metric) -> None:
-        """Add a metric to the batch queue.
+    def _validate_namespace(self, metric: Metric) -> bool:
+        """Validate metric has a namespace or the client has a default namespace."""
+        if not metric.namespace and not self.namespace:
+            raise ValueError(
+                f"Metric '{metric.name}' must have a namespace if no default "
+                f"namespace is set for the MetricsClient."
+            )
+        return True
+
+    def add_metrics_to_batch(self, metrics: list[Metric]) -> None:
+        """Add metrics to the batch queue.
 
         Args:
-            metric: The metric to add to the batch.
+            metrics: The metrics to add to the batch.
         """
-        self._validate_metric(metric)
-        self.batch_metrics.append(metric)
+        for metric in metrics:
+            self._validate_metric(metric)
+            self.batch_metrics.append(metric)
 
-    def publish_batch_metrics(self, batch_size: int = 20) -> None:
+    def publish_metrics_batch(self, batch_size: int = 20) -> None:
         """Publish a batch of metrics to CloudWatch.
 
         Clears the batch queue after publishing.
@@ -179,12 +188,8 @@ class MetricsClient:
             return
 
         try:
-            # Re-validate all metrics before publishing to CloudWatch
-            for metric in self.batch_metrics:
-                self._validate_metric(metric)
-
             for x in range(0, len(self.batch_metrics), batch_size):
                 batch = self.batch_metrics[x : x + batch_size]
-                self._push_metric_data(batch)
+                self._publish_metrics(batch)
         finally:
             self.batch_metrics.clear()

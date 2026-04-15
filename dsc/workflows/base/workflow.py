@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING, Any, ClassVar, Literal, final
 import jsonschema
 import jsonschema.exceptions
 
-from dsc.config import ALLOWED_METRICS, Config
+from dsc.config import ALLOWED_METRICS, METRICS_NAMESPACE, Config
 from dsc.db.models import ItemSubmissionStatus
 from dsc.exceptions import (
     BatchCreationFailedError,
@@ -130,7 +130,9 @@ class Workflow(ABC):
             "skipped": 0,
             "errors": 0,
         }
-        self.metrics_client = MetricsClient(allowed_metrics=ALLOWED_METRICS)
+        self.metrics_client = MetricsClient(
+            namespace=METRICS_NAMESPACE, allowed_metrics=ALLOWED_METRICS
+        )
         self.metrics_dimensions = {
             "application": "dsc",
             "workflow_name": self.workflow_name,
@@ -333,7 +335,8 @@ class Workflow(ABC):
                 item_submission.status_details = None
                 item_submission.submit_attempts += 1
                 item_submission.upsert_db()
-                self.metrics_client.publish_single_metric(
+
+                self.metrics_client.publish_metric(
                     Metric(
                         name="item_submitted",
                         value=1,
@@ -350,7 +353,7 @@ class Workflow(ABC):
                 item_submission.submit_attempts += 1
                 item_submission.upsert_db()
 
-                self.metrics_client.publish_single_metric(
+                self.metrics_client.publish_metric(
                     Metric(
                         name="submission_error",
                         value=1,
@@ -444,7 +447,7 @@ class Workflow(ABC):
                 sqs_results_summary["ingest_success"] += 1
                 logger.debug(f"Record {log_str} was ingested")
 
-                self.metrics_client.publish_single_metric(
+                self.metrics_client.publish_metric(
                     Metric(
                         name="ingested_item",
                         value=1,
@@ -458,7 +461,7 @@ class Workflow(ABC):
                 sqs_results_summary["ingest_failed"] += 1
                 logger.debug(f"Record {log_str} failed to ingest")
 
-                self.metrics_client.publish_single_metric(
+                self.metrics_client.publish_metric(
                     Metric(
                         name="ingest_error",
                         value=1,
