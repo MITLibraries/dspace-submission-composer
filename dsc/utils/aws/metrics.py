@@ -56,7 +56,9 @@ class Metric:
 class MetricsClient:
     """A simple client to record metrics to AWS CloudWatch."""
 
-    def __init__(self, namespace: str, allowed_metrics: set[str] | None = None) -> None:
+    def __init__(
+        self, namespace: str | None = None, allowed_metrics: set[str] | None = None
+    ) -> None:
         """Initialize the MetricsClient."""
         self.namespace = namespace
         self.allowed_metrics: set[str] | None = allowed_metrics
