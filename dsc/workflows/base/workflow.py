@@ -101,7 +101,7 @@ class Workflow(ABC):
     """A base workflow class from which other workflow classes are derived."""
 
     workflow_name: str = "base"
-    submission_system: str = "DSpace@MIT"
+    submission_system: str = "IR-8"
 
     def __init__(self, batch_id: str) -> None:
         """Initialize base instance.
@@ -239,7 +239,7 @@ class Workflow(ABC):
         pass  # noqa: PIE790
 
     @final
-    def _create_batch_in_db(self, item_submissions: list[dict]) -> None:
+    def _create_batch_in_db(self, item_submissions: list[ItemSubmission]) -> None:
         """Write records for a batch of item submissions to DynamoDB.
 
         This method loops through the item submissions (init params)
@@ -247,15 +247,13 @@ class Workflow(ABC):
         method creates an instance of ItemSubmission and saves the
         record to DynamoDB.
         """
-        for item_submission_init_params in item_submissions:
-            item_submission = ItemSubmission.create(**item_submission_init_params)
+        for item_submission in item_submissions:
             item_submission.last_run_date = self.run_date
             item_submission.status = ItemSubmissionStatus.BATCH_CREATED
             item_submission.status_details = None
             item_submission.save()
 
-    @final
-    def submit_items(self, collection_handle: str) -> list:
+    def submit_items(self, collection_handle: str | None = None) -> list:
         """Submit items to the DSpace Submission Service according to the workflow class.
 
         Args:
@@ -300,12 +298,16 @@ class Workflow(ABC):
                     item_identifier
                 )
 
+                item_submission.collection_handle = (
+                    collection_handle or self._get_item_collection_handle()
+                )
+
                 # Send submission message to DSS input queue
                 response = item_submission.send_submission_message(
                     self.workflow_name,
                     self.output_queue,
                     self.submission_system,
-                    collection_handle,
+                    item_submission.collection_handle,
                 )
 
                 # Record details of the item submission message
@@ -323,6 +325,8 @@ class Workflow(ABC):
                 item_submission.status_details = None
                 item_submission.submit_attempts += 1
                 item_submission.upsert_db()
+            except NotImplementedError:
+                raise
             except Exception as exception:  # noqa: BLE001
                 self.submission_summary["errors"] += 1
                 item_submission.status = ItemSubmissionStatus.SUBMIT_FAILED
@@ -335,6 +339,19 @@ class Workflow(ABC):
             f"for batch '{self.batch_id}': {json.dumps(self.submission_summary)}"
         )
         return items
+
+    def _get_item_collection_handle(self) -> str:
+        """Get collection handle for an item submission.
+
+        This method is required for workflows where the collection handle for an item
+        must be derived dynamically based on the provided item metadata.
+
+        OPTIONAL override by workflow subclasses.
+        """
+        raise NotImplementedError(
+            f"The '{self.workflow_name}' workflow expects collection_handle"
+            "when calling submit_items()"
+        )
 
     @final
     def finalize_items(self) -> None:

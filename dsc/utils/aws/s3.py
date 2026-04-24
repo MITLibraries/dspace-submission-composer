@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import logging
+import subprocess
 from typing import TYPE_CHECKING
+from urllib.parse import urlparse
 
 import boto3
 
@@ -17,25 +19,42 @@ class S3Client:
     def __init__(self) -> None:
         self.client = boto3.client("s3")
 
-    def archive_file_with_new_key(
-        self, bucket: str, key: str, archived_key_prefix: str
+    def move_file(
+        self,
+        source_file: str,
+        destination_file: str,
     ) -> None:
-        """Update the key of the specified file to archive it from processing.
+        """Move an S3 object to another location.
+
+        Like the AWS CLI 'mv' command, this method copies the source object or file
+        to the specified destination and then deletes the source object or file.
 
         Args:
-            bucket: The S3 bucket containing the files to be archived.
-            key: The key of the file to archive.
-            archived_key_prefix: The prefix to be applied to the archived file.
+            source_file: S3 URI to source object to copy.
+            destination_file: S3 URI to destination object.
         """
+        parsed_source_uri = urlparse(source_file, allow_fragments=False)
+        parsed_destination_uri = urlparse(destination_file, allow_fragments=False)
+
+        source_bucket, source_key = (
+            parsed_source_uri.netloc,
+            parsed_source_uri.path.lstrip("/"),
+        )
+        destination_bucket, destination_key = (
+            parsed_destination_uri.netloc,
+            parsed_destination_uri.path.lstrip("/"),
+        )
+
         self.client.copy_object(
-            Bucket=bucket,
-            CopySource=f"{bucket}/{key}",
-            Key=f"{archived_key_prefix}/{key}",
+            Bucket=destination_bucket,
+            CopySource=f"{source_bucket}/{source_key}",
+            Key=destination_key,
         )
         self.client.delete_object(
-            Bucket=bucket,
-            Key=key,
+            Bucket=source_bucket,
+            Key=source_key,
         )
+        logger.debug(f"Moved file from {source_file} to {destination_file}")
 
     def put_file(
         self,
@@ -107,3 +126,52 @@ class S3Client:
                         continue
 
                     yield f"s3://{bucket}/{content["Key"]}"
+
+
+def run_aws_cli_sync(
+    source: str,
+    destination: str,
+    *,
+    exclude_patterns: list[str] | None = None,
+    dry_run: bool = False,
+) -> int:
+    logger.info(f"Syncing data from {source} to {destination}")
+
+    args = ["aws", "s3", "sync", source, destination, "--delete"]
+
+    # add optional args
+    # exclude all files or objects from the command that matches the specified patterns
+    if exclude_patterns:
+        for pattern in exclude_patterns:
+            args.extend(["--exclude", pattern])
+    # only display operations that would be performed without execution
+    if dry_run:
+        args.append("--dryrun")
+
+    process = subprocess.Popen(  # noqa: S603
+        args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
+    )
+
+    # log process output (stdout and stderr) in real-time
+    if process.stdout:
+        for line in process.stdout:
+            if line:
+                logger.info(line)
+    else:
+        logger.info("No changes detected in source, no sync required")
+
+    if process.stderr:
+        for line in process.stderr:
+            if line:
+                logger.error(line)
+
+    # wait for the process to complete
+    process.wait()
+    return_code = process.returncode
+
+    if return_code != 0:
+        logger.error(f"Failed to sync (exit code: {return_code})")
+    else:
+        logger.info("Sync completed successfully")
+
+    return return_code

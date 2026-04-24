@@ -1,6 +1,5 @@
 import datetime
 import logging
-import subprocess
 from time import perf_counter
 
 import click
@@ -9,6 +8,7 @@ from dsc.config import Config
 from dsc.db.models import ItemSubmissionDB
 from dsc.exceptions import BatchCreationFailedError
 from dsc.reports import CreateReport, FinalizeReport, SubmitReport
+from dsc.utils.aws.s3 import run_aws_cli_sync
 from dsc.workflows.base import Workflow
 
 logger = logging.getLogger(__name__)
@@ -212,49 +212,10 @@ def sync(
             "or set the S3_BUCKET_SYNC_SOURCE environment variable"
         )
 
-    logger.info(f"Syncing data from {source} to {destination}")
-
-    args = [
-        "aws",
-        "s3",
-        "sync",
-        source,
-        destination,
-        "--delete",
-        "--exclude",
-        "dspace_metadata/*",
-    ]
-
-    # add optional args
-    if dry_run:
-        args.append("--dryrun")
-
-    process = subprocess.Popen(  # noqa: S603
-        args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
+    return_code = run_aws_cli_sync(
+        source, destination, exclude_patterns=["dspace_metadata/*"], dry_run=dry_run
     )
-
-    # log process output (stdout and stderr) in real-time
-    if process.stdout:
-        for line in process.stdout:
-            if line:
-                logger.info(line)
-    else:
-        logger.info("No changes detected in source, no sync required")
-
-    if process.stderr:
-        for line in process.stderr:
-            if line:
-                logger.error(line)
-
-    # wait for the process to complete
-    process.wait()
-    return_code = process.returncode
-
-    if return_code != 0:
-        logger.error(f"Failed to sync (exit code: {return_code})")
-        ctx.exit(return_code)  # exit with the same code as subprocess
-    else:
-        logger.info("Sync completed successfully")
+    ctx.exit(return_code)
 
 
 @main.command()
@@ -263,7 +224,6 @@ def sync(
     "-c",
     "--collection-handle",
     help="The handle of the DSpace collection to which the batch will be submitted",
-    required=True,
 )
 @click.option(
     "-e",
