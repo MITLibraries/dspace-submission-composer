@@ -1,3 +1,4 @@
+import json
 import logging
 import os
 from collections.abc import Iterable
@@ -125,3 +126,9 @@ class Config:
             sentry_sdk.init(sentry_dsn, environment=env)
             return f"Sentry DSN found, exceptions will be sent to Sentry with env={env}"
         return "No Sentry DSN found, exceptions will not be sent to Sentry"
+
+
+def load_external_config(file_path: str) -> dict:
+    """Load a JSON configuration file into dict."""
+    with open(file_path, "rb") as config_file:
+        return json.load(config_file)
