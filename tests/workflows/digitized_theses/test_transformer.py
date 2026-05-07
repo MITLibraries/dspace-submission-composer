@@ -112,3 +112,13 @@ def test_digitized_theses_transformer_subfield_text_multi_codes():
         DigitizedThesesTransformer._subfield_text(df[0], codes="ax", separator=" | ")
         == "Computer science | History"
     )
+
+
+def test_digitized_theses_transformer_normalize_degree_type():
+    assert (
+        DigitizedThesesTransformer._normalize_degree_type(value="B. Arch.") == "Bachelor"
+    )  # method = "exact"
+
+    assert (
+        DigitizedThesesTransformer._normalize_degree_type(value="Ph   D") == "Doctoral"
+    )  # method = "regex"
