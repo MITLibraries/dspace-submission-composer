@@ -46,7 +46,7 @@ disallow_untyped_defs = true
 exclude = ["tests/"]
 
 [[tool.mypy.overrides]]
-module = ["dspace_rest_client.*", "smart_open"]
+module = ["dspace_rest_client.*", "lxml", "smart_open"]
 ignore_missing_imports = true
 
 

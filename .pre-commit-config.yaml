@@ -24,6 +24,6 @@ repos:
         types: ["python"]
       - id: pip-audit
         name: pip-audit
-        entry: uv run pip-audit --ignore-vuln CVE-2026-3219
+        entry: uv run pip-audit
         language: system
         pass_filenames: false
