@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import inspect
 import re
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, ClassVar
 
 if TYPE_CHECKING:
     from collections.abc import Iterable
@@ -80,6 +80,50 @@ class DigitizedThesesTransformer:
         "dc_subject_other",
         "dc_title_alternative",
         "dc_type",
+        "mit_theses_degree",
+    ]
+
+    degree_types_crosswalk: ClassVar = [
+        ("B.Arch", "exact", "Bachelor"),
+        ("B.Arch.", "exact", "Bachelor"),
+        ("B. Arch.", "exact", "Bachelor"),
+        ("B.C.P", "exact", "Bachelor"),
+        ("B.E.", "exact", "Bachelor"),
+        (r"B.[Ss]", "regex", "Bachelor"),
+        ("S.B.", "exact", "Bachelor"),
+        ("D.Eng.", "exact", "Doctoral"),
+        (r"Dr?.P.H.", "regex", "Doctoral"),
+        ("Eng.D.", "exact", "Doctoral"),
+        (r"Ph[,.\s]*?D", "regex", "Doctoral"),
+        (r"S[cC]{1}[.\s]*?D", "regex", "Doctoral"),
+        (r"Aero[. ]E", "regex", "Engineer"),
+        (r"Bldg?.E", "regex", "Engineer"),
+        (r"C(?:iv)?\.\s?E.", "regex", "Engineer"),
+        ("Chem.E", "exact", "Engineer"),
+        ("Chem. E.", "exact", "Engineer"),
+        ("E.A.A.", "exact", "Engineer"),
+        ("E.C.S.", "exact", "Engineer"),
+        (r"E(?:lec)?t?.\s?E", "regex", "Engineer"),
+        ("Env.E", "exact", "Engineer"),
+        ("Mar.M.E.", "exact", "Engineer"),
+        ("Mat.E", "exact", "Engineer"),
+        ("Mech. E.", "exact", "Engineer"),
+        (r"Mech.?E", "regex", "Engineer"),
+        (r"Met(?:al)?.\sE", "regex", "Engineer"),
+        (r"Nav.(?:A(?:rch)?|\s?E)", "regex", "Engineer"),
+        (r"Nuc\.\s?E\.", "regex", "Engineer"),
+        (r"Nucl?.E", "regex", "Engineer"),
+        (r"Ocean[. ]{1}E", "regex", "Engineer"),
+        ("San.E", "exact", "Engineer"),
+        ("C.P.H.", "exact", "Master"),
+        (r"M\.\s?Arch", "regex", "Master"),
+        ("M.B.A.", "exact", "Master"),
+        (r"M\.C\.P\.?", "regex", "Master"),
+        (r"M\.\s?Eng\.", "regex", "Master"),
+        (r"M\.\s?Fin\.", "regex", "Master"),
+        ("M.P.H.", "exact", "Master"),
+        (r"M[.\s]*?S", "regex", "Master"),
+        (r"S\.\s?M\.", "regex", "Master"),
     ]
 
     departments_crosswalk = load_external_config(
@@ -186,10 +230,10 @@ class DigitizedThesesTransformer:
             first_only: if True, return text of the first matching subfield only
         """
         parts: list[str] = []
-        for sf in DigitizedThesesTransformer._xpath(datafield, "marc:subfield"):
-            code = sf.get("code", "")
+        for subfield in DigitizedThesesTransformer._xpath(datafield, "marc:subfield"):
+            code = subfield.get("code", "")
             if code in codes:
-                text = (sf.text or "").strip()
+                text = (subfield.text or "").strip()
                 if text:
                     if first_only:
                         return text
@@ -205,8 +249,8 @@ class DigitizedThesesTransformer:
         """MARC 245 and 246."""
         results: list[str] = []
 
-        for df in cls._datafields(record, "245"):
-            value = cls._subfield_text(df, "ab")
+        for datafield in cls._datafields(record, "245"):
+            value = cls._subfield_text(datafield, "ab")
             if value:
                 results.append(re.sub(r"(.*) /", r"\1", value))
 
@@ -217,10 +261,10 @@ class DigitizedThesesTransformer:
         """MARC 502 (first ocurrence)."""
         results: list[str] = []
 
-        dfs = cls._datafields(record, "502")
-        if dfs:
-            dissertation_note = cls._subfield_text(dfs[0], codes="a")
-            degree_year = cls._subfield_text(dfs[0], codes="d")
+        datafields = cls._datafields(record, "502")
+        if datafields:
+            dissertation_note = cls._subfield_text(datafields[0], codes="a")
+            degree_year = cls._subfield_text(datafields[0], codes="d")
             if dissertation_note:
                 results.append(re.sub(r".*(\d{4}).*", r"\1", dissertation_note))
             if degree_year:
@@ -232,8 +276,8 @@ class DigitizedThesesTransformer:
     def dc_contributor_advisor(cls, record: etree._Element) -> list[str] | None:
         """MARC 599."""
         results: list[str] = []
-        for df in cls._datafields(record, "599", ind1=0, ind2=0):
-            value = cls._datafield_text(df)
+        for datafield in cls._datafields(record, "599", ind1=0, ind2=0):
+            value = cls._datafield_text(datafield)
             if value:
                 results.append(re.sub(r"Supervised by (.*)", r"\1", value))
 
@@ -244,13 +288,13 @@ class DigitizedThesesTransformer:
         """MARC 100 and 700."""
         results: list[str] = []
 
-        for df in cls._datafields(record, "100"):
-            value = cls._datafield_text(df)
+        for datafield in cls._datafields(record, "100"):
+            value = cls._datafield_text(datafield)
             if value:
                 results.append(value)
 
-        for df in cls._datafields(record, "700"):
-            value = cls._subfield_text(df, "abd")
+        for datafield in cls._datafields(record, "700"):
+            value = cls._subfield_text(datafield, "abd")
             if value:
                 results.append(value)
 
@@ -261,14 +305,14 @@ class DigitizedThesesTransformer:
         """MARC 710 or 502 (if 710a or 710b is not set)."""
         results: list[str] = []
 
-        for df in cls._datafields(record, "710"):
-            value = cls._subfield_text(df, codes="ab")
+        for datafield in cls._datafields(record, "710"):
+            value = cls._subfield_text(datafield, codes="ab")
             if value:
                 results.append(re.sub(r"^(.*?)\.?(?:Thesis\.\d{4}.*)?$", r"\1", value))
 
         if not results:
-            for df in cls._datafields(record, "502"):
-                value = cls._subfield_text(df, "c")
+            for datafield in cls._datafields(record, "502"):
+                value = cls._subfield_text(datafield, "c")
                 if value:
                     results.append(
                         value.replace(
@@ -291,23 +335,23 @@ class DigitizedThesesTransformer:
         results: list[str] = []
 
         for tag in ("110", "111"):
-            for df in cls._datafields(record, tag):
-                value = cls._datafield_text(df)
+            for datafield in cls._datafields(record, tag):
+                value = cls._datafield_text(datafield)
                 if value:
                     results.append(value)
 
-        for df in cls._datafields(record, "710"):
-            value = cls._subfield_text(df, codes="abcdft")
+        for datafield in cls._datafields(record, "710"):
+            value = cls._subfield_text(datafield, codes="abcdft")
             if value:
                 results.append(value)
 
-        for df in cls._datafields(record, "711"):
-            value = cls._subfield_text(df, codes="acdefpt")
+        for datafield in cls._datafields(record, "711"):
+            value = cls._subfield_text(datafield, codes="acdefpt")
             if value:
                 results.append(value)
 
-        for df in cls._datafields(record, "720"):
-            value = cls._subfield_text(df, codes="a")
+        for datafield in cls._datafields(record, "720"):
+            value = cls._subfield_text(datafield, codes="a")
             if value:
                 results.append(value)
 
@@ -318,13 +362,13 @@ class DigitizedThesesTransformer:
         """MARC 651 $a and 752 $a-$h (hierarchical place)."""
         results: list[str] = []
 
-        for df in cls._datafields(record, "651"):
-            value = cls._subfield_text(df, "a")
+        for datafield in cls._datafields(record, "651"):
+            value = cls._subfield_text(datafield, "a")
             if value:
                 results.append(value)
 
-        for df in cls._datafields(record, "752"):
-            value = cls._subfield_text(df, "abcdefgh")
+        for datafield in cls._datafields(record, "752"):
+            value = cls._subfield_text(datafield, "abcdefgh")
             if value:
                 results.append(value)
 
@@ -335,13 +379,13 @@ class DigitizedThesesTransformer:
         """MARC 522 and 043."""
         results: list[str] = []
 
-        for df in cls._datafields(record, "522"):
-            value = cls._subfield_text(df, codes="a")
+        for datafield in cls._datafields(record, "522"):
+            value = cls._subfield_text(datafield, codes="a")
             if value:
                 results.append(value)
 
-        for df in cls._datafields(record, "043", ind1=" ", ind2=" "):
-            value = cls._datafield_text(df)
+        for datafield in cls._datafields(record, "043", ind1=" ", ind2=" "):
+            value = cls._datafield_text(datafield)
             if value:
                 results.append(value)
 
@@ -352,8 +396,8 @@ class DigitizedThesesTransformer:
         """MARC 513."""
         results: list[str] = []
 
-        for df in cls._datafields(record, "513", ind1=" ", ind2=" "):
-            value = cls._subfield_text(df, codes="b")
+        for datafield in cls._datafields(record, "513", ind1=" ", ind2=" "):
+            value = cls._subfield_text(datafield, codes="b")
             if value:
                 results.append(value)
 
@@ -364,13 +408,13 @@ class DigitizedThesesTransformer:
         """MARC 260 and 264."""
         results: list[str] = []
 
-        for df in cls._datafields(record, "260", ind1=" ", ind2=" "):
-            value = cls._subfield_text(df, codes="c")
+        for datafield in cls._datafields(record, "260", ind1=" ", ind2=" "):
+            value = cls._subfield_text(datafield, codes="c")
             if value:
                 results.append(re.sub(r".*(\d{4}).*", r"\1", value))
 
-        for df in cls._datafields(record, "264", ind1=" ", ind2="4"):
-            value = cls._subfield_text(df, codes="c")
+        for datafield in cls._datafields(record, "264", ind1=" ", ind2="4"):
+            value = cls._subfield_text(datafield, codes="c")
             if value:
                 results.append(re.sub(r"[©c](\d{4}).*", r"\1", value))
 
@@ -380,8 +424,8 @@ class DigitizedThesesTransformer:
     def dc_date_created(cls, record: etree._Element) -> list[str] | None:
         """MARC 260."""
         results: list[str] = []
-        for df in cls._datafields(record, "260", ind1=" ", ind2=" "):
-            value = cls._subfield_text(df, codes="g")
+        for datafield in cls._datafields(record, "260", ind1=" ", ind2=" "):
+            value = cls._subfield_text(datafield, codes="g")
             if value:
                 results.append(value)
         return results or None
@@ -395,8 +439,8 @@ class DigitizedThesesTransformer:
         marc_500_subfield_a_combined_values = (
             " ".join(
                 [
-                    cls._subfield_text(df, codes="a")
-                    for df in cls._datafields(record, "500")
+                    cls._subfield_text(datafield, codes="a")
+                    for datafield in cls._datafields(record, "500")
                 ]
             )
         ).strip()
@@ -404,12 +448,12 @@ class DigitizedThesesTransformer:
             results.append(marc_500_subfield_a_combined_values)
 
         # MARC 502: get subfield $a text, else concatenate subfield $b-g text
-        for df in cls._datafields(record, "502"):
-            if value := cls._subfield_text(df, codes="a"):
+        for datafield in cls._datafields(record, "502"):
+            if value := cls._subfield_text(datafield, codes="a"):
                 results.append(value)
                 continue
 
-            value = cls._subfield_text(df, codes="bcdg", separator=", ")
+            value = cls._subfield_text(datafield, codes="bcdg", separator=", ")
             if value:
                 results.append(f"Thesis: {value}")
 
@@ -417,8 +461,8 @@ class DigitizedThesesTransformer:
         marc_504_subfield_a_combined_values = (
             " ".join(
                 [
-                    cls._subfield_text(df, codes="a")
-                    for df in cls._datafields(record, "504")
+                    cls._subfield_text(datafield, codes="a")
+                    for datafield in cls._datafields(record, "504")
                 ]
             )
         ).strip()
@@ -431,8 +475,8 @@ class DigitizedThesesTransformer:
     def dc_description_abstract(cls, record: etree._Element) -> list[str] | None:
         """MARC 502."""
         results: list[str] = []
-        for df in cls._datafields(record, "520", ind1="3", ind2=" "):
-            value = cls._subfield_text(df, "ab")
+        for datafield in cls._datafields(record, "520", ind1="3", ind2=" "):
+            value = cls._subfield_text(datafield, "ab")
             if value:
                 results.append(value)
 
@@ -443,12 +487,12 @@ class DigitizedThesesTransformer:
         """MARC 502."""
         results: list[str] = []
 
-        for df in cls._datafields(record, "502"):
-            degree_type = cls._subfield_text(df, "b").replace(
+        for datafield in cls._datafields(record, "502"):
+            degree_type = cls._subfield_text(datafield, "b").replace(
                 "Massachusetts Institute of Technology,",
                 "Massachusetts Institute of Technology.",
             )
-            institution = cls._subfield_text(df, "c")
+            institution = cls._subfield_text(datafield, "c")
 
             value = f"{degree_type} {institution}".strip()
             if value:
@@ -461,8 +505,8 @@ class DigitizedThesesTransformer:
         """MARC 502."""
         results: list[str] = []
 
-        for df in cls._datafields(record, "502"):
-            value = cls._subfield_text(df, codes="b")
+        for datafield in cls._datafields(record, "502"):
+            value = cls._subfield_text(datafield, codes="b")
             if value:
                 results.append(value)
 
@@ -473,8 +517,8 @@ class DigitizedThesesTransformer:
         """MARC 561."""
         results: list[str] = []
 
-        for df in cls._datafields(record, "561", ind1=" ", ind2=" "):
-            value = cls._datafield_text(df)
+        for datafield in cls._datafields(record, "561", ind1=" ", ind2=" "):
+            value = cls._datafield_text(datafield)
             if value:
                 results.append(value)
 
@@ -485,8 +529,8 @@ class DigitizedThesesTransformer:
         """MARC 536."""
         results: list[str] = []
 
-        for df in cls._datafields(record, "536", ind1=" ", ind2=" "):
-            value = cls._datafield_text(df)
+        for datafield in cls._datafields(record, "536", ind1=" ", ind2=" "):
+            value = cls._datafield_text(datafield)
             if value:
                 results.append(value)
 
@@ -498,8 +542,8 @@ class DigitizedThesesTransformer:
     ) -> list[str] | None:
         """MARC 245."""
         results: list[str] = []
-        for df in cls._datafields(record, "245"):
-            value = cls._subfield_text(df, "c")
+        for datafield in cls._datafields(record, "245"):
+            value = cls._subfield_text(datafield, "c")
             if value:
                 results.append(value)
 
@@ -510,13 +554,13 @@ class DigitizedThesesTransformer:
         """MARC 505."""
         results: list[str] = []
 
-        for df in cls._datafields(record, "504"):
-            ind1, ind2 = df.get("ind1", " "), df.get("ind2", " ")
+        for datafield in cls._datafields(record, "504"):
+            ind1, ind2 = datafield.get("ind1", " "), datafield.get("ind2", " ")
 
             if (ind1 in {"0", "2", "8"} and ind2 == " ") or (
                 (ind1 in {"0", "1", "2"} or ind1 == "8") and ind2 == "0"
             ):
-                value = cls._subfield_text(df, codes="agrt")
+                value = cls._subfield_text(datafield, codes="agrt")
                 if value:
                     results.append(value)
 
@@ -527,10 +571,10 @@ class DigitizedThesesTransformer:
         """MARC 856."""
         results: list[str] = []
 
-        for df in cls._datafields(record, "856"):
-            ind1, ind2 = df.get("ind1", " "), df.get("ind2", " ")
+        for datafield in cls._datafields(record, "856"):
+            ind1, ind2 = datafield.get("ind1", " "), datafield.get("ind2", " ")
             if ind1 == "4" and (ind2 in {" ", "0", "1", "2", "8"}):
-                value = cls._subfield_text(df, codes="q")
+                value = cls._subfield_text(datafield, codes="q")
                 if value:
                     results.append(value)
 
@@ -541,8 +585,8 @@ class DigitizedThesesTransformer:
         """MARC 300."""
         results: list[str] = []
 
-        for df in cls._datafields(record, "300", ind1=" ", ind2=" "):
-            value = cls._subfield_text(df, codes="a")
+        for datafield in cls._datafields(record, "300", ind1=" ", ind2=" "):
+            value = cls._subfield_text(datafield, codes="a")
             if value:
                 results.append(re.sub(r"(.*) :", r"\1", value))
 
@@ -553,8 +597,8 @@ class DigitizedThesesTransformer:
         """MARC 340."""
         results: list[str] = []
 
-        for df in cls._datafields(record, "340", ind1=" ", ind2=" "):
-            value = cls._subfield_text(df, codes="a")
+        for datafield in cls._datafields(record, "340", ind1=" ", ind2=" "):
+            value = cls._subfield_text(datafield, codes="a")
             if value:
                 results.append(value)
 
@@ -566,8 +610,8 @@ class DigitizedThesesTransformer:
         results: list[str] = []
 
         for tag in ("027", "088"):
-            for df in cls._datafields(record, tag):
-                value = cls._datafield_text(df)
+            for datafield in cls._datafields(record, tag):
+                value = cls._datafield_text(datafield)
                 if value:
                     results.append(value)
 
@@ -578,8 +622,8 @@ class DigitizedThesesTransformer:
         """MARC 020."""
         results: list[str] = []
 
-        for df in cls._datafields(record, tag="020", ind1=" ", ind2=" "):
-            value = cls._subfield_text(df, codes="a")
+        for datafield in cls._datafields(record, tag="020", ind1=" ", ind2=" "):
+            value = cls._subfield_text(datafield, codes="a")
             if value:
                 results.append(value)
 
@@ -590,8 +634,8 @@ class DigitizedThesesTransformer:
         """MARC 022."""
         results: list[str] = []
 
-        for df in cls._datafields(record, tag="022", ind1=" ", ind2=" "):
-            value = cls._subfield_text(df, codes="a")
+        for datafield in cls._datafields(record, tag="022", ind1=" ", ind2=" "):
+            value = cls._subfield_text(datafield, codes="a")
             if value:
                 results.append(value)
 
@@ -602,10 +646,10 @@ class DigitizedThesesTransformer:
         """MARC 024."""
         results: list[str] = []
 
-        for df in cls._datafields(record, tag="024"):
-            ind1, ind2 = df.get("ind1", " "), df.get("ind2", " ")
+        for datafield in cls._datafields(record, tag="024"):
+            ind1, ind2 = datafield.get("ind1", " "), datafield.get("ind2", " ")
             if ind1 == "2" and (ind2 in {" ", "0", "1"}):
-                value = cls._subfield_text(df, codes="a")
+                value = cls._subfield_text(datafield, codes="a")
                 if value:
                     results.append(value)
 
@@ -616,8 +660,8 @@ class DigitizedThesesTransformer:
         """MARC 024."""
         results: list[str] = []
 
-        for df in cls._datafields(record, tag="024", ind1="8", ind2=" "):
-            value = cls._subfield_text(df, codes="a")
+        for datafield in cls._datafields(record, tag="024", ind1="8", ind2=" "):
+            value = cls._subfield_text(datafield, codes="a")
             if value:
                 results.append(value)
 
@@ -628,10 +672,10 @@ class DigitizedThesesTransformer:
         """MARC 024."""
         results: list[str] = []
 
-        for df in cls._datafields(record, tag="024"):
-            ind1, ind2 = df.get("ind1", " "), df.get("ind2", " ")
+        for datafield in cls._datafields(record, tag="024"):
+            ind1, ind2 = datafield.get("ind1", " "), datafield.get("ind2", " ")
             if ind1 == "4" and (ind2 in {" ", "0", "1"}):
-                value = cls._subfield_text(df, codes="a")
+                value = cls._subfield_text(datafield, codes="a")
                 if value:
                     results.append(value)
 
@@ -642,10 +686,10 @@ class DigitizedThesesTransformer:
         """MARC 856."""
         results: list[str] = []
 
-        for df in cls._datafields(record, tag="856"):
-            ind1, ind2 = df.get("ind1", " "), df.get("ind2", " ")
+        for datafield in cls._datafields(record, tag="856"):
+            ind1, ind2 = datafield.get("ind1", " "), datafield.get("ind2", " ")
             if ind1 == "4" and (ind2 in {"0", "1", "2"}):
-                value = cls._subfield_text(df, codes="u")
+                value = cls._subfield_text(datafield, codes="u")
                 if value:
                     results.append(value)
 
@@ -656,15 +700,15 @@ class DigitizedThesesTransformer:
         """MARC 041 and 546."""
         results: list[str] = []
 
-        for df in cls._datafields(record, "041"):
-            ind1, ind2 = df.get("ind1", " "), df.get("ind2", " ")
+        for datafield in cls._datafields(record, "041"):
+            ind1, ind2 = datafield.get("ind1", " "), datafield.get("ind2", " ")
             if (ind1 in {"0", "1"}) and ind2 == " ":
-                value = cls._subfield_text(df, codes="a")
+                value = cls._subfield_text(datafield, codes="a")
                 if value:
                     results.append(value)
 
-        for df in cls._datafields(record, "546", ind1=" ", ind2=" "):
-            value = cls._subfield_text(df, codes="ab")
+        for datafield in cls._datafields(record, "546", ind1=" ", ind2=" "):
+            value = cls._subfield_text(datafield, codes="ab")
             if value:
                 results.append(value)
 
@@ -675,8 +719,8 @@ class DigitizedThesesTransformer:
         """MARC 040."""
         results: list[str] = []
 
-        for df in cls._datafields(record, "040"):
-            value = cls._subfield_text(df, codes="b")
+        for datafield in cls._datafields(record, "040"):
+            value = cls._subfield_text(datafield, codes="b")
             if value:
                 results.append(value)
 
@@ -688,14 +732,14 @@ class DigitizedThesesTransformer:
         results: list[str] = ["Massachusetts Institute of Technology"]
 
         # 260
-        for df in cls._datafields(record, "260", ind1=" ", ind2=" "):
-            value = cls._subfield_text(df, "b")
+        for datafield in cls._datafields(record, "260", ind1=" ", ind2=" "):
+            value = cls._subfield_text(datafield, "b")
             if value:
                 results.append(value)
 
         # 264
-        for df in cls._datafields(record, "264", ind1=" ", ind2="0"):
-            value = cls._subfield_text(df, "b")
+        for datafield in cls._datafields(record, "264", ind1=" ", ind2="0"):
+            value = cls._subfield_text(datafield, "b")
             if value:
                 results.append(value)
 
@@ -706,27 +750,27 @@ class DigitizedThesesTransformer:
         """MARC 580, 775, 785, and 787."""
         results: list[str] = []
 
-        for df in cls._datafields(record, "580", ind1=" ", ind2=" "):
-            value = cls._datafield_text(df)
+        for datafield in cls._datafields(record, "580", ind1=" ", ind2=" "):
+            value = cls._datafield_text(datafield)
             if value:
                 results.append(value)
 
-        for df in cls._datafields(record, "775", ind1="0", ind2=" "):
-            value = cls._subfield_text(df, codes="anostx")
+        for datafield in cls._datafields(record, "775", ind1="0", ind2=" "):
+            value = cls._subfield_text(datafield, codes="anostx")
             if value:
                 results.append(value)
 
-        for df in cls._datafields(record, "785"):
-            ind1, ind2 = df.get("ind1", " "), df.get("ind2", " ")
+        for datafield in cls._datafields(record, "785"):
+            ind1, ind2 = datafield.get("ind1", " "), datafield.get("ind2", " ")
             if ind1 == "0" and (ind2 in {"1", "2", "3", "5", "7"}):
-                value = cls._subfield_text(df, codes="gt")
+                value = cls._subfield_text(datafield, codes="gt")
                 if value:
                     results.append(value)
 
-        for df in cls._datafields(record, "787"):
-            ind1, ind2 = df.get("ind1", " "), df.get("ind2", " ")
+        for datafield in cls._datafields(record, "787"):
+            ind1, ind2 = datafield.get("ind1", " "), datafield.get("ind2", " ")
             if (ind1 in {"0", "1"}) and ind2 == " ":
-                value = cls._subfield_text(df, codes="ainost")
+                value = cls._subfield_text(datafield, codes="ainost")
                 if value:
                     results.append(value)
 
@@ -737,8 +781,8 @@ class DigitizedThesesTransformer:
         """MARC 774."""
         results: list[str] = []
 
-        for df in cls._datafields(record, "774", ind1="0", ind2=" "):
-            value = cls._subfield_text(df, codes="anostxyz")
+        for datafield in cls._datafields(record, "774", ind1="0", ind2=" "):
+            value = cls._subfield_text(datafield, codes="anostxyz")
             if value:
                 results.append(value)
 
@@ -749,8 +793,8 @@ class DigitizedThesesTransformer:
         """MARC 786."""
         results: list[str] = []
 
-        for df in cls._datafields(record, "786", ind1="0", ind2=" "):
-            value = cls._subfield_text(df, codes="n")
+        for datafield in cls._datafields(record, "786", ind1="0", ind2=" "):
+            value = cls._subfield_text(datafield, codes="n")
             if value:
                 results.append(value)
 
@@ -761,8 +805,8 @@ class DigitizedThesesTransformer:
         """MARC 776."""
         results: list[str] = []
 
-        for df in cls._datafields(record, "776", ind1="0", ind2=" "):
-            value = cls._subfield_text(df, codes="anost")
+        for datafield in cls._datafields(record, "776", ind1="0", ind2=" "):
+            value = cls._subfield_text(datafield, codes="anost")
             if value:
                 results.append(value)
 
@@ -773,8 +817,8 @@ class DigitizedThesesTransformer:
         """MARC 773."""
         results: list[str] = []
 
-        for df in cls._datafields(record, "773", ind1="0", ind2=" "):
-            value = cls._subfield_text(df, codes="anostxyz")
+        for datafield in cls._datafields(record, "773", ind1="0", ind2=" "):
+            value = cls._subfield_text(datafield, codes="anostxyz")
             if value:
                 results.append(value)
 
@@ -786,8 +830,8 @@ class DigitizedThesesTransformer:
         results: list[str] = []
 
         for tag in ("400", "410", "411", "440", "800", "810", "811", "830"):
-            for df in cls._datafields(record, tag):
-                value = cls._datafield_text(df)
+            for datafield in cls._datafields(record, tag):
+                value = cls._datafield_text(datafield)
                 if value:
                     results.append(value)
 
@@ -798,8 +842,8 @@ class DigitizedThesesTransformer:
         """MARC 510."""
         results: list[str] = []
 
-        for df in cls._datafields(record, "510", ind1="0", ind2=" "):
-            value = cls._subfield_text(df, codes="a")
+        for datafield in cls._datafields(record, "510", ind1="0", ind2=" "):
+            value = cls._subfield_text(datafield, codes="a")
             if value:
                 results.append(value)
 
@@ -810,10 +854,10 @@ class DigitizedThesesTransformer:
         """MARC 785."""
         results: list[str] = []
 
-        for df in cls._datafields(record, "785"):
-            ind1, ind2 = df.get("ind1", " "), df.get("ind2", " ")
+        for datafield in cls._datafields(record, "785"):
+            ind1, ind2 = datafield.get("ind1", " "), datafield.get("ind2", " ")
             if ind1 == "0" and (ind2 in {"0", "4", "2", "6", "8"}):
-                value = cls._subfield_text(df, codes="gt")
+                value = cls._subfield_text(datafield, codes="gt")
                 if value:
                     results.append(value)
 
@@ -824,8 +868,8 @@ class DigitizedThesesTransformer:
         """MARC 780."""
         results: list[str] = []
 
-        for df in cls._datafields(record, "780", ind1="0", ind2="0"):
-            value = cls._subfield_text(df, codes="ag#nostxyz")
+        for datafield in cls._datafields(record, "780", ind1="0", ind2="0"):
+            value = cls._subfield_text(datafield, codes="ag#nostxyz")
             if value:
                 results.append(value)
 
@@ -836,8 +880,8 @@ class DigitizedThesesTransformer:
         """MARC 538."""
         results: list[str] = []
 
-        for df in cls._datafields(record, "538", ind1=" ", ind2=" "):
-            value = cls._subfield_text(df, codes="a")
+        for datafield in cls._datafields(record, "538", ind1=" ", ind2=" "):
+            value = cls._subfield_text(datafield, codes="a")
             if value:
                 results.append(value)
 
@@ -848,8 +892,8 @@ class DigitizedThesesTransformer:
         """MARC 776."""
         results: list[str] = []
 
-        for df in cls._datafields(record, "776", ind1="0", ind2=" "):
-            value = cls._subfield_text(df, codes="noxyz")
+        for datafield in cls._datafields(record, "776", ind1="0", ind2=" "):
+            value = cls._subfield_text(datafield, codes="noxyz")
             if value:
                 results.append(value)
 
@@ -864,8 +908,8 @@ class DigitizedThesesTransformer:
             "available through the URL provided."
         ]
 
-        for df in cls._datafields(record, "540", ind1=" ", ind2=" "):
-            value = cls._subfield_text(df, "ab")
+        for datafield in cls._datafields(record, "540", ind1=" ", ind2=" "):
+            value = cls._subfield_text(datafield, "ab")
             if value and value not in results:
                 results.append(value)
 
@@ -881,8 +925,8 @@ class DigitizedThesesTransformer:
         """MARC 786."""
         results: list[str] = []
 
-        for df in cls._datafields(record, "786"):
-            value = cls._subfield_text(df, "at")
+        for datafield in cls._datafields(record, "786"):
+            value = cls._subfield_text(datafield, "at")
             if value:
                 results.append(value)
 
@@ -894,8 +938,8 @@ class DigitizedThesesTransformer:
         results: list[str] = []
 
         # MARC 653: subject terms
-        for df in cls._datafields(record, "653"):
-            value = cls._subfield_text(df, codes="a")
+        for datafield in cls._datafields(record, "653"):
+            value = cls._subfield_text(datafield, codes="a")
             if value:
                 results.append(value)
 
@@ -918,8 +962,8 @@ class DigitizedThesesTransformer:
         department_pattern = r"[Dd]epartment\s[Oo]f|[Dd]ept\.\s+[Oo]f"
         thesis_pattern = r"^(.*?)(?:Thesis\.\d{4}.*)?$"
 
-        for df in cls._datafields(record, "710"):
-            value = cls._subfield_text(df, codes="ab")
+        for datafield in cls._datafields(record, "710"):
+            value = cls._subfield_text(datafield, codes="ab")
             if value:
                 _cleaned = re.sub(mit_pattern, "", value)
                 _cleaned = re.sub(department_pattern, "", _cleaned)
@@ -932,12 +976,12 @@ class DigitizedThesesTransformer:
     def _get_departments_from_502(cls, record: etree._Element) -> list[str]:
         departments: list[str] = []
 
-        for df in cls._datafields(record, "502"):
-            degree_type = cls._subfield_text(df, "b").replace(
+        for datafield in cls._datafields(record, "502"):
+            degree_type = cls._subfield_text(datafield, "b").replace(
                 "Massachusetts Institute of Technology,",
                 "Massachusetts Institute of Technology.",
             )
-            institution = cls._subfield_text(df, "c")
+            institution = cls._subfield_text(datafield, "c")
 
             value = f"{degree_type} {institution}".strip()
 
@@ -958,8 +1002,8 @@ class DigitizedThesesTransformer:
         """MARC 082."""
         results: list[str] = []
 
-        for df in cls._datafields(record, "082"):
-            value = cls._subfield_text(df, codes="a")
+        for datafield in cls._datafields(record, "082"):
+            value = cls._subfield_text(datafield, codes="a")
             if value:
                 results.append(value)
 
@@ -970,13 +1014,13 @@ class DigitizedThesesTransformer:
         """MARC 050 and 090."""
         results: list[str] = []
 
-        for df in cls._datafields(record, "050"):
-            value = cls._subfield_text(df, codes="a")
+        for datafield in cls._datafields(record, "050"):
+            value = cls._subfield_text(datafield, codes="a")
             if value:
                 results.append(value)
 
-        for df in cls._datafields(record, "090", ind1=" ", ind2=" "):
-            value = cls._subfield_text(df, codes="ab")
+        for datafield in cls._datafields(record, "090", ind1=" ", ind2=" "):
+            value = cls._subfield_text(datafield, codes="ab")
             if value:
                 results.append(value)
 
@@ -987,13 +1031,13 @@ class DigitizedThesesTransformer:
         """MARC 630 and 650."""
         results: list[str] = []
 
-        for df in cls._datafields(record, "630"):
-            value = cls._datafield_text(df)
+        for datafield in cls._datafields(record, "630"):
+            value = cls._datafield_text(datafield)
             if value:
                 results.append(value)
 
-        for df in cls._datafields(record, "650", ind1=" ", ind2="0"):
-            value = cls._datafield_text(df)
+        for datafield in cls._datafields(record, "650", ind1=" ", ind2="0"):
+            value = cls._datafield_text(datafield)
             if value:
                 results.append(value)
 
@@ -1004,8 +1048,8 @@ class DigitizedThesesTransformer:
         """Marc 650."""
         results: list[str] = []
 
-        for df in cls._datafields(record, "650", ind1=" ", ind2="2"):
-            value = cls._datafield_text(df)
+        for datafield in cls._datafields(record, "650", ind1=" ", ind2="2"):
+            value = cls._datafield_text(datafield)
             if value:
                 results.append(value)
 
@@ -1016,8 +1060,8 @@ class DigitizedThesesTransformer:
         """MARC 650."""
         results: list[str] = []
 
-        for df in cls._datafields(record, "650", ind1=" ", ind2="7"):
-            value = cls._subfield_text(df, codes="a2")
+        for datafield in cls._datafields(record, "650", ind1=" ", ind2="7"):
+            value = cls._subfield_text(datafield, codes="a2")
             if value:
                 results.append(value)
 
@@ -1028,8 +1072,8 @@ class DigitizedThesesTransformer:
         """MARC 246."""
         results: list[str] = []
 
-        for df in cls._datafields(record, "246"):
-            value = cls._subfield_text(df, codes="ab")
+        for datafield in cls._datafields(record, "246"):
+            value = cls._subfield_text(datafield, codes="ab")
             if value:
                 results.append(value)
 
@@ -1040,11 +1084,52 @@ class DigitizedThesesTransformer:
         """MARC 655; includes 'Thesis' by default."""
         results: list[str] = ["Thesis"]
 
-        for df in cls._datafields(record, "655"):
-            ind1, ind2 = df.get("ind1", " "), df.get("ind2", " ")
+        for datafield in cls._datafields(record, "655"):
+            ind1, ind2 = datafield.get("ind1", " "), datafield.get("ind2", " ")
             if (ind1 == " " and (ind2 in {" ", "7"})) or (ind1 == "0" and ind2 == "7"):
-                value = cls._subfield_text(df, codes="abcvxyz")
+                value = cls._subfield_text(datafield, codes="abcvxyz")
                 if value:
                     results.append(value)
 
         return results
+
+    @classmethod
+    def mit_theses_degree(cls, record: etree._Element) -> list[str]:
+        """MARC 502, normalized using cls.degree_types_crosswalk.
+
+        If the 502 $b value does not match any of the patterns in the
+        crosswalk, the original value is returned.
+        """
+        results: list[str] = []
+
+        for datafield in cls._datafields(record, "502"):
+            value = cls._subfield_text(datafield, "b")
+            if value:
+                value = value.replace(
+                    "Massachusetts Institute of Technology,",
+                    "Massachusetts Institute of Technology.",
+                )
+                results.append(cls._normalize_degree_type(value) or value)
+
+        return results
+
+    @classmethod
+    def _normalize_degree_type(cls, value: str) -> str | None:
+        """Normalize 502 $b (degree type) value for mit.theses.degree.
+
+        Returns the normalized degree [Bachelor, Doctoral, Engineer, Master]
+        given cls.degree_types_crosswalk. If there are no matches,
+        returns None.
+        """
+        if not value:
+            return None
+
+        _value = value.strip()
+
+        for pattern, method, normalized in cls.degree_types_crosswalk:
+            if method == "exact" and _value == pattern:
+                return normalized
+            if method == "regex" and re.search(pattern, _value):
+                return normalized
+
+        return None
