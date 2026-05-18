@@ -11,6 +11,7 @@ dependencies = [
     "boto3>=1.42.30",
     "boto3-stubs[essential, ses]>=1.42.30",
     "click>=8.3.1",
+    "dspace-rest-client>=0.1.17",
     "jinja2>=3.1.6",
     "jsonschema>=4.26.0",
     "lxml>=6.0.2",
