@@ -15,6 +15,10 @@ class Config:
         "S3_BUCKET_SUBMISSION_ASSETS",
         "SOURCE_EMAIL",
         "SQS_QUEUE_DSS_INPUT",
+        # workflow-specific
+        "DSPACE_CREDENTIALS",
+        "METADATA_API_URL",
+        "S3_BUCKET_DIGITIZED_THESES",
     ]
 
     OPTIONAL_ENV_VARS: Iterable[str] = [
@@ -76,6 +80,28 @@ class Config:
         if _excluded_loggers := os.getenv("WARNING_ONLY_LOGGERS"):
             return _excluded_loggers.split(",")
         return []
+
+    # Workflow-specific env vars
+    @property
+    def dspace_credentials(self) -> str:
+        value = os.getenv("DSPACE_CREDENTIALS")
+        if not value:
+            raise OSError("Env var 'DSPACE_CREDENTIALS' must be defined")
+        return value
+
+    @property
+    def metadata_api_url(self) -> str:
+        value = os.getenv("METADATA_API_URL")
+        if not value:
+            raise OSError("Env var 'METADATA_API_URL' must be defined")
+        return value
+
+    @property
+    def s3_bucket_digitized_theses(self) -> str:
+        value = os.getenv("S3_BUCKET_DIGITIZED_THESES")
+        if not value:
+            raise OSError("Env var 'S3_BUCKET_DIGITIZED_THESES' must be defined")
+        return value
 
     def check_required_env_vars(self) -> None:
         """Method to raise exception if required env vars not set."""
