@@ -83,11 +83,13 @@ class Config:
 
     # Workflow-specific env vars
     @property
-    def dspace_credentials(self) -> str:
+    def dspace_credentials(self) -> dict:
         value = os.getenv("DSPACE_CREDENTIALS")
         if not value:
             raise OSError("Env var 'DSPACE_CREDENTIALS' must be defined")
-        return value
+        credentials = json.loads(value)
+
+        return {"IR-8": credentials["ir-8"], "DDC-8": credentials["ddc-8"]}
 
     @property
     def metadata_api_url(self) -> str:

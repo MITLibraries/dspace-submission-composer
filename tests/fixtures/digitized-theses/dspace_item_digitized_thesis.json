@@ -1,0 +1,301 @@
+{
+    "handle": "1721.1/157046",
+    "id": "48a44352-9152-4470-bae6-547005167d43",
+    "lastModified": "2025-10-30T17:03:44.161+00:00",
+    "links": {
+        "accessStatus": {
+            "href": "https://dspace.mit.edu/server/api/core/items/48a44352-9152-4470-bae6-547005167d43/accessStatus"
+        },
+        "bundles": {
+            "href": "https://dspace.mit.edu/server/api/core/items/48a44352-9152-4470-bae6-547005167d43/bundles"
+        },
+        "identifiers": {
+            "href": "https://dspace.mit.edu/server/api/core/items/48a44352-9152-4470-bae6-547005167d43/identifiers"
+        },
+        "mappedCollections": {
+            "href": "https://dspace.mit.edu/server/api/core/items/48a44352-9152-4470-bae6-547005167d43/mappedCollections"
+        },
+        "metrics": {
+            "href": "https://dspace.mit.edu/server/api/core/items/48a44352-9152-4470-bae6-547005167d43/metrics"
+        },
+        "owningCollection": {
+            "href": "https://dspace.mit.edu/server/api/core/items/48a44352-9152-4470-bae6-547005167d43/owningCollection"
+        },
+        "relationships": {
+            "href": "https://dspace.mit.edu/server/api/core/items/48a44352-9152-4470-bae6-547005167d43/relationships"
+        },
+        "self": {
+            "href": "https://dspace.mit.edu/server/api/core/items/48a44352-9152-4470-bae6-547005167d43"
+        },
+        "submitter": {
+            "href": "https://dspace.mit.edu/server/api/core/items/48a44352-9152-4470-bae6-547005167d43/submitter"
+        },
+        "templateItemOf": {
+            "href": "https://dspace.mit.edu/server/api/core/items/48a44352-9152-4470-bae6-547005167d43/templateItemOf"
+        },
+        "thumbnail": {
+            "href": "https://dspace.mit.edu/server/api/core/items/48a44352-9152-4470-bae6-547005167d43/thumbnail"
+        },
+        "version": {
+            "href": "https://dspace.mit.edu/server/api/core/items/48a44352-9152-4470-bae6-547005167d43/version"
+        }
+    },
+    "metadata": {
+        "dc.contributor.advisor": [
+            {
+                "authority": null,
+                "confidence": -1,
+                "language": null,
+                "place": 0,
+                "value": "John Harvey Slater."
+            }
+        ],
+        "dc.contributor.author": [
+            {
+                "authority": null,
+                "confidence": 0,
+                "language": "en_US",
+                "place": 0,
+                "value": "McClure, Ghyslaine."
+            }
+        ],
+        "dc.contributor.department": [
+            {
+                "authority": null,
+                "confidence": 500,
+                "language": "en_US",
+                "place": 0,
+                "value": "Massachusetts Institute of Technology. Department of Civil Engineering"
+            }
+        ],
+        "dc.contributor.other": [
+            {
+                "authority": null,
+                "confidence": -1,
+                "language": "en_US",
+                "place": 0,
+                "value": "Massachusetts Institute of Technology. Department of Civil Engineering."
+            }
+        ],
+        "dc.date.accessioned": [
+            {
+                "authority": null,
+                "confidence": -1,
+                "language": null,
+                "place": 0,
+                "value": "2024-09-25T21:55:28Z"
+            }
+        ],
+        "dc.date.available": [
+            {
+                "authority": null,
+                "confidence": -1,
+                "language": null,
+                "place": 0,
+                "value": "2024-09-25T21:55:28Z"
+            }
+        ],
+        "dc.date.copyright": [
+            {
+                "authority": null,
+                "confidence": -1,
+                "language": "en_US",
+                "place": 0,
+                "value": "1984"
+            }
+        ],
+        "dc.date.issued": [
+            {
+                "authority": null,
+                "confidence": -1,
+                "language": "en_US",
+                "place": 0,
+                "value": "1984"
+            }
+        ],
+        "dc.description": [
+            {
+                "authority": null,
+                "confidence": -1,
+                "language": "en_US",
+                "place": 0,
+                "value": "Thesis: M.S., Massachusetts Institute of Technology, Department of Civil Engineering, 1984"
+            },
+            {
+                "authority": null,
+                "confidence": -1,
+                "language": "en_US",
+                "place": 1,
+                "value": "Vita."
+            },
+            {
+                "authority": null,
+                "confidence": -1,
+                "language": "en_US",
+                "place": 2,
+                "value": "Bibliography: leaves 110-114."
+            }
+        ],
+        "dc.description.collection": [
+            {
+                "authority": null,
+                "confidence": -1,
+                "language": "en_US",
+                "place": 0,
+                "value": "M.S. Massachusetts Institute of Technology, Department of Civil Engineering"
+            }
+        ],
+        "dc.description.degree": [
+            {
+                "authority": null,
+                "confidence": -1,
+                "language": "en_US",
+                "place": 0,
+                "value": "M.S."
+            }
+        ],
+        "dc.description.provenance": [
+            {
+                "authority": null,
+                "confidence": -1,
+                "language": "en",
+                "place": 1,
+                "value": "Provenance field added on 2024-09-26T03:45:00Z (GMT). due to a bitstream add. No. of bitstreams: 4\\n12854433-MIT.pdf.jpg: 3499 bytes, checksum: 82adc6b916fdedc290c96b0798806514 (MD5)\\n12854433-MIT.pdf.txt: 223009 bytes, checksum: a4022dcdbe5c203708ec0cce1b3e211e (MD5)\\naleph metadata.xml: 7661 bytes, checksum: 6ca6bb74ec8705e6e1d13b393a08c29c (MD5)\\n12854433-MIT.pdf: 38504114 bytes, checksum: 683f3dcb23c43db703eb86e0443f95a7 (MD5)"
+            },
+            {
+                "authority": null,
+                "confidence": -1,
+                "language": "en",
+                "place": 2,
+                "value": "Provenance field added on 2024-09-25T21:55:51Z (GMT). due to a bitstream add. No. of bitstreams: 2\\n12854433-MIT.pdf: 38504114 bytes, checksum: 683f3dcb23c43db703eb86e0443f95a7 (MD5)\\naleph metadata.xml: 7661 bytes, checksum: 6ca6bb74ec8705e6e1d13b393a08c29c (MD5)"
+            },
+            {
+                "authority": null,
+                "confidence": -1,
+                "language": "en",
+                "place": 3,
+                "value": "Made available in DSpace on 2024-09-25T21:55:28Z (GMT). No. of bitstreams: 0\\n  Previous issue date: 1984"
+            }
+        ],
+        "dc.description.statementofresponsibility": [
+            {
+                "authority": null,
+                "confidence": -1,
+                "language": "en_US",
+                "place": 0,
+                "value": "by Ghyslaine McClure."
+            }
+        ],
+        "dc.format.extent": [
+            {
+                "authority": null,
+                "confidence": -1,
+                "language": "en_US",
+                "place": 0,
+                "value": "xiii, 183 leaves"
+            }
+        ],
+        "dc.identifier.oclc": [
+            {
+                "authority": null,
+                "confidence": -1,
+                "language": "en_US",
+                "place": 0,
+                "value": "12854433"
+            }
+        ],
+        "dc.identifier.uri": [
+            {
+                "authority": null,
+                "confidence": -1,
+                "language": null,
+                "place": 0,
+                "value": "https://hdl.handle.net/1721.1/157046"
+            }
+        ],
+        "dc.publisher": [
+            {
+                "authority": null,
+                "confidence": -1,
+                "language": "en_US",
+                "place": 0,
+                "value": "Massachusetts Institute of Technology"
+            }
+        ],
+        "dc.rights": [
+            {
+                "authority": null,
+                "confidence": -1,
+                "language": "en_US",
+                "place": 0,
+                "value": "MIT theses may be protected by copyright. Please reuse MIT thesis content according to the MIT Libraries Permissions Policy, which is available through the URL provided."
+            }
+        ],
+        "dc.rights.uri": [
+            {
+                "authority": null,
+                "confidence": -1,
+                "language": "en_US",
+                "place": 0,
+                "value": "http://dspace.mit.edu/handle/1721.1/7582"
+            }
+        ],
+        "dc.subject": [
+            {
+                "authority": null,
+                "confidence": -1,
+                "language": "en_US",
+                "place": 0,
+                "value": "Civil Engineering."
+            }
+        ],
+        "dc.title": [
+            {
+                "authority": null,
+                "confidence": -1,
+                "language": "en_US",
+                "place": 0,
+                "value": "Geometric nonlinearities in guyed towers"
+            }
+        ],
+        "dc.type": [
+            {
+                "authority": null,
+                "confidence": -1,
+                "language": "en_US",
+                "place": 0,
+                "value": "Thesis"
+            }
+        ],
+        "dspace.entity.type": [
+            {
+                "authority": null,
+                "confidence": -1,
+                "language": null,
+                "place": 0,
+                "value": "Publication"
+            }
+        ],
+        "dspace.imported": [
+            {
+                "authority": null,
+                "confidence": -1,
+                "language": "en_US",
+                "place": 0,
+                "value": "2024-09-25T21:55:28Z"
+            }
+        ],
+        "mit.thesis.degree": [
+            {
+                "authority": null,
+                "confidence": -1,
+                "language": "en_US",
+                "place": 0,
+                "value": "Master"
+            }
+        ]
+    },
+    "name": "Geometric nonlinearities in guyed towers",
+    "type": "item",
+    "uuid": "48a44352-9152-4470-bae6-547005167d43"
+}

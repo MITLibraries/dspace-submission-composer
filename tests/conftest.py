@@ -135,6 +135,13 @@ def _test_env(monkeypatch):
     monkeypatch.setenv("S3_BUCKET_SUBMISSION_ASSETS", "dsc")
     monkeypatch.setenv("SOURCE_EMAIL", "noreply@example.com")
     monkeypatch.setenv("SQS_QUEUE_DSS_INPUT", "mock-input-queue")
+    # workflow-specific
+    monkeypatch.setenv(
+        "DSPACE_CREDENTIALS",
+        '{"ir-8": {"url": "mock://mit-dspace.test.4science.cloud/server/api", "user": "user@test.com", "password": "topsecret"}, "ddc-8": {"url": "mock://dome.test.mitlibrary.net/rest", "user": "user@test.com", "password": "topsecret"}}',  # noqa: E501
+    )
+    monkeypatch.setenv("METADATA_API_URL", "mock.com/view/sru/01MIT_INST?version=1.2")
+    monkeypatch.setenv("S3_BUCKET_DIGITIZED_THESES", "digitized-theses-workspace-test")
 
 
 @pytest.fixture

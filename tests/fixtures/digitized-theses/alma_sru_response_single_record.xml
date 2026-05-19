@@ -1,0 +1,263 @@
+<?xml version="1.0" encoding="utf-8"?>
+<searchRetrieveResponse xmlns="http://www.loc.gov/zing/srw/">
+    <version>
+        1.2
+    </version>
+    <numberOfRecords>
+        1
+    </numberOfRecords>
+    <records>
+        <record>
+            <recordSchema>
+                marcxml
+            </recordSchema>
+            <recordPacking>
+                xml
+            </recordPacking>
+            <recordData>
+                <record xmlns="http://www.loc.gov/MARC21/slim">
+                    <leader>
+                        00935ntm 2200301Ka 4500
+                    </leader>
+                    <controlfield tag="001">
+                        990008109770106761
+                    </controlfield>
+                    <controlfield tag="005">
+                        20241114051410.0
+                    </controlfield>
+                    <controlfield tag="008">
+                        970318s1929 xx a b 000 0 eng d
+                    </controlfield>
+                    <datafield ind1=" " ind2=" " tag="035">
+                        <subfield code="a">
+                            (MCM)000810977
+                        </subfield>
+                    </datafield>
+                    <datafield ind1=" " ind2=" " tag="035">
+                        <subfield code="a">
+                            (MCM)000810977MIT01
+                        </subfield>
+                    </datafield>
+                    <datafield ind1=" " ind2=" " tag="035">
+                        <subfield code="a">
+                            (OCoLC)36570527
+                        </subfield>
+                    </datafield>
+                    <datafield ind1=" " ind2=" " tag="040">
+                        <subfield code="a">
+                            MYG
+                        </subfield>
+                        <subfield code="c">
+                            MYG
+                        </subfield>
+                    </datafield>
+                    <datafield ind1=" " ind2=" " tag="049">
+                        <subfield code="a">
+                            MYGG
+                        </subfield>
+                    </datafield>
+                    <datafield ind1=" " ind2=" " tag="099">
+                        <subfield code="a">
+                            Thesis
+                        </subfield>
+                        <subfield code="a">
+                            Chem.Eng
+                        </subfield>
+                        <subfield code="a">
+                            1929
+                        </subfield>
+                        <subfield code="a">
+                            M.S.
+                        </subfield>
+                    </datafield>
+                    <datafield ind1="1" ind2=" " tag="100">
+                        <subfield code="a">
+                            Brown, Ernest K.
+                        </subfield>
+                    </datafield>
+                    <datafield ind1="1" ind2="4" tag="245">
+                        <subfield code="a">
+                            The crystallization of sucrose /
+                        </subfield>
+                        <subfield code="c">
+                            by Ernest K. Brown.
+                        </subfield>
+                    </datafield>
+                    <datafield ind1=" " ind2=" " tag="260">
+                        <subfield code="c">
+                            1929.
+                        </subfield>
+                    </datafield>
+                    <datafield ind1=" " ind2=" " tag="300">
+                        <subfield code="a">
+                            81, [7] leaves :
+                        </subfield>
+                        <subfield code="b">
+                            ill. ;
+                        </subfield>
+                        <subfield code="c">
+                            30 cm.
+                        </subfield>
+                    </datafield>
+                    <datafield ind1=" " ind2=" " tag="336">
+                        <subfield code="a">
+                            text
+                        </subfield>
+                        <subfield code="b">
+                            txt
+                        </subfield>
+                        <subfield code="2">
+                            rdacontent
+                        </subfield>
+                    </datafield>
+                    <datafield ind1=" " ind2=" " tag="337">
+                        <subfield code="a">
+                            unmediated
+                        </subfield>
+                        <subfield code="b">
+                            n
+                        </subfield>
+                        <subfield code="2">
+                            rdamedia
+                        </subfield>
+                    </datafield>
+                    <datafield ind1=" " ind2=" " tag="338">
+                        <subfield code="a">
+                            volume
+                        </subfield>
+                        <subfield code="b">
+                            nc
+                        </subfield>
+                        <subfield code="2">
+                            rdacarrier
+                        </subfield>
+                    </datafield>
+                    <datafield ind1=" " ind2=" " tag="502">
+                        <subfield code="b">
+                            M.S.
+                        </subfield>
+                        <subfield code="c">
+                            Massachusetts Institute of Technology, Department of Chemical Engineering
+                        </subfield>
+                        <subfield code="d">
+                            1929
+                        </subfield>
+                    </datafield>
+                    <datafield ind1=" " ind2=" " tag="504">
+                        <subfield code="a">
+                            Includes bibliographical references (leaf 81).
+                        </subfield>
+                    </datafield>
+                    <datafield ind1="4" ind2="0" tag="856">
+                        <subfield code="u">
+                            https://hdl.handle.net/1721.1/164695
+                        </subfield>
+                    </datafield>
+                    <datafield ind1=" " ind2=" " tag="910">
+                        <subfield code="a">
+                            metRECON
+                        </subfield>
+                    </datafield>
+                    <datafield ind1=" " ind2=" " tag="910">
+                        <subfield code="a">
+                            MARCIVEAUT
+                        </subfield>
+                    </datafield>
+                    <datafield ind1=" " ind2=" " tag="961">
+                        <subfield code="a">
+                            1929
+                        </subfield>
+                        <subfield code="a">
+                            xx
+                        </subfield>
+                    </datafield>
+                    <datafield ind1=" " ind2=" " tag="969">
+                        <subfield code="a">
+                            36570527
+                        </subfield>
+                    </datafield>
+                    <datafield ind1="0" ind2="0" tag="992">
+                        <subfield code="a">
+                            Supervised by W. K. Lewis.
+                        </subfield>
+                    </datafield>
+                    <datafield ind1=" " ind2=" " tag="AVA">
+                        <subfield code="0">
+                            990008109770106761
+                        </subfield>
+                        <subfield code="8">
+                            22500982500006761
+                        </subfield>
+                        <subfield code="a">
+                            01MIT_INST
+                        </subfield>
+                        <subfield code="b">
+                            ARC
+                        </subfield>
+                        <subfield code="c">
+                            Noncirculating Collection 3
+                        </subfield>
+                        <subfield code="d">
+                            THESIS Thesis Chem.Eng 1929 M.S.
+                        </subfield>
+                        <subfield code="e">
+                            available
+                        </subfield>
+                        <subfield code="f">
+                            1
+                        </subfield>
+                        <subfield code="g">
+                            0
+                        </subfield>
+                        <subfield code="j">
+                            NOLN3
+                        </subfield>
+                        <subfield code="k">
+                            8
+                        </subfield>
+                        <subfield code="p">
+                            1
+                        </subfield>
+                        <subfield code="q">
+                            Distinctive Collections
+                        </subfield>
+                    </datafield>
+                    <datafield ind1=" " ind2=" " tag="AVE">
+                        <subfield code="8">
+                            53739052910006761
+                        </subfield>
+                        <subfield code="c">
+                            61621075100006761
+                        </subfield>
+                        <subfield code="e">
+                            Available
+                        </subfield>
+                        <subfield code="m">
+                            MIT Theses in DSpace
+                        </subfield>
+                        <subfield code="a">
+                            01MIT_INST
+                        </subfield>
+                        <subfield code="0">
+                            990008109770106761
+                        </subfield>
+                    </datafield>
+                </record>
+            </recordData>
+            <recordIdentifier>
+                990008109770106761
+            </recordIdentifier>
+            <recordPosition>
+                1
+            </recordPosition>
+        </record>
+    </records>
+    <extraResponseData xmlns:xb="http://www.exlibris.com/repository/search/xmlbeans/">
+        <xb:exact>
+            true
+        </xb:exact>
+        <xb:responseDate>
+            2026-04-02T09:13:29-0400
+        </xb:responseDate>
+    </extraResponseData>
+</searchRetrieveResponse>
