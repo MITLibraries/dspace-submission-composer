@@ -376,30 +376,3 @@ def sqs_client(config_instance):
         region=config_instance.aws_region_name,
         queue_name="mock-output-queue",
     )
-
-
-@pytest.fixture
-def submission_message_attributes():
-    return {
-        "PackageID": {"DataType": "String", "StringValue": "123"},
-        "SubmissionSource": {"DataType": "String", "StringValue": "Submission system"},
-        "OutputQueue": {"DataType": "String", "StringValue": "DSS queue"},
-    }
-
-
-@pytest.fixture
-def submission_message_body():
-    return json.dumps(
-        {
-            "SubmissionSystem": "DSpace@MIT",
-            "CollectionHandle": "123.4/5678",
-            "MetadataLocation": "s3://dsc/10.1002-term.3131.json",
-            "Files": [
-                {
-                    "BitstreamName": "10.1002-term.3131.pdf",
-                    "FileLocation": "s3://dsc/10.1002-term.3131.pdf",
-                    "BitstreamDescription": None,
-                }
-            ],
-        }
-    )

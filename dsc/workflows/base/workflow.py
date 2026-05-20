@@ -299,15 +299,16 @@ class Workflow(ABC):
                 )
 
                 item_submission.collection_handle = (
-                    collection_handle or self._get_item_collection_handle()
+                    collection_handle
+                    or self._get_item_collection_handle(batch_metadata[item_identifier])
                 )
 
                 # Send submission message to DSS input queue
                 response = item_submission.send_submission_message(
-                    self.workflow_name,
-                    self.output_queue,
-                    self.submission_system,
-                    item_submission.collection_handle,
+                    submission_source=self.workflow_name,
+                    output_queue=self.output_queue,
+                    submission_system=self.submission_system,
+                    collection_handle=item_submission.collection_handle,
                 )
 
                 # Record details of the item submission message
@@ -340,7 +341,7 @@ class Workflow(ABC):
         )
         return items
 
-    def _get_item_collection_handle(self) -> str:
+    def _get_item_collection_handle(self, item_metadata: dict) -> str:
         """Get collection handle for an item submission.
 
         This method is required for workflows where the collection handle for an item

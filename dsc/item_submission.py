@@ -4,7 +4,7 @@ import json
 import logging
 from collections import defaultdict
 from dataclasses import dataclass, fields
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Literal
 
 from botocore.exceptions import ClientError
 from pynamodb.exceptions import DoesNotExist
@@ -13,7 +13,7 @@ from dsc.config import Config
 from dsc.db.models import ITEM_SUBMISSION_LOG_STR, ItemSubmissionDB, ItemSubmissionStatus
 from dsc.exceptions import (
     DSpaceMetadataUploadError,
-    ItemMetadatMissingRequiredFieldError,
+    ItemMetadataMissingRequiredFieldError,
     SQSMessageSendError,
 )
 from dsc.utils.aws.s3 import S3Client
@@ -218,6 +218,12 @@ class ItemSubmission:
                                       item_identifier=self.item_identifier)
                     } " " already submitted, skipping submission"
                 )
+            case ItemSubmissionStatus.CREATE_FAILED | ItemSubmissionStatus.CREATE_SKIPPED:
+                logger.info(
+                    f"Record " f"{ITEM_SUBMISSION_LOG_STR.format(batch_id=self.batch_id,
+                                      item_identifier=self.item_identifier)
+                    } " " submission assets invalid, skipping submission"
+                )
             case ItemSubmissionStatus.MAX_RETRIES_REACHED:
                 logger.info(
                     f"Record " f"{ITEM_SUBMISSION_LOG_STR.format(batch_id=self.batch_id,
@@ -249,13 +255,20 @@ class ItemSubmission:
             self.status = ItemSubmissionStatus.MAX_RETRIES_REACHED
 
     def prepare_dspace_metadata(
-        self, metadata_mapping: dict, item_metadata: dict, s3_bucket: str, batch_path: str
+        self,
+        item_metadata: dict,
+        s3_bucket: str,
+        batch_path: str,
+        metadata_mapping: dict | None = None,
     ) -> None:
         """Prepare DSpace metadata for the item submission."""
-        self.create_dspace_metadata(
-            item_metadata=item_metadata,
-            metadata_mapping=metadata_mapping,
-        )
+        if metadata_mapping:
+            self.create_dspace_metadata(
+                item_metadata=item_metadata,
+                metadata_mapping=metadata_mapping,
+            )
+        else:
+            self.create_dspace_metadata_without_mapping(item_metadata)
         self.upload_dspace_metadata(bucket=s3_bucket, prefix=batch_path)
 
     def create_dspace_metadata(
@@ -291,7 +304,7 @@ class ItemSubmission:
 
                 field_value = item_metadata.get(field_mapping["source_field_name"])
                 if not field_value and field_mapping.get("required", False):
-                    raise ItemMetadatMissingRequiredFieldError(
+                    raise ItemMetadataMissingRequiredFieldError(
                         "Item metadata missing required field: '"
                         f"{field_mapping["source_field_name"]}'"
                     )
@@ -307,6 +320,55 @@ class ItemSubmission:
                     metadata[field_name].extend(
                         [{"value": value} for value in field_values]
                     )
+        self.dspace_metadata = dict(metadata)
+
+    def create_dspace_metadata_without_mapping(
+        self, item_metadata: dict[str, Any], required_fields: list | None = None
+    ) -> None:
+        """Create item metadata for DSpace 8 without the use of metadata mapping file.
+
+        For DSpace 8, the metadata format is as follows:
+
+        {
+            "dc.title": [{"value": "Title"}]
+            "dc.date.issued": [{"value": "2026}]
+        }
+
+        The formatted metadata is assigned to ItemSubmission.dspace_metadata
+
+        Args:
+            item_metadata: Item metadata from which the DSpace metadata will be derived.
+            required_fields: Additional required fields; dc.title and dc.date.issued
+            are *always* required. Only use this field if specifying fields beyond
+            these two.
+        """
+        metadata = defaultdict(list)
+
+        default_required_fields = ["dc.title", "dc.date.issued"]
+
+        if required_fields:
+            all_required_fields = set(default_required_fields + required_fields)
+        else:
+            all_required_fields = set(default_required_fields)
+
+        # check if all required fields in item metadata
+        if not all_required_fields.issubset(set(item_metadata.keys())):
+            raise ItemMetadataMissingRequiredFieldError
+
+        for field, value in item_metadata.items():
+            if field == "item_identifier":
+                continue
+
+            # get list of non-null values
+            values = value if isinstance(value, list) else [value]
+            values = [value for value in values if value]
+
+            if not values and field in all_required_fields:
+                raise ItemMetadataMissingRequiredFieldError
+
+            if values:
+                metadata[field].extend([{"value": value} for value in values])
+
         self.dspace_metadata = dict(metadata)
 
     def upload_dspace_metadata(self, bucket: str, prefix: str) -> None:
@@ -343,7 +405,9 @@ class ItemSubmission:
         submission_source: str,
         output_queue: str,
         submission_system: str,
-        collection_handle: str,
+        operation: Literal["create", "update"] | None = "create",
+        collection_handle: str | None = None,
+        item_handle: str | None = None,
     ) -> SendMessageResultTypeDef:
         """Send a submission message to the DSS input queue.
 
@@ -352,7 +416,10 @@ class ItemSubmission:
             output_queue: The SQS output queue used for retrieving result messages.
             submission_system: The system where the submission is uploaded
             (e.g. DSpace@MIT).
-            collection_handle: The handle of collection where the submission is uploaded.
+            operation: The operation to perform for an item, 'create' or 'update'.
+            Defaults to 'create'.
+            collection_handle: The handle for the collection in which an item is created.
+            item_handle: The handle of an item to be updated.
         """
         sqs_client = SQSClient(
             region=CONFIG.aws_region_name, queue_name=CONFIG.sqs_queue_dss_input
@@ -369,10 +436,12 @@ class ItemSubmission:
             raise ValueError(message)
 
         message_body = sqs_client.create_dss_message_body(
-            submission_system,
-            collection_handle,
-            self.metadata_s3_uri,
-            self.bitstream_s3_uris,
+            submission_system=submission_system,
+            metadata_s3_uri=self.metadata_s3_uri,
+            bitstream_s3_uris=self.bitstream_s3_uris,
+            operation=operation,
+            collection_handle=collection_handle,
+            item_handle=item_handle,
         )
         try:
             response = sqs_client.send(message_attributes, message_body)
