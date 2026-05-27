@@ -10,7 +10,6 @@ from dsc.db.models import ItemSubmissionDB, ItemSubmissionStatus
 from dsc.exceptions import (
     InvalidWorkflowNameError,
 )
-from dsc.reports import FinalizeReport
 from dsc.workflows.base import Workflow
 
 
@@ -425,7 +424,7 @@ def test_base_workflow_send_report_success(
 ):
     caplog.set_level("DEBUG")
     base_workflow_instance.send_report(
-        report=FinalizeReport.from_workflow(base_workflow_instance),
+        step="finalize",
         email_recipients=["test@test.test"],
     )
     assert "Logs sent to ['test@test.test']" in caplog.text

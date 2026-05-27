@@ -1,3 +1,4 @@
+# ruff: noqa: TD002, TD003, FIX002
 import os
 from io import StringIO
 
@@ -14,73 +15,55 @@ def test_report_init_success():
 
     assert create_report.workflow_name == "test"
     assert create_report.batch_id == "batch-aaa"
-    assert create_report.report_date == "2025-01-01 09:00:00"
+    assert create_report.report_date == "20250101T090000Z"
     assert create_report.subject == ("DSC Create Batch Results - test, batch='batch-aaa'")
 
 
-@freeze_time("2025-01-01 09:00:00")
-def test_report_init_from_workflow_success(base_workflow_instance):
-
-    create_report = CreateReport.from_workflow(base_workflow_instance)
-
-    assert create_report.workflow_name == "test"
-    assert create_report.batch_id == "batch-aaa"
-    assert create_report.report_date == "2025-01-01 09:00:00"
-    assert create_report.subject == ("DSC Create Batch Results - test, batch='batch-aaa'")
-
-
-def test_report_generate_attachments(mock_item_submission_db_with_records):
+def test_report_get_item_submissions(mock_item_submission_db_with_records):
     create_report = CreateReport(workflow_name="test", batch_id="aaa")
-    attachment = create_report.generate_attachments()[0]
+    item_submissions = create_report.get_item_submissions()
 
-    assert attachment[0] == "aaa-item-submissions.csv"
-    assert isinstance(attachment[1], StringIO)
+    assert isinstance(item_submissions, list)
+    assert len(item_submissions) == 2  # noqa: PLR2004
 
 
-def test_report_get_batch_item_submissions_success(
-    mock_item_submission_db_with_records,
-):
+def test_report_filter_item_submissions_by_status(mock_item_submission_db_with_records):
+    # TODO: Update fixture after all Workflows are updated to longer use
+    #       ItemSubmissionStatus.BATCH_CREATED
     create_report = CreateReport(workflow_name="test", batch_id="aaa")
-    batch_item_submissions = create_report.get_batch_item_submissions()
+    item_submissions = create_report.filter_item_submissions_by_status(
+        ItemSubmissionStatus.INGEST_SUCCESS
+    )
 
-    assert len(batch_item_submissions) == 2  # noqa: PLR2004
-
-
-def test_report_write_item_submissions_csv_file(
-    mock_item_submission_db_with_records, tmp_path
-):
-    create_report = CreateReport(workflow_name="test", batch_id="aaa")
-    create_report.write_item_submissions_csv(output_file=tmp_path / "data.csv")
-
-    assert os.path.exists(tmp_path / "data.csv")
+    assert len(item_submissions) == 0
 
 
-def test_report_write_item_submissions_csv_buffer(mock_item_submission_db_with_records):
-    csv_buffer = StringIO()
-    create_report = CreateReport(workflow_name="test", batch_id="aaa")
-    create_report.write_item_submissions_csv(output_file=csv_buffer)
-    csv_buffer.seek(0)
-
-    assert csv_buffer.read()
-
-
-def test_create_report_generate_summary(mock_item_submission_db_with_records):
+def test_report_generate_summary(mock_item_submission_db_with_records):
     create_report = CreateReport(workflow_name="test", batch_id="aaa")
 
     assert "Created: 2" in create_report.generate_summary()
 
 
-def test_create_report_write_errors_csv():
-    csv_buffer = StringIO()
-    create_report = CreateReport(
-        workflow_name="test",
-        batch_id="aaa",
-        errors=[("123", "No bitstreams found for the item submission")],
-    )
-    create_report.write_errors_csv(output_file=csv_buffer)
-    csv_buffer.seek(0)
+def test_report_prepare_attachments(mock_item_submission_db_with_records):
+    create_report = CreateReport(workflow_name="test", batch_id="aaa")
+    attachment = create_report.prepare_attachments()[0]
 
-    assert "123,No bitstreams found for the item submission" in csv_buffer.read()
+    assert attachment[0] == "aaa-item-submissions.csv"
+    assert isinstance(attachment[1], StringIO)
+
+
+def test_report_upload_attachements(mock_item_submission_db_with_records, tmp_path):
+    create_report = CreateReport(workflow_name="test", batch_id="aaa")
+    create_report.upload_attachments(output_location=str(tmp_path))
+
+    assert os.path.exists(tmp_path / "aaa-item-submissions.csv")
+
+
+def test_report_create_item_submissions_csv(mock_item_submission_db_with_records):
+    create_report = CreateReport(workflow_name="test", batch_id="aaa")
+    output = create_report.create_item_submissions_csv()
+
+    assert isinstance(output, StringIO)
 
 
 def test_submit_report_generate_summary(mock_item_submission_db_with_records):

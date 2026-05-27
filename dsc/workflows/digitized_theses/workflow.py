@@ -10,7 +10,7 @@ from collections import defaultdict
 from collections.abc import Iterator
 from enum import StrEnum
 from pathlib import Path
-from typing import Any
+from typing import Any, ClassVar
 
 import requests
 import smart_open
@@ -22,6 +22,7 @@ from dsc import exceptions
 from dsc.config import Config
 from dsc.db.models import ItemSubmissionStatus
 from dsc.item_submission import ItemSubmission
+from dsc.reports import CreateReport, DigitizedThesesFinalizeReport, Report, SubmitReport
 from dsc.utils.aws.s3 import S3Client, run_aws_cli_sync
 from dsc.workflows.base import Workflow
 from dsc.workflows.digitized_theses import NSMAP, DigitizedThesesTransformer
@@ -77,6 +78,11 @@ class DigitizedTheses(Workflow):
 
     workflow_name: str = "digitized-theses"
     metadata_transformer = DigitizedThesesTransformer
+    reporting_modules: ClassVar[dict[str, type[Report]]] = {
+        "create": CreateReport,
+        "submit": SubmitReport,
+        "finalize": DigitizedThesesFinalizeReport,
+    }
 
     def __init__(self, batch_id: str):
         self._dspace_client = None

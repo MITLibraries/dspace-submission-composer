@@ -1,4 +1,7 @@
 {% block content %}
+This email was generated automatically by DSpace Submission Composer (DSC).
+If you have any questions or need assistance, please contact dataeng-lib@mit.edu.
+
 Ingest report
 Batch: {{batch_id}}
 Run date: {{report_date}}
