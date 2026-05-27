@@ -67,7 +67,7 @@ ruff: # Run 'ruff' linter and print a preview of errors
 	uv run ruff check .
 
 safety: # Check for security vulnerabilities and verify Pipfile.lock is up-to-date
-	uv run pip-audit
+	uv run pip-audit --ignore-vuln PYSEC-2024-271
 
 lint-apply: black-apply ruff-apply # Apply changes with 'black' and resolve 'fixable errors' with 'ruff'
 

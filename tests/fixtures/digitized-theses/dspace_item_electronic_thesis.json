@@ -1,0 +1,310 @@
+{
+    "handle": "1721.1/66312",
+    "id": "3b19bd5a-ce65-4ae1-8510-7a3fe3c6e508",
+    "lastModified": "2022-01-13T07:54:29.912+00:00",
+    "links": {
+        "accessStatus": {
+            "href": "https://dspace.mit.edu/server/api/core/items/3b19bd5a-ce65-4ae1-8510-7a3fe3c6e508/accessStatus"
+        },
+        "bundles": {
+            "href": "https://dspace.mit.edu/server/api/core/items/3b19bd5a-ce65-4ae1-8510-7a3fe3c6e508/bundles"
+        },
+        "identifiers": {
+            "href": "https://dspace.mit.edu/server/api/core/items/3b19bd5a-ce65-4ae1-8510-7a3fe3c6e508/identifiers"
+        },
+        "mappedCollections": {
+            "href": "https://dspace.mit.edu/server/api/core/items/3b19bd5a-ce65-4ae1-8510-7a3fe3c6e508/mappedCollections"
+        },
+        "metrics": {
+            "href": "https://dspace.mit.edu/server/api/core/items/3b19bd5a-ce65-4ae1-8510-7a3fe3c6e508/metrics"
+        },
+        "owningCollection": {
+            "href": "https://dspace.mit.edu/server/api/core/items/3b19bd5a-ce65-4ae1-8510-7a3fe3c6e508/owningCollection"
+        },
+        "relationships": {
+            "href": "https://dspace.mit.edu/server/api/core/items/3b19bd5a-ce65-4ae1-8510-7a3fe3c6e508/relationships"
+        },
+        "self": {
+            "href": "https://dspace.mit.edu/server/api/core/items/3b19bd5a-ce65-4ae1-8510-7a3fe3c6e508"
+        },
+        "submitter": {
+            "href": "https://dspace.mit.edu/server/api/core/items/3b19bd5a-ce65-4ae1-8510-7a3fe3c6e508/submitter"
+        },
+        "templateItemOf": {
+            "href": "https://dspace.mit.edu/server/api/core/items/3b19bd5a-ce65-4ae1-8510-7a3fe3c6e508/templateItemOf"
+        },
+        "thumbnail": {
+            "href": "https://dspace.mit.edu/server/api/core/items/3b19bd5a-ce65-4ae1-8510-7a3fe3c6e508/thumbnail"
+        },
+        "version": {
+            "href": "https://dspace.mit.edu/server/api/core/items/3b19bd5a-ce65-4ae1-8510-7a3fe3c6e508/version"
+        }
+    },
+    "metadata": {
+        "dc.contributor.advisor": [
+            {
+                "authority": null,
+                "confidence": -1,
+                "language": "en_US",
+                "place": 0,
+                "value": "Jes\\u00fas A. del Alamo."
+            }
+        ],
+        "dc.contributor.author": [
+            {
+                "authority": null,
+                "confidence": -1,
+                "language": "en_US",
+                "place": 0,
+                "value": "Oyebode, Olayemi A. F. (Olayemi Abiodun Folaranmi)"
+            }
+        ],
+        "dc.contributor.department": [
+            {
+                "authority": null,
+                "confidence": 600,
+                "language": null,
+                "place": 0,
+                "value": "Massachusetts Institute of Technology. Department of Electrical Engineering and Computer Science"
+            }
+        ],
+        "dc.contributor.other": [
+            {
+                "authority": null,
+                "confidence": -1,
+                "language": "en_US",
+                "place": 0,
+                "value": "Massachusetts Institute of Technology. Dept. of Electrical Engineering and Computer Science."
+            }
+        ],
+        "dc.date.accessioned": [
+            {
+                "authority": null,
+                "confidence": -1,
+                "language": null,
+                "place": 0,
+                "value": "2011-10-17T19:49:25Z"
+            }
+        ],
+        "dc.date.available": [
+            {
+                "authority": null,
+                "confidence": -1,
+                "language": null,
+                "place": 0,
+                "value": "2011-10-17T19:49:25Z"
+            }
+        ],
+        "dc.date.copyright": [
+            {
+                "authority": null,
+                "confidence": -1,
+                "language": "en_US",
+                "place": 0,
+                "value": "2011"
+            }
+        ],
+        "dc.date.issued": [
+            {
+                "authority": null,
+                "confidence": -1,
+                "language": "en_US",
+                "place": 0,
+                "value": "2011"
+            }
+        ],
+        "dc.description": [
+            {
+                "authority": null,
+                "confidence": -1,
+                "language": "en_US",
+                "place": 0,
+                "value": "Thesis (M. Eng.)--Massachusetts Institute of Technology, Dept. of Electrical Engineering and Computer Science, 2011."
+            },
+            {
+                "authority": null,
+                "confidence": -1,
+                "language": "en_US",
+                "place": 1,
+                "value": "This electronic version was submitted by the student author.  The certified thesis is available in the Institute Archives and Special Collections."
+            },
+            {
+                "authority": null,
+                "confidence": -1,
+                "language": "en_US",
+                "place": 2,
+                "value": "Cataloged from student submitted PDF version of thesis."
+            },
+            {
+                "authority": null,
+                "confidence": -1,
+                "language": "en_US",
+                "place": 3,
+                "value": "Includes bibliographical references (p. 62-63)."
+            }
+        ],
+        "dc.description.abstract": [
+            {
+                "authority": null,
+                "confidence": -1,
+                "language": "en_US",
+                "place": 0,
+                "value": "The MIT iLab project has developed online laboratories called iLabs that allow students to conduct real experiments on real equipment over the Internet. The ELVIS iLab, developed using National Instruments' Educational Laboratory Virtual Instrument Suite, has made it possible for students to develop a better understanding of engineering concepts by obtaining real data from an electronics lab. In the latest version of the ELVIS iLab, developed in this thesis, the user interface is redesigned to incorporate new features that will improve the experience of students and create new learning opportunities for students. As a result, students can enter values for parameters in the experiment more intuitively, have multiple experiments open simultaneously, view more variables in the graphs by adding new axes and defining new plots, retrieve earlier experiments and choose whether to connect or disconnect circuit elements."
+            }
+        ],
+        "dc.description.degree": [
+            {
+                "authority": null,
+                "confidence": -1,
+                "language": "en_US",
+                "place": 0,
+                "value": "M.Eng."
+            }
+        ],
+        "dc.description.provenance": [
+            {
+                "authority": null,
+                "confidence": -1,
+                "language": "en",
+                "place": 0,
+                "value": "Made available in DSpace on 2011-10-17T19:49:25Z (GMT). No. of bitstreams: 2\\n755804116.pdf: 7167055 bytes, checksum: 7e4c8744d85accbd609a525103257798 (MD5)\\n755804116-MIT.pdf: 7142547 bytes, checksum: 6267929057c6c0b919f0b936e7b20ad3 (MD5)\\n  Previous issue date: 2011; Curation Task, LiberateTheses, removed 1 bitstream, 755804116.pdf, on 2015-04-27T21:42:47Z (GMT).; Curation Task, RemoveNonPrintingExtractedTextFromLiberatedTheses, removed 1 bitstream, 755804116.pdf.txt, on 2015-07-22T17:39:35Z (GMT)."
+            },
+            {
+                "authority": null,
+                "confidence": -1,
+                "language": "en",
+                "place": 1,
+                "value": "Provenance field added on 2019-04-12T20:58:17Z (GMT). due to a bitstream add. No. of bitstreams: 3\\n755804116-MIT.pdf.jpg: 3725 bytes, checksum: da74252268a1dda696590fa579258ba9 (MD5)\\n755804116-MIT.pdf: 7142547 bytes, checksum: 6267929057c6c0b919f0b936e7b20ad3 (MD5)\\n755804116-MIT.pdf.txt: 82460 bytes, checksum: 3804910fff7d72628fc3ab8d5ee75d38 (MD5)"
+            }
+        ],
+        "dc.description.statementofresponsibility": [
+            {
+                "authority": null,
+                "confidence": -1,
+                "language": "en_US",
+                "place": 0,
+                "value": "by Olayemi A. F. Oyebode."
+            }
+        ],
+        "dc.format.extent": [
+            {
+                "authority": null,
+                "confidence": -1,
+                "language": "en_US",
+                "place": 0,
+                "value": "63 p."
+            }
+        ],
+        "dc.identifier.oclc": [
+            {
+                "authority": null,
+                "confidence": -1,
+                "language": "en_US",
+                "place": 0,
+                "value": "755804116"
+            }
+        ],
+        "dc.identifier.uri": [
+            {
+                "authority": null,
+                "confidence": -1,
+                "language": null,
+                "place": 0,
+                "value": "http://hdl.handle.net/1721.1/66312"
+            }
+        ],
+        "dc.language.iso": [
+            {
+                "authority": null,
+                "confidence": -1,
+                "language": "en_US",
+                "place": 0,
+                "value": "eng"
+            }
+        ],
+        "dc.publisher": [
+            {
+                "authority": null,
+                "confidence": -1,
+                "language": "en_US",
+                "place": 0,
+                "value": "Massachusetts Institute of Technology"
+            }
+        ],
+        "dc.rights": [
+            {
+                "authority": null,
+                "confidence": -1,
+                "language": "en_US",
+                "place": 0,
+                "value": "M.I.T. theses are protected by \\ncopyright. They may be viewed from this source for any purpose, but \\nreproduction or distribution in any format is prohibited without written \\npermission. See provided URL for inquiries about permission."
+            }
+        ],
+        "dc.rights.uri": [
+            {
+                "authority": null,
+                "confidence": -1,
+                "language": "en_US",
+                "place": 0,
+                "value": "http://dspace.mit.edu/handle/1721.1/7582"
+            }
+        ],
+        "dc.subject": [
+            {
+                "authority": null,
+                "confidence": -1,
+                "language": "en_US",
+                "place": 0,
+                "value": "Electrical Engineering and Computer Science."
+            }
+        ],
+        "dc.title": [
+            {
+                "authority": null,
+                "confidence": -1,
+                "language": "en_US",
+                "place": 0,
+                "value": "A new client Interface for the ELVIS iLab with enhanced capabilities"
+            }
+        ],
+        "dc.title.alternative": [
+            {
+                "authority": null,
+                "confidence": -1,
+                "language": "en_US",
+                "place": 0,
+                "value": "New client Interface for the Educational Laboratory Virtual Instrument Suite iLab with enhanced capabilities"
+            }
+        ],
+        "dc.type": [
+            {
+                "authority": null,
+                "confidence": -1,
+                "language": "en_US",
+                "place": 0,
+                "value": "Thesis"
+            }
+        ],
+        "dspace.authorsordered": [
+            {
+                "authority": null,
+                "confidence": -1,
+                "language": null,
+                "place": 0,
+                "value": "false"
+            }
+        ],
+        "dspace.entity.type": [
+            {
+                "authority": null,
+                "confidence": -1,
+                "language": null,
+                "place": 0,
+                "value": "Publication"
+            }
+        ]
+    },
+    "name": "A new client Interface for the ELVIS iLab with enhanced capabilities",
+    "type": "item",
+    "uuid": "3b19bd5a-ce65-4ae1-8510-7a3fe3c6e508"
+}

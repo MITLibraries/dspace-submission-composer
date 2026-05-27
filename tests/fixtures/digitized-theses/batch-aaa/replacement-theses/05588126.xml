@@ -1,0 +1,135 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<record xmlns="http://www.loc.gov/MARC21/slim">
+          <leader>01243nam  2200397Ii 4500</leader>
+          <controlfield tag="001">990000762590106761</controlfield>
+          <controlfield tag="005">20241114182427.0</controlfield>
+          <controlfield tag="008">791025s1978    mau      b    000 0 eng d</controlfield>
+          <datafield ind1=" " ind2=" " tag="035">
+            <subfield code="a">(MCM)000076259</subfield>
+          </datafield>
+          <datafield ind1=" " ind2=" " tag="035">
+            <subfield code="a">(MCM)000076259MIT01</subfield>
+          </datafield>
+          <datafield ind1=" " ind2=" " tag="035">
+            <subfield code="a">(OCoLC)05588126</subfield>
+          </datafield>
+          <datafield ind1=" " ind2=" " tag="040">
+            <subfield code="a">MYG</subfield>
+            <subfield code="c">MYG</subfield>
+          </datafield>
+          <datafield ind1=" " ind2=" " tag="049">
+            <subfield code="a">MYGT [Science]</subfield>
+            <subfield code="a">MYGS</subfield>
+          </datafield>
+          <datafield ind1=" " ind2=" " tag="099">
+            <subfield code="a">Thesis Math 1978 Ph.D.</subfield>
+          </datafield>
+          <datafield ind1=" " ind2=" " tag="099">
+            <subfield code="a">Thesis</subfield>
+            <subfield code="a">Math</subfield>
+            <subfield code="a">1978</subfield>
+            <subfield code="a">Ph.D.</subfield>
+          </datafield>
+          <datafield ind1="1" ind2=" " tag="100">
+            <subfield code="a">Zhang, Weida.</subfield>
+          </datafield>
+          <datafield ind1="1" ind2="0" tag="245">
+            <subfield code="a">Global solvability of invariant differential operators.</subfield>
+          </datafield>
+          <datafield ind1=" " ind2=" " tag="260">
+            <subfield code="c">c1978.</subfield>
+          </datafield>
+          <datafield ind1=" " ind2=" " tag="300">
+            <subfield code="a">98 leaves ;</subfield>
+            <subfield code="c">28 cm.</subfield>
+          </datafield>
+          <datafield ind1=" " ind2=" " tag="336">
+            <subfield code="a">text</subfield>
+            <subfield code="b">txt</subfield>
+            <subfield code="2">rdacontent</subfield>
+          </datafield>
+          <datafield ind1=" " ind2=" " tag="337">
+            <subfield code="a">unmediated</subfield>
+            <subfield code="b">n</subfield>
+            <subfield code="2">rdamedia</subfield>
+          </datafield>
+          <datafield ind1=" " ind2=" " tag="338">
+            <subfield code="a">volume</subfield>
+            <subfield code="b">nc</subfield>
+            <subfield code="2">rdacarrier</subfield>
+          </datafield>
+          <datafield ind1=" " ind2=" " tag="502">
+            <subfield code="b">Ph. D.</subfield>
+            <subfield code="c">Massachusetts Institute of Technology, Department of Mathematics</subfield>
+            <subfield code="d">1978</subfield>
+          </datafield>
+          <datafield ind1=" " ind2=" " tag="500">
+            <subfield code="a">Vita.</subfield>
+          </datafield>
+          <datafield ind1=" " ind2=" " tag="504">
+            <subfield code="a">Bibliography: leaves 96-97.</subfield>
+          </datafield>
+          <datafield ind1=" " ind2="0" tag="650">
+            <subfield code="a">Partial differential operators.</subfield>
+          </datafield>
+          <datafield ind1=" " ind2="0" tag="650">
+            <subfield code="a">Lie groups.</subfield>
+          </datafield>
+          <datafield ind1=" " ind2="7" tag="650">
+            <subfield code="a">Lie groups.</subfield>
+            <subfield code="2">fast</subfield>
+          </datafield>
+          <datafield ind1=" " ind2="7" tag="650">
+            <subfield code="a">Partial differential operators.</subfield>
+            <subfield code="2">fast</subfield>
+          </datafield>
+          <datafield ind1="4" ind2="0" tag="856">
+            <subfield code="u">https://hdl.handle.net/1721.1/157651</subfield>
+          </datafield>
+          <datafield ind1=" " ind2=" " tag="910">
+            <subfield code="a">JEH791025sw</subfield>
+          </datafield>
+          <datafield ind1=" " ind2=" " tag="910">
+            <subfield code="a">MARCIVEAUT</subfield>
+          </datafield>
+          <datafield ind1=" " ind2=" " tag="910">
+            <subfield code="a">MARCIVEAUT221103</subfield>
+          </datafield>
+          <datafield ind1=" " ind2=" " tag="961">
+            <subfield code="a">1978</subfield>
+            <subfield code="a">mau</subfield>
+          </datafield>
+          <datafield ind1=" " ind2=" " tag="969">
+            <subfield code="a">05588126</subfield>
+          </datafield>
+          <datafield ind1=" " ind2=" " tag="990">
+            <subfield code="a">MICROFICHE COPY AVAILABLE IN ARCHIVES AND SCIENCE.</subfield>
+          </datafield>
+          <datafield ind1="0" ind2="0" tag="992">
+            <subfield code="a">Supervised by Sigurdur Helgason.</subfield>
+          </datafield>
+          <datafield ind1=" " ind2=" " tag="AVA">
+            <subfield code="0">990000762590106761</subfield>
+            <subfield code="8">22478285480006761</subfield>
+            <subfield code="a">01MIT_INST</subfield>
+            <subfield code="b">ARC</subfield>
+            <subfield code="c">Noncirculating Collection 3</subfield>
+            <subfield code="d">THESIS Thesis Math 1978 Ph.D.</subfield>
+            <subfield code="e">available</subfield>
+            <subfield code="f">1</subfield>
+            <subfield code="g">0</subfield>
+            <subfield code="j">NOLN3</subfield>
+            <subfield code="k">8</subfield>
+            <subfield code="p">1</subfield>
+            <subfield code="q">Distinctive Collections</subfield>
+          </datafield>
+          <datafield ind1=" " ind2=" " tag="AVE">
+            <subfield code="8">53709941790006761</subfield>
+            <subfield code="c">61621075100006761</subfield>
+            <subfield code="e">Available</subfield>
+            <subfield code="m">MIT Theses in DSpace</subfield>
+            <subfield code="a">01MIT_INST</subfield>
+            <subfield code="0">990000762590106761</subfield>
+          </datafield>
+        </record>
+      

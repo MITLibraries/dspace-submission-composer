@@ -21,6 +21,9 @@ ITEM_SUBMISSION_LOG_STR = (
 
 
 class ItemSubmissionStatus(StrEnum):
+    CREATE_SUCCESS = "create_success"
+    CREATE_FAILED = "create_failed"
+    CREATE_SKIPPED = "create_skipped"
     BATCH_CREATED = "batch_created"
     SUBMIT_SUCCESS = "submit_success"
     SUBMIT_FAILED = "submit_failed"

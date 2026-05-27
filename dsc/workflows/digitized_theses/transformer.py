@@ -11,7 +11,7 @@ from lxml import etree
 
 from dsc.config import load_external_config
 
-NSMAP = {"marc": "http://www.loc.gov/MARC21/slim"}
+NSMAP = {"marc": "http://www.loc.gov/MARC21/slim", "sru": "http://www.loc.gov/zing/srw/"}
 
 
 class DigitizedThesesTransformer:
