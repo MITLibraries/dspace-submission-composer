@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 import logging
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Literal
 
 from boto3 import client
 
@@ -65,9 +65,11 @@ class SQSClient:
     @staticmethod
     def create_dss_message_body(
         submission_system: str,
-        collection_handle: str,
         metadata_s3_uri: str,
         bitstream_s3_uris: list[str],
+        operation: Literal["create", "update"] | None = "create",
+        collection_handle: str | None = None,
+        item_handle: str | None = None,
     ) -> str:
         """Create body for a DSpace Submission Service message.
 
@@ -78,9 +80,12 @@ class SQSClient:
         Args:
             submission_system: The system where the submission is uploaded
             (e.g. DSpace@MIT).
-            collection_handle: The handle of collection where the submission is uploaded.
             metadata_s3_uri: The S3 URI for the metadata JSON file.
             bitstream_s3_uris: The S3 URIs for the submission's bitstreams.
+            operation: The operation to perform for an item, 'create' or 'update'.
+            Defaults to 'create'.
+            collection_handle: The handle for the collection in which an item is created.
+            item_handle: The handle of an item to be updated.
         """
         files = []
         for bitstream_s3_uri in bitstream_s3_uris:
@@ -94,8 +99,10 @@ class SQSClient:
             )
         return json.dumps(
             {
+                "Operation": operation,
                 "SubmissionSystem": submission_system,
                 "CollectionHandle": collection_handle,
+                "ItemHandle": item_handle,
                 "MetadataLocation": metadata_s3_uri,
                 "Files": files,
             }

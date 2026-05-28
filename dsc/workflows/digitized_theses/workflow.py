@@ -1,16 +1,19 @@
 # ruff: noqa: FIX002, TD002, TD003
 import glob
+import json
 import logging
 import os
 import re
 import shutil
 import tempfile
+from collections import defaultdict
 from collections.abc import Iterator
 from enum import StrEnum
 from pathlib import Path
 from typing import Any
 
 import requests
+import smart_open
 from dspace_rest_client.client import DSpaceClient
 from dspace_rest_client.models import Item as DSpaceItem
 from lxml import etree
@@ -25,6 +28,14 @@ from dsc.workflows.digitized_theses import NSMAP, DigitizedThesesTransformer
 
 CONFIG = Config()
 logger = logging.getLogger(__name__)
+
+# TODO: Update collection handles for test instance once ready
+MIT_THESES_COLLECTION_HANDLES = {
+    "Bachelor": {"dev": "1721.1/test", "prod": "1721.1/131024"},
+    "Engineer": {"dev": "1721.1/test", "prod": "1721.1/131023"},
+    "Master": {"dev": "1721.1/test", "prod": "1721.1/131023"},
+    "Doctoral": {"dev": "1721.1/test", "prod": "1721.1/131022"},
+}
 
 
 class MITThesesCommunityUUID(StrEnum):
@@ -55,7 +66,13 @@ class DigitizedTheses(Workflow):
     the contents of the synced batch folder to create ItemSubmission's
     that are recorded in DynamoDB.
 
-    TODO: Add description for `submit` and `finalize` methods.
+    This workflow provides its own implementation for queueing items for
+    ingest, sending submission messages to DSS based on the "thesis type"
+    (i.e., whether the item submission is a 'New thesis' or 'Replacement thesis').
+    The submission message informs DSS on whether to create or update
+    an item.
+
+    TODO: Add description `finalize` method.
     """
 
     workflow_name: str = "digitized-theses"
@@ -249,12 +266,14 @@ class DigitizedTheses(Workflow):
 
             # check if item submission is a 'Replacement thesis'
             if dspace_item and not self._is_replacement_thesis(dspace_item):
+                item_submission.dspace_handle = dspace_item.handle
                 item_submission.status = "create_skipped"
                 item_submission.status_details = "Cannot replace the electronic version submitted by the student author."  # noqa: E501
                 item_submissions.append(item_submission)
                 continue
 
             if dspace_item and self._is_replacement_thesis(dspace_item):
+                item_submission.dspace_handle = dspace_item.handle
                 item_submission.status = "create_success"
                 item_submission.status_details = "Replacement thesis"
                 item_submissions.append(item_submission)
@@ -434,6 +453,226 @@ class DigitizedTheses(Workflow):
                 return False
 
         return True
+
+    def submit_items(self, _collection_handle: str | None = None) -> list:
+        """Submit items to the DSpace Submission Service according to the workflow class.
+
+        This method begins by creating a manifest for the batch of item submissions. The
+        purpose of this step is to "walk" the contents of the batch in S3 in one go
+        instead  of retrieving assets from S3 per-item. The method retrieves batch
+        item submissions from DynamoDB and performs the following steps for each:
+
+        1. Check if the item submission is "ready to submit"
+        2. Transform the item metadata to Qualified Dublin Core (QDC)
+        3. Get the item's collection handle based on the mit.theses.degree field
+        4. Send a submission message based on the thesis type ("New thesis" vs.
+           "Replacement thesis")
+            - New theses must provide the "CollectionHandle"
+            - Replacement theses must provide the "ItemHandle"
+              and set "Operation" to "update"
+        """
+        logger.info(
+            f"Submitting messages to the DSS input queue '{CONFIG.sqs_queue_dss_input}' "
+            f"for batch '{self.batch_id}'"
+        )
+
+        manifest = self._load_batch_manifest()
+
+        items = []
+        for item_submission in ItemSubmission.get_batch(self.batch_id):
+            self.submission_summary["total"] += 1
+            item_submission.last_run_date = self.run_date
+            logger.debug(
+                f"Preparing submission for item: {item_submission.item_identifier}"
+            )
+
+            # validate whether a message should be sent for this item submission
+            if not item_submission.ready_to_submit():
+                self.submission_summary["skipped"] += 1
+                continue
+            try:
+                # get item metadata
+                item_metadata = self._get_transformed_metadata(
+                    source_metadata_file=manifest[item_submission.item_identifier][
+                        "metadata_file"
+                    ]
+                )
+
+                # prepare submission assets
+                item_submission.prepare_dspace_metadata(
+                    item_metadata=item_metadata,
+                    s3_bucket=self.s3_bucket,
+                    batch_path=self.batch_path,
+                )
+                item_submission.bitstream_s3_uris = manifest[
+                    item_submission.item_identifier
+                ]["bitstream_files"]
+
+                # send submission message based on thesis type
+                if (
+                    manifest[item_submission.item_identifier]["thesis_type"]
+                    == "Replacement thesis"
+                ):
+                    response = item_submission.send_submission_message(
+                        submission_source=self.workflow_name,
+                        output_queue=self.output_queue,
+                        submission_system=self.submission_system,
+                        operation="update",
+                        item_handle=item_submission.dspace_handle,
+                    )
+                else:
+                    # get collection handle based on mit.theses.degree
+                    item_submission.collection_handle = self._get_item_collection_handle(
+                        item_metadata
+                    )
+
+                    response = item_submission.send_submission_message(
+                        submission_source=self.workflow_name,
+                        output_queue=self.output_queue,
+                        submission_system=self.submission_system,
+                        collection_handle=item_submission.collection_handle,
+                    )
+
+                # record message id for item submission
+                items.append(
+                    {
+                        "item_identifier": item_submission.item_identifier,
+                        "message_id": response["MessageId"],
+                    }
+                )
+                self.submission_summary["submitted"] += 1
+
+                logger.info(f"Sent item submission message: {response["MessageId"]}")
+
+                # set status in DynamoDB
+                item_submission.status = ItemSubmissionStatus.SUBMIT_SUCCESS
+                item_submission.status_details = None
+                item_submission.submit_attempts += 1
+                item_submission.upsert_db()
+            except NotImplementedError:
+                raise
+            except Exception as exception:  # noqa: BLE001
+                self.submission_summary["errors"] += 1
+                item_submission.status = ItemSubmissionStatus.SUBMIT_FAILED
+                item_submission.status_details = str(exception)
+                item_submission.submit_attempts += 1
+                item_submission.upsert_db()
+
+        logger.info(
+            f"Submitted messages to the DSS input queue '{CONFIG.sqs_queue_dss_input}' "
+            f"for batch '{self.batch_id}': {json.dumps(self.submission_summary)}"
+        )
+
+        return items
+
+    def _load_batch_manifest(self) -> dict:
+        """Create a manifest for a batch of item submissions.
+
+        This method "walks" the contents of the batch in S3, examining contents
+        of the new- and replacement-theses subfolders. The method returns
+        a dictionary where the keys = item identifiers and the value
+        is a dict with important meta about the item submission: thesis type and
+        the S3 URIs for the metadata file and the associated bitstream.
+        """
+        manifest: defaultdict = defaultdict(dict)
+
+        s3_client = S3Client()
+        type_prefixes = (
+            ("New thesis", "new-theses"),
+            ("Replacement thesis", "replacement-theses"),
+        )
+        for thesis_type, thesis_prefix in type_prefixes:
+            for file in s3_client.files_iter(
+                bucket=self.s3_bucket, prefix=f"{self.batch_path}{thesis_prefix}"
+            ):
+                item_identifier = file.rsplit("/", maxsplit=2)[1]
+
+                if item_identifier not in manifest:
+                    manifest[item_identifier]["thesis_type"] = thesis_type
+
+                if file.endswith(".xml"):
+                    manifest[item_identifier]["metadata_file"] = file
+
+                if file.endswith(".pdf"):
+                    manifest[item_identifier].setdefault("bitstream_files", []).append(
+                        file
+                    )
+
+        return manifest
+
+    def _get_transformed_metadata(self, source_metadata_file: str) -> dict:
+        """Get transformed metadata for an item submission.
+
+        This method expects a filepath to an Alma MARC XML file.
+        The contents of the XML file are passed to DigitizedTheses.metadata_transformer
+        as bytes. The transformer returns a dictionary with key-value
+        pairs of Qualified Dublin Core (QDC) metadata, where the value is a
+        list of values for each field entry.
+
+        The method returns a dictionary with the QDC metadata, and
+        additional entries for the dc.description.provenance
+        and dspace.imported metadata fields.
+        """
+        with smart_open.open(source_metadata_file, "rb") as file:
+            source_metadata = file.read()
+
+        transformed_metadata = self.metadata_transformer.transform(source_metadata)
+
+        # if replacement thesis, include additional dc.description.provenance entry
+        if "replacement-theses" in source_metadata_file:
+            replacement_message = f"The thesis import has been updated on {self.run_date.strftime('%Y-%m-%dT%H:%M:%SZ')}"  # noqa: E501
+            if transformed_metadata.get("dc.description.provenance"):
+                transformed_metadata["dc.description.provenance"].append(
+                    replacement_message
+                )
+            else:
+                transformed_metadata["dc.description.provenance"] = [replacement_message]
+
+        # add/update 'dspace.imported' date timestamp
+        transformed_metadata["dspace.imported"] = self.run_date.strftime(
+            "%Y-%m-%dT%H:%M:%SZ"
+        )
+
+        return transformed_metadata
+
+    def _get_item_collection_handle(self, item_metadata: dict) -> str:
+        """Get collection handle for item based on mit.theses.degree.
+
+        There are three collection handles for the MIT Theses Community:
+            1. Doctoral Theses
+            2. Graduate Theses
+            3. Undergraduate Theses
+
+        Each item submission belongs to one of the three collection handles based
+        on the derived mit.theses.degree value, where this field is constrained to
+        the set: ['Bachelor', 'Engineer', 'Master', 'Doctoral'].
+
+        The global variables MIT_THESES_COLLECTION_HANDLES includes mappings of
+        mit.theses.degree value to collection handles in the 'dev' and 'prod'
+        environments.
+        """
+        mit_theses_degrees = item_metadata.get("mit.theses.degree")
+
+        if not mit_theses_degrees:
+            raise TypeError(
+                f"Cannot determine collection handle when mit.theses.degree={mit_theses_degrees}"  # noqa: E501
+            )
+
+        if len(mit_theses_degrees) > 1:
+            logger.warning(
+                f"Found multiple values for mit.theses.degree={mit_theses_degrees}; "
+                "retrieving collection handle for first match"
+            )
+
+        for value in mit_theses_degrees:
+            if value in MIT_THESES_COLLECTION_HANDLES:
+                if CONFIG.workspace == "prod":
+                    return MIT_THESES_COLLECTION_HANDLES[value]["prod"]
+                return MIT_THESES_COLLECTION_HANDLES[value]["dev"]
+
+        raise ValueError(
+            f"No collection handles found for mit.theses.degree={mit_theses_degrees}"
+        )
 
     @staticmethod
     def _parse_record_from_sru_response(content: bytes) -> etree._Element:

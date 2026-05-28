@@ -140,13 +140,9 @@ class DigitizedThesesTransformer:
             source_metadata: A complete MARC21/XML document of metadata from
             Alma SRU as a byte string.
         """
-        root = etree.fromstring(source_metadata)
-        record = cls._find_record(root)
-        if record is None:
-            raise ValueError("No <marc:record> element found in input.")
+        record = etree.fromstring(source_metadata)
 
         transformed_metadata: dict[str, Any] = {}
-
         for field in cls.fields:
             field_method = getattr(cls, field)
             formatted_field_name = field.replace("_", ".")

@@ -7,7 +7,7 @@ from botocore.exceptions import ClientError
 from dsc.db.models import ItemSubmissionDB, ItemSubmissionStatus
 from dsc.exceptions import (
     DSpaceMetadataUploadError,
-    ItemMetadatMissingRequiredFieldError,
+    ItemMetadataMissingRequiredFieldError,
     SQSMessageSendError,
 )
 from dsc.item_submission import ItemSubmission
@@ -178,7 +178,7 @@ def test_itemsubmission_create_dspace_metadata_required_field_missing_raises_exc
     item_submission_instance, item_metadata, metadata_mapping
 ):
     item_metadata.pop("title")
-    with pytest.raises(ItemMetadatMissingRequiredFieldError):
+    with pytest.raises(ItemMetadataMissingRequiredFieldError):
         item_submission_instance.create_dspace_metadata(item_metadata, metadata_mapping)
 
 
@@ -228,10 +228,10 @@ def test_itemsubmission_send_submission_message(
         "s3://dsc/workflow/folder/123_02.pdf",
     ]
     response = item_submission_instance.send_submission_message(
-        "workflow",
-        "mock-output-queue",
-        "DSpace@MIT",
-        "1234/5678",
+        submission_source="workflow",
+        output_queue="mock-output-queue",
+        submission_system="DSpace@MIT",
+        collection_handle="1234/5678",
     )
     assert response["ResponseMetadata"]["HTTPStatusCode"] == HTTPStatus.OK
 
@@ -249,7 +249,10 @@ def test_itemsubmission_send_submission_message_raises_value_error(
         ValueError, match="Metadata S3 URI or bitstream S3 URIs not set for item: 123"
     ):
         item_submission_instance.send_submission_message(
-            "workflow", "mock-output-queue", "DSpace@MIT", "1234/5678"
+            submission_source="workflow",
+            output_queue="mock-output-queue",
+            submission_system="DSpace@MIT",
+            collection_handle="1234/5678",
         )
 
 
@@ -279,5 +282,8 @@ def test_itemsubmission_send_submission_message_raises_custom_exception(
     ]
     with pytest.raises(SQSMessageSendError, match="The specified queue does not exist"):
         item_submission_instance.send_submission_message(
-            "workflow", "mock-output-queue", "DSpace@MIT", "1234/5678"
+            submission_source="workflow",
+            output_queue="mock-output-queue",
+            submission_system="DSpace@MIT",
+            collection_handle="1234/5678",
         )

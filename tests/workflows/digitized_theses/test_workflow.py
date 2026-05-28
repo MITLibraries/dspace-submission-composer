@@ -2,6 +2,7 @@
 import glob
 import json
 import os
+from collections import defaultdict
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -15,9 +16,9 @@ from dsc.workflows.digitized_theses import (
     DigitizedTheses,
 )
 
-# =========================
-# DSpace client and items
-# =========================
+# ===================================
+# Fixtures: DSpace client and items
+# ===================================
 
 
 @pytest.fixture
@@ -69,9 +70,9 @@ def dspace_item_electronic_thesis():
     return DSpaceItem(content)
 
 
-# ====================
-# Alma SRU responses
-# ====================
+# ==============================
+# Fixtures: Alma SRU responses
+# ==============================
 
 
 @pytest.fixture
@@ -103,15 +104,15 @@ def alma_sru_response_no_record():
         return file.read()
 
 
-# ====================
-# S3 bucket contents
-# ====================
+# ==============================
+# Fixtures: S3 bucket contents
+# ==============================
 
 
 @pytest.fixture
 def mock_s3_digitized_theses(mocked_s3, s3_client):
     for source_metadata_file in glob.glob(
-        "tests/fixtures/digitized-theses/batch-aaa/*/*.xml"
+        "tests/fixtures/digitized-theses/batch-aaa/**/*.xml", recursive=True
     ):
         with open(source_metadata_file, "rb") as file:
             s3_client.put_file(
@@ -119,6 +120,25 @@ def mock_s3_digitized_theses(mocked_s3, s3_client):
                 key=source_metadata_file.replace("tests/fixtures/", ""),
                 file_content=file.read(),
             )
+
+
+# ==================================
+# Fixtures: ItemSubmission objects
+# ==================================
+
+
+@pytest.fixture
+def mock_item_submission():
+    """Factory for a fake ItemSubmission with sensible defaults."""
+
+    def _make(item_identifier="001", message_id="abc", *, ready_to_submit=True):
+        item = MagicMock(name=f"ItemSubmission({item_identifier})")
+        item.item_identifier = item_identifier
+        item.ready_to_submit.return_value = ready_to_submit
+        item.send_submission_message.return_value = {"MessageId": message_id}
+        return item
+
+    return _make
 
 
 def test_workflow_dspace_client_init(mock_dspace_client, patched_dspace_client):
@@ -231,6 +251,165 @@ def test_workflow_is_replacement_thesis_if_electronic_returns_false(
     workflow = DigitizedTheses(batch_id="batch-aaa")
 
     assert not workflow._is_replacement_thesis(dspace_item_electronic_thesis)
+
+
+@patch(
+    "dsc.workflows.digitized_theses.workflow.DigitizedTheses._get_item_collection_handle"
+)
+@patch("dsc.workflows.digitized_theses.workflow.DigitizedTheses.get_item_bitstream_uris")
+@patch(
+    "dsc.workflows.digitized_theses.workflow.DigitizedTheses._get_transformed_metadata"
+)
+@patch("dsc.workflows.digitized_theses.workflow.DigitizedTheses._load_batch_manifest")
+@patch("dsc.workflows.digitized_theses.workflow.ItemSubmission.upsert_db")
+@patch("dsc.workflows.digitized_theses.workflow.ItemSubmission.prepare_dspace_metadata")
+@patch("dsc.workflows.digitized_theses.workflow.ItemSubmission.get_batch")
+def test_workflow_submit_items_success(
+    mock_item_submission_get_batch,
+    mock_item_submission_prepare_dspace_metadata,
+    mock_item_submission_upsert_db,
+    mock_workflow_load_batch_manifest,
+    mock_workflow_get_transformed_metadata,
+    mock_workflow_get_item_bitstream_uris,
+    mock_workflow_get_item_collection_handle,
+    mock_item_submission,
+    caplog,
+):
+    """Test control flow of DigitizedTheses.submit_items.
+
+    This tests the scenario in which a batch comprises of two item submissions:
+    one ready to submit and one that is not. This assumes a happy path in which
+    all sub methods run without error.
+    """
+    # mock ItemSubmission methods
+    mock_item_submission_get_batch.return_value = [
+        mock_item_submission(
+            item_identifier="001", ready_to_submit=True, message_id="message-001"
+        ),
+        mock_item_submission(item_identifier="002", ready_to_submit=False),
+    ]
+    mock_item_submission_prepare_dspace_metadata.return_value = None
+    mock_item_submission_upsert_db.return_value = None
+
+    # mock workflow methods
+    mock_workflow_load_batch_manifest.return_value = {
+        "001": {
+            "thesis_type": "New thesis",
+            "metadata_file": ["001.xml"],
+            "bitstream_files": ["001-MIT.pdf"],
+        }
+    }
+    mock_workflow_get_transformed_metadata.return_value = None
+    mock_workflow_get_item_bitstream_uris.return_value = None
+    mock_workflow_get_item_collection_handle.return_value = None
+
+    workflow = DigitizedTheses(batch_id="batch-aaa")
+    workflow.submit_items()
+
+    assert (
+        json.dumps({"total": 2, "submitted": 1, "skipped": 1, "errors": 0}) in caplog.text
+    )
+
+
+@patch(
+    "dsc.workflows.digitized_theses.workflow.DigitizedTheses._get_item_collection_handle"
+)
+@patch("dsc.workflows.digitized_theses.workflow.DigitizedTheses.get_item_bitstream_uris")
+@patch(
+    "dsc.workflows.digitized_theses.workflow.DigitizedTheses._get_transformed_metadata"
+)
+@patch("dsc.workflows.digitized_theses.workflow.DigitizedTheses._load_batch_manifest")
+@patch("dsc.workflows.digitized_theses.workflow.ItemSubmission.upsert_db")
+@patch("dsc.workflows.digitized_theses.workflow.ItemSubmission.prepare_dspace_metadata")
+@patch("dsc.workflows.digitized_theses.workflow.ItemSubmission.get_batch")
+def test_workflow_submit_items_handles_errors(
+    mock_item_submission_get_batch,
+    mock_item_submission_prepare_dspace_metadata,
+    mock_item_submission_upsert_db,
+    mock_workflow_load_batch_manifest,
+    mock_workflow_get_transformed_metadata,
+    mock_workflow_get_item_bitstream_uris,
+    mock_workflow_get_item_collection_handle,
+    mock_item_submission,
+    caplog,
+):
+    """Test control flow of DigitizedTheses.submit_items.
+
+    This tests the scenario in which a batch comprises of two item submissions:
+    one ready to submit and one that is not. The test throws
+    exceptions.ItemMetadataNotFoundError when DSC calls _get_item_metadata() for
+    the item submission ready for submission. The test demonstrates that if any
+    exception is raised in the try-except block, all errors--except for
+    NotImplementedError--are handled and simply recorded.
+    """
+    # mock ItemSubmission methods
+    mock_item_submission_get_batch.return_value = [
+        mock_item_submission(
+            item_identifier="001", ready_to_submit=True, message_id="message-001"
+        ),
+        mock_item_submission(item_identifier="002", ready_to_submit=False),
+    ]
+    mock_item_submission_prepare_dspace_metadata.return_value = None
+    mock_item_submission_upsert_db.return_value = None
+
+    # mock workflow methods
+    mock_workflow_load_batch_manifest.return_value = {
+        "001": {
+            "thesis_type": "New thesis",
+            "metadata_file": ["001.xml"],
+            "bitstream_files": ["001-MIT.pdf"],
+        }
+    }
+    mock_workflow_get_transformed_metadata.side_effect = Exception
+    mock_workflow_get_item_bitstream_uris.return_value = None
+    mock_workflow_get_item_collection_handle.return_value = None
+
+    workflow = DigitizedTheses(batch_id="batch-aaa")
+    workflow.submit_items()
+
+    assert (
+        json.dumps({"total": 2, "submitted": 0, "skipped": 1, "errors": 1}) in caplog.text
+    )
+
+
+def test_workflow_load_batch_manifest(mock_s3_digitized_theses):
+    workflow = DigitizedTheses(batch_id="batch-aaa")
+    assert workflow._load_batch_manifest() == defaultdict(
+        dict,
+        {
+            "05588126": {
+                "thesis_type": "Replacement thesis",
+                "metadata_file": "s3://dsc/digitized-theses/batch-aaa/replacement-theses/05588126/05588126.xml",
+            }
+        },
+    )
+
+
+@freeze_time("2025-01-01 09:00:00")
+def test_workflow_get_transformed_metadata(mock_s3_digitized_theses):
+    workflow = DigitizedTheses(batch_id="batch-aaa")
+    item_metadata = workflow._get_transformed_metadata(
+        source_metadata_file="tests/fixtures/digitized-theses/batch-aaa/replacement-theses/05588126/05588126.xml"
+    )
+
+    assert item_metadata["dc.title"] == [
+        "Global solvability of invariant differential operators."
+    ]
+    assert item_metadata["dspace.imported"] == "2025-01-01T09:00:00Z"
+    assert "2025-01-01T09:00:00Z" in " | ".join(
+        item_metadata["dc.description.provenance"]
+    )
+
+
+def test_workflow_get_item_collection_handle():
+    workflow = DigitizedTheses(batch_id="batch-aaa")
+
+    assert (
+        workflow._get_item_collection_handle(
+            item_metadata={"mit.theses.degree": ["Bachelor"]}
+        )
+        == "1721.1/test"
+    )
 
 
 def test_workflow_parse_record_from_sru_response_single_records(
