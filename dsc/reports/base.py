@@ -18,9 +18,7 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class Attachment:
-    """Attachment to include as part of a report.
-
-    In the context of DSC reporting, an "attachment" is a file containing
+    """File to include as part of a report.
 
     Attributes:
         filename: The filename to assign to attachment when included in email
@@ -99,7 +97,6 @@ class Report(ABC):
         run it. This method returns a list of tuples where each tuple
         contains the filename and a StringIO object (in-memory buffer).
         """
-        logger.info(f"ATTACHMENTS: {self.attachments}")
         return [
             (
                 f"{self.batch_id}-{attachment.filename}",
@@ -119,22 +116,23 @@ class Report(ABC):
     # ====================
     # Attachment methods
     # ====================
-    def create_item_submissions_csv(self) -> StringIO:
+    def create_item_submissions_csv(self, fields: list[str] | None = None) -> StringIO:
         """Create a CSV from records in the DynamoDB table for a batch.
 
         This CSV is included in every report that is sent out to provide
         info regarding the current status of item submissions for a batch.
         """
         buffer = StringIO()
-        fields = [
-            "batch_id",
-            "item_identifier",
-            "source_system_identifier",
-            "status",
-            "status_details",
-            "dspace_handle",
-            "ingest_date",
-        ]
+        if not fields:
+            fields = [
+                "batch_id",
+                "item_identifier",
+                "source_system_identifier",
+                "status",
+                "status_details",
+                "dspace_handle",
+                "ingest_date",
+            ]
 
         item_submission_dicts = [
             item_submission.asdict(attrs=fields)

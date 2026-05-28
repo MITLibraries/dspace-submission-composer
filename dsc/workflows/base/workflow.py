@@ -5,7 +5,7 @@ import logging
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING, Any, ClassVar, final
+from typing import TYPE_CHECKING, Any, ClassVar, Literal, final
 
 import jsonschema
 import jsonschema.exceptions
@@ -455,9 +455,17 @@ class Workflow(ABC):
             f"'{self.workflow_name}' "
         )
 
-    def send_report(self, step: str, email_recipients: list[str]) -> None:
-        """Send report as an email via SES."""
-        logger.info(f"Sending report to recipients: {email_recipients}")
+    def send_report(
+        self, step: Literal["create", "submit", "finalize"], email_recipients: list[str]
+    ) -> None:
+        """Send report as an email via SES.
+
+        Args:
+            step: The name of the DSC workflow command that is
+                performed. Must be one of ["create", "submit", "finalize"].
+            email_recipients: List of recipient email addresses.
+        """
+        logger.info(f"Building report for recipients: {email_recipients}")
 
         # get reporting module for step
         report = self.reporting_modules[step].load(
@@ -478,3 +486,4 @@ class Workflow(ABC):
             message_body=report.generate_summary(),
             attachments=report.prepare_attachments(),
         )
+        logger.info(f"Sent report to recipients: {email_recipients}")

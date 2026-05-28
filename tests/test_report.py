@@ -52,7 +52,7 @@ def test_report_prepare_attachments(mock_item_submission_db_with_records):
     assert isinstance(attachment[1], StringIO)
 
 
-def test_report_upload_attachements(mock_item_submission_db_with_records, tmp_path):
+def test_report_upload_attachments(mock_item_submission_db_with_records, tmp_path):
     create_report = CreateReport(workflow_name="test", batch_id="aaa")
     create_report.upload_attachments(output_location=str(tmp_path))
 

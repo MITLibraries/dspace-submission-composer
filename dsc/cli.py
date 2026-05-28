@@ -139,9 +139,7 @@ def create(
         logger.error("Failed to create batch")  # noqa: TRY400
 
     if email_recipients:
-        workflow.send_report(
-            report="create", email_recipients=email_recipients.split(",")
-        )
+        workflow.send_report(step="create", email_recipients=email_recipients.split(","))
 
 
 # data sync command

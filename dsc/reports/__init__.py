@@ -16,7 +16,7 @@ The module defines three main report classes that correspond to key workflow sta
   created in DynamoDB. Intended for DSC managers.
 - **SubmitReport**: Generated after queueing a batch for ingest. Provides an overview
   of submission messages sent (or failed to send) to the DSS. Intended for DSC managers.
-- **FinalizeReport**: Generated after DSpace analyzing ingest results. Reports on
+- **FinalizeReport**: Generated after attempting DSpace ingest. Reports on
   successfully ingested items, ingest failures, and items with unknown status.
   Intended for both DSC managers and users.
 
