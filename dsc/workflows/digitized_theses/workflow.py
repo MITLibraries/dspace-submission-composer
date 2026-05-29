@@ -189,19 +189,34 @@ class DigitizedTheses(Workflow):
                 )
                 continue
 
+            # track identifier as 'seen'
             seen_item_identifiers.append(item_identifier)
-            item_submissions.append(
-                ItemSubmission(
-                    batch_id=self.batch_id,
-                    item_identifier=item_identifier,
-                    workflow_name=self.workflow_name,
-                    status=(
-                        ItemSubmissionStatus.CREATE_SUCCESS
-                        if theses_subfolder in ["replacement-theses", "new-theses"]
-                        else ItemSubmissionStatus.CREATE_SKIPPED
-                    ),
-                )
+
+            # create an instance of ItemSubmission
+            item_submission = ItemSubmission(
+                batch_id=self.batch_id,
+                item_identifier=item_identifier,
+                workflow_name=self.workflow_name,
             )
+
+            if theses_subfolder == "replacement-theses":
+                try:
+                    dspace_item = self._get_item_from_dspace(
+                        item_submission.item_identifier
+                    )
+                    item_submission.dspace_handle = dspace_item.handle
+                    item_submission.status = ItemSubmissionStatus.CREATE_SUCCESS
+                    item_submission.status_details = "Replacement thesis"
+                except exceptions.DSpaceClientSearchError as exception:
+                    item_submission.status = ItemSubmissionStatus.CREATE_SKIPPED
+                    item_submission.status_details = str(exception)
+            elif theses_subfolder == "new-theses":
+                item_submission.status = ItemSubmissionStatus.CREATE_SUCCESS
+                item_submission.status_details = "New thesis"
+            else:
+                item_submission.status = ItemSubmissionStatus.CREATE_SKIPPED
+                item_submission.status_details = "Skipped thesis"
+            item_submissions.append(item_submission)
 
         return item_submissions
 
@@ -256,7 +271,7 @@ class DigitizedTheses(Workflow):
                 requests.exceptions.HTTPError,
                 exceptions.ItemMetadataNotFoundError,
             ) as exception:
-                item_submission.status = "create_failed"
+                item_submission.status = ItemSubmissionStatus.CREATE_FAILED
                 item_submission.status_details = str(exception)
                 item_submissions.append(item_submission)
                 continue
@@ -265,7 +280,7 @@ class DigitizedTheses(Workflow):
             try:
                 dspace_item = self._get_item_from_dspace(item_submission.item_identifier)
             except exceptions.DSpaceClientSearchError as exception:
-                item_submission.status = "create_skipped"
+                item_submission.status = ItemSubmissionStatus.CREATE_FAILED
                 item_submission.status_details = str(exception)
                 item_submissions.append(item_submission)
                 continue
@@ -273,20 +288,19 @@ class DigitizedTheses(Workflow):
             # check if item submission is a 'Replacement thesis'
             if dspace_item and not self._is_replacement_thesis(dspace_item):
                 item_submission.dspace_handle = dspace_item.handle
-                item_submission.status = "create_skipped"
+                item_submission.status = ItemSubmissionStatus.CREATE_SKIPPED
                 item_submission.status_details = "Cannot replace the electronic version submitted by the student author."  # noqa: E501
                 item_submissions.append(item_submission)
                 continue
 
             if dspace_item and self._is_replacement_thesis(dspace_item):
                 item_submission.dspace_handle = dspace_item.handle
-                item_submission.status = "create_success"
+                item_submission.status = ItemSubmissionStatus.CREATE_SUCCESS
                 item_submission.status_details = "Replacement thesis"
-                item_submissions.append(item_submission)
             else:
-                item_submission.status = "create_success"
+                item_submission.status = ItemSubmissionStatus.CREATE_SUCCESS
                 item_submission.status_details = "New thesis"
-                item_submissions.append(item_submission)
+            item_submissions.append(item_submission)
 
         self._move_batch_files_to_theses_subfolders(
             item_submissions, batch_location=tmp_batch_path

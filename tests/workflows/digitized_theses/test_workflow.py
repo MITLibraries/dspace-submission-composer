@@ -11,6 +11,7 @@ from freezegun import freeze_time
 from lxml import etree
 
 from dsc import exceptions
+from dsc.db.models import ItemSubmissionStatus
 from dsc.item_submission import ItemSubmission
 from dsc.workflows.digitized_theses import (
     DigitizedTheses,
@@ -110,7 +111,8 @@ def alma_sru_response_no_record():
 
 
 @pytest.fixture
-def mock_s3_digitized_theses(mocked_s3, s3_client):
+def mock_s3_digitized_theses_dsc(mocked_s3, s3_client):
+    """Mock batch for digitized theses in DSC S3 bucket."""
     for source_metadata_file in glob.glob(
         "tests/fixtures/digitized-theses/batch-aaa/**/*.xml", recursive=True
     ):
@@ -169,6 +171,102 @@ def test_workflow_update_batch_id():
     workflow = DigitizedTheses(batch_id="batch-aaa")
 
     assert workflow._update_batch_id(batch_id="batch-aaa") == "batch-aaa-20250101T090000Z"
+
+
+@patch("dsc.workflows.digitized_theses.workflow.DigitizedTheses._get_item_from_dspace")
+def test_workflow_get_item_submissions_from_synced_batch_replacement(
+    mock_workflow_get_item_from_dspace, mock_s3_digitized_theses_dsc
+):
+    """Verify workflow can get item submissions from synced batch.
+
+    This test uses mock_s3_digitized_theses, which represents a previously
+    created batch in the DSC S3 bucket (i.e., contents organized into
+    theses subfolders). This test shows the workflow's ability to
+    generate ItemSubmissions based on the contents of the existing
+    batch in the DSC S3 bucket.
+    """
+    mock_response = MagicMock()
+    mock_response.handle = "1721.1/157651"
+    mock_workflow_get_item_from_dspace.return_value = mock_response
+
+    workflow = DigitizedTheses(batch_id="batch-aaa")
+    results = workflow._get_item_submissions_from_synced_batch()
+
+    assert results == [
+        ItemSubmission(
+            batch_id="batch-aaa",
+            item_identifier="05588126",
+            workflow_name="digitized-theses",
+            dspace_handle="1721.1/157651",
+            status=ItemSubmissionStatus.CREATE_SUCCESS,
+            status_details="Replacement thesis",
+        )
+    ]
+
+
+@patch("dsc.workflows.digitized_theses.workflow.DigitizedTheses._get_item_from_dspace")
+def test_workflow_get_item_submissions_from_synced_batch_replacement_not_found(
+    mock_workflow_get_item_from_dspace,
+    mock_s3_digitized_theses_dsc,
+):
+    mock_workflow_get_item_from_dspace.side_effect = exceptions.DSpaceClientSearchError(
+        "Error occurred"
+    )
+    workflow = DigitizedTheses(batch_id="batch-aaa")
+    results = workflow._get_item_submissions_from_synced_batch()
+
+    assert results == [
+        ItemSubmission(
+            batch_id="batch-aaa",
+            item_identifier="05588126",
+            workflow_name="digitized-theses",
+            dspace_handle=None,
+            status=ItemSubmissionStatus.CREATE_SKIPPED,
+            status_details="Error occurred",
+        )
+    ]
+
+
+@patch("dsc.workflows.digitized_theses.workflow.S3Client.files_iter")
+def test_workflow_get_item_submissions_from_synced_batch_new(mock_s3client_files_iter):
+    mock_s3client_files_iter.return_value = [
+        "tests/fixtures/digitized-theses/batch-aaa/new-theses/05588126/05588126.xml"
+    ]
+    workflow = DigitizedTheses(batch_id="batch-aaa")
+    results = workflow._get_item_submissions_from_synced_batch()
+
+    assert results == [
+        ItemSubmission(
+            batch_id="batch-aaa",
+            item_identifier="05588126",
+            workflow_name="digitized-theses",
+            dspace_handle=None,
+            status=ItemSubmissionStatus.CREATE_SUCCESS,
+            status_details="New thesis",
+        )
+    ]
+
+
+@patch("dsc.workflows.digitized_theses.workflow.S3Client.files_iter")
+def test_workflow_get_item_submissions_from_synced_batch_skipped(
+    mock_s3client_files_iter,
+):
+    mock_s3client_files_iter.return_value = [
+        "tests/fixtures/digitized-theses/batch-aaa/skipped-theses/05588126/05588126.xml"
+    ]
+    workflow = DigitizedTheses(batch_id="batch-aaa")
+    results = workflow._get_item_submissions_from_synced_batch()
+
+    assert results == [
+        ItemSubmission(
+            batch_id="batch-aaa",
+            item_identifier="05588126",
+            workflow_name="digitized-theses",
+            dspace_handle=None,
+            status=ItemSubmissionStatus.CREATE_SKIPPED,
+            status_details="Skipped thesis",
+        )
+    ]
 
 
 @patch("dsc.workflows.digitized_theses.workflow.requests")
@@ -371,7 +469,7 @@ def test_workflow_submit_items_handles_errors(
     )
 
 
-def test_workflow_load_batch_manifest(mock_s3_digitized_theses):
+def test_workflow_load_batch_manifest(mock_s3_digitized_theses_dsc):
     workflow = DigitizedTheses(batch_id="batch-aaa")
     assert workflow._load_batch_manifest() == defaultdict(
         dict,
@@ -385,7 +483,7 @@ def test_workflow_load_batch_manifest(mock_s3_digitized_theses):
 
 
 @freeze_time("2025-01-01 09:00:00")
-def test_workflow_get_transformed_metadata(mock_s3_digitized_theses):
+def test_workflow_get_transformed_metadata(mock_s3_digitized_theses_dsc):
     workflow = DigitizedTheses(batch_id="batch-aaa")
     item_metadata = workflow._get_transformed_metadata(
         source_metadata_file="tests/fixtures/digitized-theses/batch-aaa/replacement-theses/05588126/05588126.xml"
