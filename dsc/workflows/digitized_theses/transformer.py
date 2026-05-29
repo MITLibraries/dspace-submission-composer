@@ -130,6 +130,8 @@ class DigitizedThesesTransformer:
         "dsc/workflows/digitized_theses/config/departments_crosswalk.json"
     )
 
+    types_crosswalk: ClassVar = {"Academic thesis.": "Thesis"}
+
     @classmethod
     def transform(cls, source_metadata: str | bytes) -> dict:
         """Transform source metadata.
@@ -159,14 +161,6 @@ class DigitizedThesesTransformer:
     # =========================
     #  XML navigation methods
     # =========================
-
-    @staticmethod
-    def _find_record(root: etree._Element) -> etree._Element | None:
-        """Locate the `<marc:record>` element from Alma SRU response."""
-        recs = root.xpath("//marc:record", namespaces=NSMAP)
-        if recs:
-            return recs[0]
-        return None
 
     @staticmethod
     def _xpath(
@@ -270,10 +264,10 @@ class DigitizedThesesTransformer:
 
     @classmethod
     def dc_contributor_advisor(cls, record: etree._Element) -> list[str] | None:
-        """MARC 599."""
+        """MARC 992."""
         results: list[str] = []
-        for datafield in cls._datafields(record, "599", ind1=0, ind2=0):
-            value = cls._datafield_text(datafield)
+        for datafield in cls._datafields(record, "992", ind1=0, ind2=0):
+            value = cls._subfield_text(datafield, "a")
             if value:
                 results.append(re.sub(r"Supervised by (.*)", r"\1", value))
 
@@ -1077,17 +1071,31 @@ class DigitizedThesesTransformer:
 
     @classmethod
     def dc_type(cls, record: etree._Element) -> list[str]:
-        """MARC 655; includes 'Thesis' by default."""
+        """MARC 655; includes 'Thesis' by default.
+
+        This method normalizes 'Academic thesis.' to 'Thesis'
+        and removes duplicates.
+
+        NOTE: When examining sample records, it seems this field only
+        extracted 'Academic thesis.' and stakeholders expressed
+        preference for the term 'Thesis' instead.
+        """
         results: list[str] = ["Thesis"]
 
         for datafield in cls._datafields(record, "655"):
             ind1, ind2 = datafield.get("ind1", " "), datafield.get("ind2", " ")
             if (ind1 == " " and (ind2 in {" ", "7"})) or (ind1 == "0" and ind2 == "7"):
-                value = cls._subfield_text(datafield, codes="abcvxyz")
-                if value:
+                value = cls._normalize_dc_type(
+                    cls._subfield_text(datafield, codes="abcvxyz")
+                )
+                if value and value not in results:
                     results.append(value)
 
         return results
+
+    @classmethod
+    def _normalize_dc_type(cls, value: str) -> str:
+        return cls.types_crosswalk.get(value, value)
 
     @classmethod
     def mit_theses_degree(cls, record: etree._Element) -> list[str]:
