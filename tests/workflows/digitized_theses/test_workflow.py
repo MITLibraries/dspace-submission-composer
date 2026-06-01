@@ -161,7 +161,6 @@ def test_workflow_dspace_client_raise_authentication_error(
     workflow = DigitizedTheses(batch_id="batch-aaa")
 
     with pytest.raises(exceptions.DSpaceClientAuthenticationError):
-
         _ = workflow.dspace_client
 
 

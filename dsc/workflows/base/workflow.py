@@ -281,7 +281,6 @@ class Workflow(ABC):
 
         items = []
         for item_submission in ItemSubmission.get_batch(self.batch_id):
-
             self.submission_summary["total"] += 1
             item_identifier = item_submission.item_identifier
             logger.debug(f"Preparing submission for item: {item_identifier}")
@@ -324,7 +323,7 @@ class Workflow(ABC):
                 items.append(item_data)
                 self.submission_summary["submitted"] += 1
 
-                logger.info(f"Sent item submission message: {item_data["message_id"]}")
+                logger.info(f"Sent item submission message: {item_data['message_id']}")
 
                 # Set status in DynamoDB
                 item_submission.status = ItemSubmissionStatus.SUBMIT_SUCCESS
@@ -451,8 +450,7 @@ class Workflow(ABC):
 
     def workflow_specific_processing(self) -> None:
         logger.info(
-            f"No extra processing for batch based on workflow: "
-            f"'{self.workflow_name}' "
+            f"No extra processing for batch based on workflow: '{self.workflow_name}' "
         )
 
     def send_report(

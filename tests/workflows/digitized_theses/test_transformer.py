@@ -36,13 +36,15 @@ def create_marc_source_metadata_stub(
 
 
 def test_digitized_theses_transformer_datafields():
-    source_metadata = create_marc_source_metadata_stub(datafield_insert="""
+    source_metadata = create_marc_source_metadata_stub(
+        datafield_insert="""
         <datafield ind1="4" ind2="0" tag="856">
             <subfield code="u">https://hdl.handle.net/1721.1/157046</subfield>
         </datafield>
         <datafield ind1="1" ind2="#" tag="856">
             <subfield code="u">ftp://ftp.loc.test/test.pdf</subfield>
-        </datafield>""")
+        </datafield>"""
+    )
     element = etree.fromstring(source_metadata)
 
     assert (
@@ -56,11 +58,13 @@ def test_digitized_theses_transformer_datafields():
 
 
 def test_digitized_theses_transformer_datafield_text():
-    source_metadata = create_marc_source_metadata_stub(datafield_insert="""
+    source_metadata = create_marc_source_metadata_stub(
+        datafield_insert="""
         <datafield ind1="1" ind2="0" tag="245">
             <subfield code="a">Title /</subfield>
             <subfield code="c">by Author.</subfield>
-        </datafield>""")
+        </datafield>"""
+    )
     element = etree.fromstring(source_metadata)
     datafield = DigitizedThesesTransformer._datafields(record=element, tag="245")
 
@@ -70,11 +74,13 @@ def test_digitized_theses_transformer_datafield_text():
 
 
 def test_digitized_theses_transformer_subfield_text():
-    source_metadata = create_marc_source_metadata_stub(datafield_insert="""
+    source_metadata = create_marc_source_metadata_stub(
+        datafield_insert="""
         <datafield ind1="1" ind2="0" tag="245">
             <subfield code="a">Title /</subfield>
             <subfield code="c">by Author.</subfield>
-        </datafield>""")
+        </datafield>"""
+    )
     element = etree.fromstring(source_metadata)
     datafield = DigitizedThesesTransformer._datafields(record=element, tag="245")
 
@@ -82,11 +88,13 @@ def test_digitized_theses_transformer_subfield_text():
 
 
 def test_digitized_theses_transformer_subfield_text_multi_codes():
-    source_metadata = create_marc_source_metadata_stub(datafield_insert="""
+    source_metadata = create_marc_source_metadata_stub(
+        datafield_insert="""
         <datafield ind1=" " ind2="0" tag="650">
             <subfield code="a">Computer science</subfield>
             <subfield code="x">History</subfield>
-        </datafield>""")
+        </datafield>"""
+    )
     element = etree.fromstring(source_metadata)
     datafield = DigitizedThesesTransformer._datafields(record=element, tag="650")
 

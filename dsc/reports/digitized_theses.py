@@ -8,7 +8,6 @@ from dsc.reports.base import Attachment, FinalizeReport
 
 
 class DigitizedThesesFinalizeReport(FinalizeReport):
-
     attachments = (
         *FinalizeReport.attachments,
         Attachment(

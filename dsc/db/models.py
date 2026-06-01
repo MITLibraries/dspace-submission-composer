@@ -143,8 +143,11 @@ class ItemSubmissionDB(Model):
             )
             logger.info(
                 "Created record "
-                f"{ITEM_SUBMISSION_LOG_STR.format(batch_id=self.batch_id,
-                                      item_identifier=self.item_identifier)}"
+                f"{
+                    ITEM_SUBMISSION_LOG_STR.format(
+                        batch_id=self.batch_id, item_identifier=self.item_identifier
+                    )
+                }"
             )
         except PutError as exception:
             # if the `PutError` is due to failing conditional check, this means

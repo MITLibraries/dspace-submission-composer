@@ -380,12 +380,12 @@ class DigitizedTheses(Workflow):
         if dspace_objects is None:
             raise exceptions.DSpaceClientSearchError(
                 f"Failed search for item with dc.identifier.oclc={item_identifier} "
-                f"in community {"<community>"}"
+                f"in community {'<community>'}"
             )
         if len(dspace_objects) > 1:
             raise exceptions.DSpaceClientSearchError(
                 f"Expecting one item with dc.identifier.oclc={item_identifier} "
-                f"in community {"<community>"}; found {len(dspace_objects)} items"
+                f"in community {'<community>'}; found {len(dspace_objects)} items"
             )
         if len(dspace_objects) == 0:
             return None
@@ -548,7 +548,7 @@ class DigitizedTheses(Workflow):
                 )
                 self.submission_summary["submitted"] += 1
 
-                logger.info(f"Sent item submission message: {response["MessageId"]}")
+                logger.info(f"Sent item submission message: {response['MessageId']}")
 
                 # set status in DynamoDB
                 item_submission.status = ItemSubmissionStatus.SUBMIT_SUCCESS

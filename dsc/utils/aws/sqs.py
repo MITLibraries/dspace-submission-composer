@@ -135,7 +135,7 @@ class SQSClient:
             MessageAttributes=message_attributes,
             MessageBody=message_body,
         )
-        logger.debug(f"Sent message: {response["MessageId"]}")
+        logger.debug(f"Sent message: {response['MessageId']}")
         return response
 
     def receive(self) -> Iterator[MessageTypeDef]:
@@ -151,7 +151,7 @@ class SQSClient:
             )
             if "Messages" in response:
                 for message in response["Messages"]:
-                    logger.debug(f"Retrieved message: {message["MessageId"]}")
+                    logger.debug(f"Retrieved message: {message['MessageId']}")
                     message_count += 1
                     yield message
             else:
