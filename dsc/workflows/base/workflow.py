@@ -254,8 +254,6 @@ class Workflow(ABC):
         """
         for item_submission in item_submissions:
             item_submission.last_run_date = self.run_date
-            item_submission.status = ItemSubmissionStatus.BATCH_CREATED
-            item_submission.status_details = None
             item_submission.save()
 
     def submit_items(self, collection_handle: str | None = None) -> list:

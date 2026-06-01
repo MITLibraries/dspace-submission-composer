@@ -13,7 +13,7 @@ def test_create_success(
     caplog,
     runner,
     base_workflow_instance,
-    mocked_item_submission_db,
+    mock_item_submission_db,
     mocked_s3,
     s3_client,
 ):
@@ -43,7 +43,7 @@ def test_create_with_sync_data_success(
     caplog,
     runner,
     base_workflow_instance,
-    mocked_item_submission_db,
+    mock_item_submission_db,
     mocked_s3,
     s3_client,
 ):
@@ -78,7 +78,7 @@ def test_create_with_sync_data_error(
     caplog,
     runner,
     base_workflow_instance,
-    mocked_item_submission_db,
+    mock_item_submission_db,
     mocked_s3,
     s3_client,
 ):
@@ -117,7 +117,7 @@ def test_submit_success(
     mocked_s3,
     mocked_ses,
     mocked_sqs_input,
-    mocked_item_submission_db,
+    mock_item_submission_db,
     base_workflow_instance,
     s3_client,
 ):
@@ -129,13 +129,13 @@ def test_submit_success(
         item_identifier="123",
         batch_id="batch-aaa",
         workflow_name="test",
-        status=ItemSubmissionStatus.BATCH_CREATED,
+        status=ItemSubmissionStatus.CREATE_SUCCESS,
     ).create()
     ItemSubmissionDB(
         item_identifier="789",
         batch_id="batch-aaa",
         workflow_name="test",
-        status=ItemSubmissionStatus.BATCH_CREATED,
+        status=ItemSubmissionStatus.CREATE_SUCCESS,
     ).create()
 
     expected_submission_summary = {"total": 2, "submitted": 2, "skipped": 0, "errors": 0}
@@ -182,7 +182,7 @@ def test_submit_without_collection_handle_success(
     mocked_s3,
     mocked_ses,
     mocked_sqs_input,
-    mocked_item_submission_db,
+    mock_item_submission_db,
     base_workflow_instance,
     s3_client,
 ):
@@ -194,13 +194,13 @@ def test_submit_without_collection_handle_success(
         item_identifier="123",
         batch_id="batch-aaa",
         workflow_name="test",
-        status=ItemSubmissionStatus.BATCH_CREATED,
+        status=ItemSubmissionStatus.CREATE_SUCCESS,
     ).create()
     ItemSubmissionDB(
         item_identifier="789",
         batch_id="batch-aaa",
         workflow_name="test",
-        status=ItemSubmissionStatus.BATCH_CREATED,
+        status=ItemSubmissionStatus.CREATE_SUCCESS,
     ).create()
 
     result = runner.invoke(
@@ -230,7 +230,7 @@ def test_submit_without_collection_handle_success(
 def test_finalize_success(
     caplog,
     runner,
-    mocked_item_submission_db,
+    mock_item_submission_db,
     mocked_ses,
     mocked_sqs_input,
     mocked_sqs_output,

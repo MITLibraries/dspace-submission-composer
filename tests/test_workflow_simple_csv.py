@@ -2,6 +2,7 @@ import io
 
 import pandas as pd
 
+from dsc.db.models import ItemSubmissionStatus
 from dsc.item_submission import ItemSubmission
 
 
@@ -26,6 +27,7 @@ def test_workflow_simple_csv_prepare_batch_success(
                 batch_id="batch-aaa",
                 item_identifier="123",
                 workflow_name="simple-csv",
+                status=ItemSubmissionStatus.CREATE_SUCCESS,
             )
         ],
         [],
