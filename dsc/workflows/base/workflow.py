@@ -5,7 +5,7 @@ import logging
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING, Any, final
+from typing import TYPE_CHECKING, Any, ClassVar, Literal, final
 
 import jsonschema
 import jsonschema.exceptions
@@ -18,7 +18,7 @@ from dsc.exceptions import (
     InvalidWorkflowNameError,
 )
 from dsc.item_submission import ItemSubmission
-from dsc.reports import Report
+from dsc.reports import CreateReport, FinalizeReport, SubmitReport
 from dsc.utils.aws import SESClient, SQSClient
 from dsc.utils.validate.schemas import RESULT_MESSAGE_ATTRIBUTES, RESULT_MESSAGE_BODY
 
@@ -102,6 +102,11 @@ class Workflow(ABC):
 
     workflow_name: str = "base"
     submission_system: str = "IR-8"
+    reporting_modules: ClassVar[dict[str, type[Report]]] = {
+        "create": CreateReport,
+        "submit": SubmitReport,
+        "finalize": FinalizeReport,
+    }
 
     def __init__(self, batch_id: str) -> None:
         """Initialize base instance.
@@ -414,7 +419,9 @@ class Workflow(ABC):
             if result_message.result_type == "success":
                 item_submission.status = ItemSubmissionStatus.INGEST_SUCCESS
                 item_submission.status_details = None
-                item_submission.dspace_handle = result_message.dspace_handle
+                item_submission.dspace_handle = (
+                    f"https://hdl.handle.net/{result_message.dspace_handle}"
+                )
                 sqs_results_summary["ingest_success"] += 1
                 logger.debug(f"Record {log_str} was ingested")
             elif result_message.result_type == "error":
@@ -448,14 +455,35 @@ class Workflow(ABC):
             f"'{self.workflow_name}' "
         )
 
-    def send_report(self, report: Report, email_recipients: list[str]) -> None:
-        """Send report as an email via SES."""
-        logger.info(f"Sending report to recipients: {email_recipients}")
+    def send_report(
+        self, step: Literal["create", "submit", "finalize"], email_recipients: list[str]
+    ) -> None:
+        """Send report as an email via SES.
+
+        Args:
+            step: The name of the DSC workflow command that is
+                performed. Must be one of ["create", "submit", "finalize"].
+            email_recipients: List of recipient email addresses.
+        """
+        logger.info(f"Building report for recipients: {email_recipients}")
+
+        # get reporting module for step
+        report = self.reporting_modules[step].load(
+            workflow_name=self.workflow_name, batch_id=self.batch_id
+        )
+
+        # upload attachments to S3
+        report.upload_attachments(
+            output_location=(f"s3://{self.s3_bucket}/{self.batch_path}")
+        )
+
+        # send email
         ses_client = SESClient(region=CONFIG.aws_region_name)
         ses_client.create_and_send_email(
             subject=report.subject,
             source_email_address=CONFIG.source_email,
             recipient_email_addresses=email_recipients,
             message_body=report.generate_summary(),
-            attachments=report.generate_attachments(),
+            attachments=report.prepare_attachments(),
         )
+        logger.info(f"Sent report to recipients: {email_recipients}")

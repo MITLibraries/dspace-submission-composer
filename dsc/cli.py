@@ -7,7 +7,6 @@ import click
 from dsc.config import Config
 from dsc.db.models import ItemSubmissionDB
 from dsc.exceptions import BatchCreationFailedError
-from dsc.reports import CreateReport, FinalizeReport, SubmitReport
 from dsc.utils.aws.s3 import run_aws_cli_sync
 from dsc.workflows.base import Workflow
 
@@ -136,16 +135,11 @@ def create(
 
     try:
         workflow.create_batch(synced=sync_data)
-        errors = None
-    except BatchCreationFailedError as exception:
+    except BatchCreationFailedError:
         logger.error("Failed to create batch")  # noqa: TRY400
-        errors = exception.errors
 
     if email_recipients:
-        workflow.send_report(
-            report=CreateReport(workflow.workflow_name, workflow.batch_id, errors=errors),
-            email_recipients=email_recipients.split(","),
-        )
+        workflow.send_report(step="create", email_recipients=email_recipients.split(","))
 
 
 # data sync command
@@ -241,10 +235,7 @@ def submit(
     workflow.submit_items(collection_handle)
 
     if email_recipients:
-        workflow.send_report(
-            report=SubmitReport(workflow.workflow_name, workflow.batch_id),
-            email_recipients=email_recipients.split(","),
-        )
+        workflow.send_report(step="submit", email_recipients=email_recipients.split(","))
 
 
 @main.command()
@@ -259,7 +250,4 @@ def finalize(ctx: click.Context, email_recipients: str) -> None:
     """Analyze ingest results for a given batch."""
     workflow = ctx.obj["workflow"]
     workflow.finalize_items()
-    workflow.send_report(
-        report=FinalizeReport(workflow.workflow_name, workflow.batch_id),
-        email_recipients=email_recipients.split(","),
-    )
+    workflow.send_report(step="finalize", email_recipients=email_recipients.split(","))
