@@ -24,6 +24,6 @@ repos:
         types: ["python"]
       - id: pip-audit
         name: pip-audit
-        entry: uv run pip-audit --ignore-vuln PYSEC-2024-271
+        entry: uv run pip-audit
         language: system
         pass_filenames: false

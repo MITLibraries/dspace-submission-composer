@@ -22,16 +22,20 @@ help: # Preview Makefile commands
 # Python environment and dependency commands
 ##############################################
 
-install: .venv .git/hooks/pre-commit # Install Python dependencies and create virtual environment if not exists
+install: .venv .git/hooks/pre-commit # Install Python dependencies and create virtual environment if needed
 	uv sync --dev
 
 .venv: # Creates virtual environment if not found
 	@echo "Creating virtual environment at .venv..."
 	uv venv .venv
 
-.git/hooks/pre-commit: # Sets up pre-commit hook if not setup
-	@echo "Installing pre-commit hooks..."
-	uv run pre-commit install
+.git/hooks/pre-commit: # Sets up pre-commit commit hooks if not setup
+	@echo "Installing pre-commit commit hooks..."
+	uv run pre-commit install --hook-type pre-commit
+
+.git/hooks/pre-push: # Sets up pre-commit push hooks if not setup
+	@echo "Installing pre-commit push hooks..."
+	uv run pre-commit install --hook-type pre-push
 
 venv: .venv # Create the Python virtual environment
 
@@ -52,42 +56,25 @@ coveralls: test # Write coverage data to an LCOV report
 	uv run coverage lcov -o ./coverage/lcov.info
 
 ####################################
-# Code quality and safety commands
+# Code linting and formatting
 ####################################
 
-lint: black mypy ruff safety # Run linters
-
-black: # Run 'black' linter and print a preview of suggested changes
-	uv run black --check --diff .
-
-mypy: # Run 'mypy' linter
+lint: # Run linting, alerts only, no code changes
+	uv run ruff format --diff
 	uv run mypy .
-
-ruff: # Run 'ruff' linter and print a preview of errors
 	uv run ruff check .
 
-safety: # Check for security vulnerabilities and verify Pipfile.lock is up-to-date
-	uv run pip-audit --ignore-vuln PYSEC-2024-271
-
-lint-apply: black-apply ruff-apply # Apply changes with 'black' and resolve 'fixable errors' with 'ruff'
-
-black-apply: # Apply changes with 'black'
-	uv run black .
-
-ruff-apply: # Resolve 'fixable errors' with 'ruff'
+lint-fix: # Run linting, auto fix behaviors where supported
+	uv run ruff format .
 	uv run ruff check --fix .
 
-####################################
-# MinIO local S3 commands
-####################################
+security: # Run security / vulnerability checks
+	uv run pip-audit
 
-start-minio-server:
-	docker compose --env-file .env -f $(MINIO_COMPOSE_FILE) up -d
 
-stop-minio-server:
-	docker compose --env-file .env -f $(MINIO_COMPOSE_FILE) stop
-
-### Terraform-generated Developer Deploy Commands for Dev environment ###
+###############################################
+# Docker image, ECR, and Lambda Management
+###############################################
 check-arch:
 	@ARCH_FILE=".aws-architecture"; \
 	if [[ "$(CPU_ARCH)" != "linux/amd64" && "$(CPU_ARCH)" != "linux/arm64" ]]; then \
@@ -99,19 +86,18 @@ check-arch:
 		echo "latest" > .arch_tag; \
 	fi
 
-dist-dev: check-arch ## Build docker container (intended for developer-based manual build)
+dist-dev: check-arch # Build docker container (intended for developer-based manual build)
 	@ARCH_TAG=$$(cat .arch_tag); \
 	docker buildx inspect $(ECR_NAME_DEV) >/dev/null 2>&1 || docker buildx create --name $(ECR_NAME_DEV) --use; \
 	docker buildx use $(ECR_NAME_DEV); \
 	docker buildx build --platform $(CPU_ARCH) \
-			--load \
-			--tag $(ECR_URL_DEV):$$ARCH_TAG \
-			--tag $(ECR_URL_DEV):make-$$ARCH_TAG \
-			--tag $(ECR_URL_DEV):make-$(shell git describe --always) \
-			--tag $(ECR_NAME_DEV):$$ARCH_TAG \
-			.
-
-publish-dev: dist-dev ## Build, tag and push (intended for developer-based manual publish)
+		--load \
+		--tag $(ECR_URL_DEV):$$ARCH_TAG \
+		--tag $(ECR_URL_DEV):make-$$ARCH_TAG \
+		--tag $(ECR_URL_DEV):make-$(shell git describe --always) \
+		--tag $(ECR_NAME_DEV):$$ARCH_TAG \
+		
+publish-dev: dist-dev # Build, tag and push (intended for developer-based manual publish)
 	@ARCH_TAG=$$(cat .arch_tag); \
 	aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin $(ECR_URL_DEV); \
 	docker push $(ECR_URL_DEV):$$ARCH_TAG; \
@@ -120,15 +106,7 @@ publish-dev: dist-dev ## Build, tag and push (intended for developer-based manua
 	echo "Cleaning up dangling Docker images..."; \
 	docker image prune -f --filter "dangling=true"
 
-### If this is a Lambda repo, uncomment the two lines below     ###
-# update-lambda-dev: ## Updates the lambda with whatever is the most recent image in the ecr (intended for developer-based manual update)
-#	@ARCH_TAG=$$(cat .arch_tag); \
-#	aws lambda update-function-code \
-#		--region us-east-1 \
-#		--function-name $(FUNCTION_DEV) \
-#		--image-uri $(ECR_URL_DEV):make-$$ARCH_TAG
-
-docker-clean: ## Clean up Docker detritus
+docker-clean: # Clean up Docker detritus
 	@ARCH_TAG=$$(cat .arch_tag); \
 	echo "Cleaning up Docker leftovers (containers, images, builders)"; \
 	docker rmi -f $(ECR_URL_DEV):$$ARCH_TAG; \
@@ -137,3 +115,13 @@ docker-clean: ## Clean up Docker detritus
 	docker rmi -f $(ECR_NAME_DEV):$$ARCH_TAG || true; \
 	docker buildx rm $(ECR_NAME_DEV) || true
 	@rm -rf .arch_tag
+
+####################################
+# MinIO local S3 commands
+####################################
+
+start-minio-server:
+	docker compose --env-file .env -f $(MINIO_COMPOSE_FILE) up -d
+
+stop-minio-server:
+	docker compose --env-file .env -f $(MINIO_COMPOSE_FILE) stop

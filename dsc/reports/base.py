@@ -107,7 +107,7 @@ class Report(ABC):
 
     def upload_attachments(self, output_location: str) -> None:
         for filename, buffer in self.prepare_attachments():
-            file = f"{output_location.removesuffix("/")}/{filename}"
+            file = f"{output_location.removesuffix('/')}/{filename}"
             mode = "wb" if isinstance(buffer, BytesIO) else "w"
             with smart_open.open(file, mode) as f:
                 f.write(buffer.getvalue())
@@ -149,7 +149,6 @@ class Report(ABC):
 
 
 class CreateReport(Report):
-
     @property
     def subject(self) -> str:
         return f"DSC Create Batch Results - {self.workflow_name}, batch='{self.batch_id}'"
@@ -168,7 +167,6 @@ class CreateReport(Report):
 
 
 class SubmitReport(Report):
-
     @property
     def subject(self) -> str:
         return f"DSC Submit Results - {self.workflow_name}, batch='{self.batch_id}'"
@@ -192,7 +190,6 @@ class SubmitReport(Report):
 
 
 class FinalizeReport(Report):
-
     @property
     def subject(self) -> str:
         return f"[{CONFIG.workspace}] DSpace Ingest Results - {self.workflow_name}, batch='{self.batch_id}'"  # noqa: E501
