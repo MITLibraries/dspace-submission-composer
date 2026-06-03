@@ -52,6 +52,18 @@ def test_report_prepare_attachments(mock_item_submission_db_with_records):
     assert isinstance(attachment[1], StringIO)
 
 
+def test_report_prepare_attachments_with_batch_creation_errors(mock_item_submission_db):
+    create_report = CreateReport(
+        workflow_name="test",
+        batch_id="aaa",
+        errors=[("123", str(Exception("An error occurred")))],
+    )
+    attachments = create_report.prepare_attachments()
+
+    assert len(attachments) == 1  # only an errors CSV is sent
+    assert attachments[0][0] == "aaa-errors.csv"
+
+
 def test_report_upload_attachments(mock_item_submission_db_with_records, tmp_path):
     create_report = CreateReport(workflow_name="test", batch_id="aaa")
     create_report.upload_attachments(output_location=str(tmp_path))

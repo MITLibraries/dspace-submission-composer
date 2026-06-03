@@ -452,20 +452,27 @@ class Workflow(ABC):
         )
 
     def send_report(
-        self, step: Literal["create", "submit", "finalize"], email_recipients: list[str]
+        self,
+        step: Literal["create", "submit", "finalize"],
+        email_recipients: list[str],
+        errors: list | None = None,
     ) -> None:
         """Send report as an email via SES.
 
         Args:
             step: The name of the DSC workflow command that is
-                performed. Must be one of ["create", "submit", "finalize"].
+            performed. Must be one of ["create", "submit", "finalize"].
             email_recipients: List of recipient email addresses.
+            errors: This is only used for capturing errors during
+            batch creation.
         """
         logger.info(f"Building report for recipients: {email_recipients}")
 
         # get reporting module for step
         report = self.reporting_modules[step].load(
-            workflow_name=self.workflow_name, batch_id=self.batch_id
+            workflow_name=self.workflow_name,
+            batch_id=self.batch_id,
+            errors=errors,
         )
 
         # upload attachments to S3
