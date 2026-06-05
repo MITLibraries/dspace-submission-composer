@@ -9,35 +9,37 @@ import boto3
 
 logger = logging.getLogger(__name__)
 
+CLOUDWATCH_METRICS_LIMIT = 1000
 
 UNIT_VALUES = frozenset(
     [
-        "Seconds",
-        "Microseconds",
-        "Milliseconds",
-        "Bytes",
-        "Kilobytes",
-        "Megabytes",
-        "Gigabytes",
-        "Terabytes",
         "Bits",
-        "Kilobits",
-        "Megabits",
-        "Gigabits",
-        "Terabits",
-        "Percent",
-        "Count",
-        "Bytes/Second",
-        "Kilobytes/Second",
-        "Megabytes/Second",
-        "Gigabytes/Second",
-        "Terabytes/Second",
         "Bits/Second",
-        "Kilobits/Second",
-        "Megabits/Second",
-        "Gigabits/Second",
-        "Terabits/Second",
+        "Bytes",
+        "Bytes/Second",
+        "Count",
         "Count/Second",
+        "Gigabits",
+        "Gigabits/Second",
+        "Gigabytes",
+        "Gigabytes/Second",
+        "Kilobits",
+        "Kilobits/Second",
+        "Kilobytes",
+        "Kilobytes/Second",
+        "Megabits",
+        "Megabits/Second",
+        "Megabytes",
+        "Megabytes/Second",
+        "Milliseconds",
+        "Microseconds",
+        "None",
+        "Percent",
+        "Seconds",
+        "Terabits",
+        "Terabits/Second",
+        "Terabytes",
+        "Terabytes/Second",
     ]
 )
 
@@ -115,23 +117,43 @@ class MetricsClient:
         """
         if unit not in UNIT_VALUES:
             raise ValueError(
-                f"Invalid unit '{unit}'. Must be one of: {', '.join(UNIT_VALUES)}"
+                f"Invalid unit '{unit}'. Must be one of: {', '.join(sorted(UNIT_VALUES))}"
             )
         return True
 
     def _publish_metrics(self, metrics: list[Metric]) -> None:
-        """Push metrics to CloudWatch.
+        """Publish metrics to CloudWatch.
+
+        Automatically chunks metrics if the list exceeds CloudWatch's limit
+        of 1000 metrics per request.
 
         Args:
-            metrics: List of metric instances to push.
+            metrics: List of metric instances to publish.
         """
         if not metrics:
             logger.info("No metrics to publish.")
             return
+
+        # Defensively chunk metrics if they exceed CloudWatch's limit
+        if len(metrics) > CLOUDWATCH_METRICS_LIMIT:
+            logger.info(
+                f"Splitting {len(metrics)} metrics into chunks of "
+                f"{CLOUDWATCH_METRICS_LIMIT} for CloudWatch compliance."
+            )
+            for i in range(0, len(metrics), CLOUDWATCH_METRICS_LIMIT):
+                chunk = metrics[i : i + CLOUDWATCH_METRICS_LIMIT]
+                self._publish_metrics(chunk)
+            return
+
         try:
+            # Validate all metrics and ensure consistent namespace
+            namespaces = set()
             metric_data = []
             for metric in metrics:
                 self._validate_namespace(metric)
+                selected_namespace = metric.namespace or self.namespace
+                namespaces.add(selected_namespace)
+
                 metric_dict = {
                     "MetricName": metric.name,
                     "Value": metric.value,
@@ -144,13 +166,21 @@ class MetricsClient:
                     ]
                 metric_data.append(metric_dict)
 
+            # Ensure all metrics resolve to the same namespace
+            if len(namespaces) > 1:
+                raise ValueError(  # noqa: TRY301
+                    f"Cannot publish metrics with different namespaces in a single "
+                    f"request. Found: {namespaces}"
+                )
+
+            selected_namespace = namespaces.pop()
             self._cloudwatch.put_metric_data(
-                Namespace=metric.namespace or self.namespace,
+                Namespace=selected_namespace,
                 MetricData=metric_data,
             )
             logger.info(
                 f"Published {len(metrics)} metric(s) to CloudWatch namespace "
-                f"'{self.namespace}'."
+                f"'{selected_namespace}'."
             )
         except Exception:
             logger.exception(
@@ -180,10 +210,15 @@ class MetricsClient:
     def publish_metrics_batch(self, batch_size: int = 20) -> None:
         """Publish a batch of metrics to CloudWatch.
 
-        Clears the batch queue after publishing.
+        Clears the batch queue after successful publishing.
 
         Args:
-            batch_size: Number of metrics to publish in each batch.
+            batch_size: Number of metrics to publish in each batch. Must be less than
+            CloudWatch's limit of 1000 metrics per request.
+
+        Raises:
+            Exception: If publishing fails, metrics remain in the batch queue
+                for retry or manual handling.
         """
         if not self.batch_metrics:
             logger.info("No metrics to publish.")
@@ -193,5 +228,10 @@ class MetricsClient:
             for x in range(0, len(self.batch_metrics), batch_size):
                 batch = self.batch_metrics[x : x + batch_size]
                 self._publish_metrics(batch)
-        finally:
-            self.batch_metrics.clear()
+        except Exception:
+            # Keep only the unpublished metrics (starting from the failed batch)
+            self.batch_metrics = self.batch_metrics[x:]
+            raise
+
+        # Clear only if all batches published successfully
+        self.batch_metrics.clear()

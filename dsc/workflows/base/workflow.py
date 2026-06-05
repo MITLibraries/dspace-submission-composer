@@ -335,15 +335,20 @@ class Workflow(ABC):
                 item_submission.status_details = None
                 item_submission.submit_attempts += 1
                 item_submission.upsert_db()
-
-                self.metrics_client.publish_metric(
-                    Metric(
-                        name="item_submitted",
-                        value=1,
-                        unit="Count",
-                        dimensions=self.metrics_dimensions,
+                try:
+                    self.metrics_client.publish_metric(
+                        Metric(
+                            name="item_submitted",
+                            value=1,
+                            unit="Count",
+                            dimensions=self.metrics_dimensions,
+                        )
                     )
-                )
+                except Exception:
+                    logger.exception(
+                        f"Failed to publish item submitted metric for item "
+                        f"{item_identifier}"
+                    )
             except NotImplementedError:
                 raise
             except Exception as exception:  # noqa: BLE001
@@ -352,15 +357,20 @@ class Workflow(ABC):
                 item_submission.status_details = str(exception)
                 item_submission.submit_attempts += 1
                 item_submission.upsert_db()
-
-                self.metrics_client.publish_metric(
-                    Metric(
-                        name="submission_error",
-                        value=1,
-                        unit="Count",
-                        dimensions=self.metrics_dimensions,
+                try:
+                    self.metrics_client.publish_metric(
+                        Metric(
+                            name="submission_error",
+                            value=1,
+                            unit="Count",
+                            dimensions=self.metrics_dimensions,
+                        )
                     )
-                )
+                except Exception:
+                    logger.exception(
+                        f"Failed to publish submission error metric for item "
+                        f"{item_submission.item_identifier}"
+                    )
 
         logger.info(
             f"Submitted messages to the DSS input queue '{CONFIG.sqs_queue_dss_input}' "
@@ -446,29 +456,37 @@ class Workflow(ABC):
                 )
                 sqs_results_summary["ingest_success"] += 1
                 logger.debug(f"Record {log_str} was ingested")
-
-                self.metrics_client.publish_metric(
-                    Metric(
-                        name="ingested_item",
-                        value=1,
-                        unit="Count",
-                        dimensions=self.metrics_dimensions,
+                try:
+                    self.metrics_client.publish_metric(
+                        Metric(
+                            name="ingested_item",
+                            value=1,
+                            unit="Count",
+                            dimensions=self.metrics_dimensions,
+                        )
                     )
-                )
+                except Exception:
+                    logger.exception(
+                        f"Failed to publish ingested item metric for record {log_str}"
+                    )
             elif result_message.result_type == "error":
                 item_submission.status = ItemSubmissionStatus.INGEST_FAILED
                 item_submission.status_details = result_message.error_info
                 sqs_results_summary["ingest_failed"] += 1
                 logger.debug(f"Record {log_str} failed to ingest")
-
-                self.metrics_client.publish_metric(
-                    Metric(
-                        name="ingest_error",
-                        value=1,
-                        unit="Count",
-                        dimensions=self.metrics_dimensions,
+                try:
+                    self.metrics_client.publish_metric(
+                        Metric(
+                            name="ingest_error",
+                            value=1,
+                            unit="Count",
+                            dimensions=self.metrics_dimensions,
+                        )
                     )
-                )
+                except Exception:
+                    logger.exception(
+                        f"Failed to publish ingest error metric for record {log_str}"
+                    )
 
             else:
                 item_submission.status = ItemSubmissionStatus.INGEST_UNKNOWN
