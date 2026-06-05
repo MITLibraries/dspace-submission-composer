@@ -40,9 +40,10 @@ class Report(ABC):
         ),
     )
 
-    def __init__(self, workflow_name: str, batch_id: str):
+    def __init__(self, workflow_name: str, batch_id: str, errors: list | None = None):
         self.workflow_name = workflow_name
         self.batch_id = batch_id
+        self.errors = errors
         self.report_date = datetime.now(tz=UTC).strftime("%Y%m%dT%H%M%SZ")
 
         # configure environment for loading jinja templates
@@ -55,8 +56,10 @@ class Report(ABC):
         self._item_submissions: list[ItemSubmission] | None = None
 
     @classmethod
-    def load(cls, workflow_name: str, batch_id: str) -> "Report":
-        return cls(workflow_name=workflow_name, batch_id=batch_id)
+    def load(
+        cls, workflow_name: str, batch_id: str, errors: list | None = None
+    ) -> "Report":
+        return cls(workflow_name=workflow_name, batch_id=batch_id, errors=errors)
 
     @property
     @abstractmethod
@@ -97,13 +100,15 @@ class Report(ABC):
         run it. This method returns a list of tuples where each tuple
         contains the filename and a StringIO object (in-memory buffer).
         """
-        return [
-            (
-                f"{self.batch_id}-{attachment.filename}",
-                getattr(self, attachment.method_name)(),
-            )
-            for attachment in self.attachments
-        ]
+        attachments_list: list = []
+        for attachment in self.attachments:
+            content = getattr(self, attachment.method_name)()
+            if content:
+                attachments_list.append(
+                    (f"{self.batch_id}-{attachment.filename}", content)
+                )
+
+        return attachments_list
 
     def upload_attachments(self, output_location: str) -> None:
         for filename, buffer in self.prepare_attachments():
@@ -116,7 +121,9 @@ class Report(ABC):
     # ====================
     # Attachment methods
     # ====================
-    def create_item_submissions_csv(self, fields: list[str] | None = None) -> StringIO:
+    def create_item_submissions_csv(
+        self, fields: list[str] | None = None
+    ) -> StringIO | None:
         """Create a CSV from records in the DynamoDB table for a batch.
 
         This CSV is included in every report that is sent out to provide
@@ -138,9 +145,11 @@ class Report(ABC):
             item_submission.asdict(attrs=fields)
             for item_submission in self.get_item_submissions()
         ]
-        pd.DataFrame(item_submission_dicts).to_csv(buffer, index=False)
-        buffer.seek(0)
-        return buffer
+        if item_submission_dicts:
+            pd.DataFrame(item_submission_dicts).to_csv(buffer, index=False)
+            buffer.seek(0)
+            return buffer
+        return None
 
 
 # =========================
@@ -149,6 +158,11 @@ class Report(ABC):
 
 
 class CreateReport(Report):
+    attachments = (
+        *Report.attachments,
+        Attachment(filename="errors.csv", method_name="create_errors_csv"),
+    )
+
     @property
     def subject(self) -> str:
         return f"DSC Create Batch Results - {self.workflow_name}, batch='{self.batch_id}'"
@@ -164,6 +178,19 @@ class CreateReport(Report):
             report_date=self.report_date,
             item_submissions=self.get_item_submissions(),
         )
+
+    # ====================
+    # Attachment methods
+    # ====================
+    def create_errors_csv(self) -> StringIO | None:
+        if self.errors:
+            buffer = StringIO()
+            pd.DataFrame(self.errors, columns=["item_identifier", "error"]).to_csv(
+                buffer, index=False
+            )
+            buffer.seek(0)
+            return buffer
+        return None
 
 
 class SubmitReport(Report):

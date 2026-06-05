@@ -22,7 +22,7 @@ def test_itemsubmission_init_success(item_submission_instance, dspace_metadata):
     assert item_submission_instance.item_identifier == "123"
 
 
-def test_itemsubmission_get_success(mocked_item_submission_db):
+def test_itemsubmission_get_success(mock_item_submission_db):
     # create record in item submissions DynamoDB table
     ItemSubmissionDB(
         batch_id="batch-aaa", item_identifier="123", workflow_name="test"
@@ -33,11 +33,11 @@ def test_itemsubmission_get_success(mocked_item_submission_db):
     ) == ItemSubmission(batch_id="batch-aaa", item_identifier="123", workflow_name="test")
 
 
-def test_itemsubmission_get_if_does_not_exist_in_db_success(mocked_item_submission_db):
+def test_itemsubmission_get_if_does_not_exist_in_db_success(mock_item_submission_db):
     assert ItemSubmission.get(batch_id="batch-aaa", item_identifier="123") is None
 
 
-def test_itemsubmission_get_batch_success(mocked_item_submission_db):
+def test_itemsubmission_get_batch_success(mock_item_submission_db):
     # create records in item submissions DynamoDB table
     ItemSubmissionDB(
         batch_id="batch-aaa", item_identifier="123", workflow_name="test"
@@ -68,9 +68,9 @@ def test_itemsubmission_create_success():
 
 
 def test_itemsubmission_upsert_db_success(
-    item_submission_instance, mocked_item_submission_db
+    item_submission_instance, mock_item_submission_db
 ):
-    item_submission_instance.status = ItemSubmissionStatus.BATCH_CREATED
+    item_submission_instance.status = ItemSubmissionStatus.CREATE_SUCCESS
     item_submission_instance.status_details = "Test update"
     item_submission_instance.submit_attempts = 1
 
@@ -80,14 +80,14 @@ def test_itemsubmission_upsert_db_success(
         hash_key=item_submission_instance.batch_id,
         range_key=item_submission_instance.item_identifier,
     )
-    assert record.status == ItemSubmissionStatus.BATCH_CREATED
+    assert record.status == ItemSubmissionStatus.CREATE_SUCCESS
     assert record.status_details == "Test update"
     assert record.submit_attempts == 1
     assert record.workflow_name == item_submission_instance.workflow_name
 
 
 def test_itemsubmission_upsert_db_excludes_metadata_and_bitstreams(
-    item_submission_instance, mocked_item_submission_db
+    item_submission_instance, mock_item_submission_db
 ):
     item_submission_instance.dspace_metadata = {"title": "Test Item"}
     item_submission_instance.bitstream_s3_uris = [
@@ -137,10 +137,10 @@ def test_itemsubmission_ready_to_submit_with_max_retries(item_submission_instanc
     assert item_submission_instance.ready_to_submit() is False
 
 
-def test_itemsubmission_ready_to_submit_with_batch_created_success(
+def test_itemsubmission_ready_to_submit_with_create_success(
     item_submission_instance,
 ):
-    item_submission_instance.status = ItemSubmissionStatus.BATCH_CREATED
+    item_submission_instance.status = ItemSubmissionStatus.CREATE_SUCCESS
     assert item_submission_instance.ready_to_submit() is True
 
 
@@ -198,7 +198,7 @@ def test_itemsubmission_upload_dspace_metadata_success(
 
 @patch("dsc.utils.aws.s3.S3Client.put_file")
 def test_itemsubmission_upload_dspace_metadata_raises_custom_exception(
-    mock_put_file, item_submission_instance, mocked_item_submission_db
+    mock_put_file, item_submission_instance, mock_item_submission_db
 ):
     mock_put_file.side_effect = ClientError(
         operation_name="PutObject",
@@ -261,7 +261,7 @@ def test_itemsubmission_send_submission_message_raises_custom_exception(
     mock_send,
     mocked_sqs_input,
     mocked_sqs_output,
-    mocked_item_submission_db,
+    mock_item_submission_db,
     item_submission_instance,
 ):
     mock_send.side_effect = ClientError(

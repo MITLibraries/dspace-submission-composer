@@ -3,6 +3,7 @@ from unittest.mock import patch
 
 import pytest
 
+from dsc.db.models import ItemSubmissionStatus
 from dsc.item_submission import ItemSubmission
 
 
@@ -84,7 +85,7 @@ def test_workflow_ocw_metadata_mapping_dspace_metadata_success(
 )
 def test_workflow_ocw_prepare_batch_success(
     mock_opencourseware_read_metadata_from_zip_file,
-    mocked_item_submission_db,
+    mock_item_submission_db,
     mocked_s3,
     opencourseware_source_metadata,
     opencourseware_workflow_instance,
@@ -105,6 +106,7 @@ def test_workflow_ocw_prepare_batch_success(
                 batch_id="batch-aaa",
                 item_identifier="123",
                 workflow_name="opencourseware",
+                status=ItemSubmissionStatus.CREATE_SUCCESS,
             )
         ],
         [],

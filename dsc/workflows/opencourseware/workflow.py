@@ -6,6 +6,7 @@ from typing import Any
 
 import smart_open
 
+from dsc.db.models import ItemSubmissionStatus
 from dsc.exceptions import ItemMetadataNotFoundError
 from dsc.item_submission import ItemSubmission
 from dsc.utils.aws.s3 import S3Client
@@ -125,6 +126,7 @@ class OpenCourseWare(Workflow):
                     batch_id=self.batch_id,
                     item_identifier=item_metadata["item_identifier"],
                     workflow_name=self.workflow_name,
+                    status=ItemSubmissionStatus.CREATE_SUCCESS,
                 )
             )
 

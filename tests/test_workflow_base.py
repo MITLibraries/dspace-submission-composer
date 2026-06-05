@@ -41,14 +41,14 @@ def test_base_workflow_get_workflow_invalid_workflow_name_raises_error(
 
 @freeze_time("2025-01-01 09:00:00")
 def test_base_workflow_create_batch_in_db_success(
-    base_workflow_instance, mocked_item_submission_db
+    base_workflow_instance, mock_item_submission_db
 ):
     item_submissions, _ = base_workflow_instance.prepare_batch()
     base_workflow_instance._create_batch_in_db(item_submissions)  # noqa: SLF001
     item_submission = ItemSubmissionDB.get(hash_key="batch-aaa", range_key="123")
 
     assert item_submission.last_run_date == datetime(2025, 1, 1, 9, 0, tzinfo=UTC)
-    assert item_submission.status == ItemSubmissionStatus.BATCH_CREATED
+    assert item_submission.status == ItemSubmissionStatus.CREATE_SUCCESS
 
 
 def test_base_workflow_submit_items_success(
@@ -58,7 +58,7 @@ def test_base_workflow_submit_items_success(
     mocked_s3,
     mocked_sqs_input,
     mocked_sqs_output,
-    mocked_item_submission_db,
+    mock_item_submission_db,
 ):
     caplog.set_level("DEBUG")
     s3_client.put_file(file_content="", bucket="dsc", key="test/batch-aaa/123_01.pdf")
@@ -68,13 +68,13 @@ def test_base_workflow_submit_items_success(
         item_identifier="123",
         batch_id="batch-aaa",
         workflow_name="test",
-        status=ItemSubmissionStatus.BATCH_CREATED,
+        status=ItemSubmissionStatus.CREATE_SUCCESS,
     ).create()
     ItemSubmissionDB(
         item_identifier="789",
         batch_id="batch-aaa",
         workflow_name="test",
-        status=ItemSubmissionStatus.BATCH_CREATED,
+        status=ItemSubmissionStatus.CREATE_SUCCESS,
     ).create()
     items = base_workflow_instance.submit_items(collection_handle="123.4/5678")
 
@@ -91,7 +91,7 @@ def test_base_workflow_submit_items_no_collection_handle_raises_error(
     mocked_s3,
     mocked_sqs_input,
     mocked_sqs_output,
-    mocked_item_submission_db,
+    mock_item_submission_db,
 ):
     caplog.set_level("DEBUG")
     s3_client.put_file(file_content="", bucket="dsc", key="test/batch-aaa/123_01.pdf")
@@ -101,13 +101,13 @@ def test_base_workflow_submit_items_no_collection_handle_raises_error(
         item_identifier="123",
         batch_id="batch-aaa",
         workflow_name="test",
-        status=ItemSubmissionStatus.BATCH_CREATED,
+        status=ItemSubmissionStatus.CREATE_SUCCESS,
     ).create()
     ItemSubmissionDB(
         item_identifier="789",
         batch_id="batch-aaa",
         workflow_name="test",
-        status=ItemSubmissionStatus.BATCH_CREATED,
+        status=ItemSubmissionStatus.CREATE_SUCCESS,
     ).create()
     with pytest.raises(NotImplementedError):
         _ = base_workflow_instance.submit_items()
@@ -119,7 +119,7 @@ def test_base_workflow_submit_items_ready_to_submit_false_is_skipped(
     mocked_s3,
     mocked_sqs_input,
     mocked_sqs_output,
-    mocked_item_submission_db,
+    mock_item_submission_db,
 ):
     caplog.set_level("DEBUG")
     ItemSubmissionDB(
@@ -132,7 +132,7 @@ def test_base_workflow_submit_items_ready_to_submit_false_is_skipped(
         item_identifier="789",
         batch_id="batch-aaa",
         workflow_name="test",
-        status=ItemSubmissionStatus.BATCH_CREATED,
+        status=ItemSubmissionStatus.CREATE_SUCCESS,
     ).create()
     items = base_workflow_instance.submit_items(collection_handle="123.4/5678")
 
@@ -154,7 +154,7 @@ def test_base_workflow_submit_items_exceptions_handled(
     mocked_s3,
     mocked_sqs_input,
     mocked_sqs_output,
-    mocked_item_submission_db,
+    mock_item_submission_db,
 ):
     side_effect = [
         {"MessageId": "abcd", "ResponseMetadata": {"HTTPStatusCode": 200}},
@@ -173,13 +173,13 @@ def test_base_workflow_submit_items_exceptions_handled(
         item_identifier="123",
         batch_id="batch-aaa",
         workflow_name="test",
-        status=ItemSubmissionStatus.BATCH_CREATED,
+        status=ItemSubmissionStatus.CREATE_SUCCESS,
     ).create()
     ItemSubmissionDB(
         item_identifier="789",
         batch_id="batch-aaa",
         workflow_name="test",
-        status=ItemSubmissionStatus.BATCH_CREATED,
+        status=ItemSubmissionStatus.CREATE_SUCCESS,
     ).create()
     items = base_workflow_instance.submit_items(collection_handle="123.4/5678")
 
@@ -194,7 +194,7 @@ def test_base_workflow_finalize_items_success(
     caplog,
     base_workflow_instance,
     item_submission_instance,
-    mocked_item_submission_db,
+    mock_item_submission_db,
     mocked_sqs_output,
     result_message_attributes,
     result_message_body_success,
@@ -259,7 +259,7 @@ def test_base_workflow_finalize_items_success(
 def test_base_workflow_finalize_items_already_ingested_item_skipped(
     caplog,
     base_workflow_instance,
-    mocked_item_submission_db,
+    mock_item_submission_db,
     mocked_sqs_output,
     result_message_attributes,
     result_message_body_success,
@@ -298,7 +298,7 @@ def test_base_workflow_finalize_items_already_ingested_item_skipped(
 def test_base_workflow_finalize_items_missing_result_message_skipped(
     caplog,
     base_workflow_instance,
-    mocked_item_submission_db,
+    mock_item_submission_db,
     mocked_sqs_output,
     result_message_attributes,
     result_message_body_success,
@@ -345,7 +345,7 @@ def test_base_workflow_finalize_items_missing_result_message_skipped(
 def test_base_workflow_finalize_items_with_unknown_ingest_result(
     caplog,
     base_workflow_instance,
-    mocked_item_submission_db,
+    mock_item_submission_db,
     mocked_sqs_output,
     result_message_attributes,
     result_message_body_error,
@@ -386,7 +386,7 @@ def test_base_workflow_finalize_items_with_unknown_ingest_result(
 def test_base_workflow_finalize_items_exception_handled_and_logged(
     caplog,
     base_workflow_instance,
-    mocked_item_submission_db,
+    mock_item_submission_db,
     mocked_sqs_output,
     result_message_attributes,
     result_message_body_success,
@@ -420,7 +420,7 @@ def test_base_workflow_workflow_specific_processing_success(
 
 
 def test_base_workflow_send_report_success(
-    caplog, base_workflow_instance, mocked_ses, mocked_item_submission_db
+    caplog, base_workflow_instance, mocked_ses, mock_item_submission_db
 ):
     caplog.set_level("DEBUG")
     base_workflow_instance.send_report(

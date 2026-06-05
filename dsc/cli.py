@@ -133,13 +133,20 @@ def create(
             )
             ctx.exit(exception.exit_code)
 
+    # init list of batch creation errors
+    batch_creation_errors: list = []
     try:
         workflow.create_batch(synced=sync_data)
-    except BatchCreationFailedError:
+    except BatchCreationFailedError as exception:
         logger.error("Failed to create batch")  # noqa: TRY400
+        batch_creation_errors.extend(exception.errors)
 
     if email_recipients:
-        workflow.send_report(step="create", email_recipients=email_recipients.split(","))
+        workflow.send_report(
+            step="create",
+            email_recipients=email_recipients.split(","),
+            errors=batch_creation_errors,
+        )
 
 
 # data sync command

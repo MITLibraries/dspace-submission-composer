@@ -7,7 +7,7 @@ from dsc.db.models import ItemSubmissionDB
 from dsc.exceptions import ItemSubmissionCreateError, ItemSubmissionExistsError
 
 
-def test_db_itemsubmission_create_success(mocked_item_submission_db):
+def test_db_itemsubmission_create_success(mock_item_submission_db):
     instance = ItemSubmissionDB(
         batch_id="batch-aaa", item_identifier="123", workflow_name="workflow"
     )
@@ -21,7 +21,7 @@ def test_db_itemsubmission_create_success(mocked_item_submission_db):
     assert fetched_item.workflow_name == "workflow"
 
 
-def test_db_itemsubmission_create_if_exists_raise_error(mocked_item_submission_db):
+def test_db_itemsubmission_create_if_exists_raise_error(mock_item_submission_db):
     instance = ItemSubmissionDB(
         batch_id="batch-aaa", item_identifier="123", workflow_name="workflow"
     )
@@ -35,7 +35,7 @@ def test_db_itemsubmission_create_if_exists_raise_error(mocked_item_submission_d
 
 @patch("dsc.db.models.ItemSubmissionDB.save")
 def test_db_itemsubmission_create_if_puterror_raise_error(
-    mock_item_submission_db_save, mocked_item_submission_db
+    mock_item_submission_db_save, mock_item_submission_db
 ):
 
     class MockDynamoDBError(Exception):

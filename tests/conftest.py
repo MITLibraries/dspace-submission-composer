@@ -62,11 +62,13 @@ class TestWorkflow(Workflow):
                     batch_id="batch-aaa",
                     item_identifier="123",
                     workflow_name="test",
+                    status=ItemSubmissionStatus.CREATE_SUCCESS,
                 ),
                 ItemSubmission(
                     batch_id="batch-aaa",
                     item_identifier="789",
                     workflow_name="test",
+                    status=ItemSubmissionStatus.CREATE_SUCCESS,
                 ),
             ],
             [],
@@ -211,7 +213,7 @@ def metadata_mapping():
 
 
 @pytest.fixture
-def mocked_item_submission_db(config_instance):
+def mock_item_submission_db(config_instance):
     with mock_aws():
         if not ItemSubmissionDB.exists():
             ItemSubmissionDB.set_table_name(config_instance.item_submissions_table_name)
@@ -220,19 +222,19 @@ def mocked_item_submission_db(config_instance):
 
 
 @pytest.fixture
-def mock_item_submission_db_with_records(mocked_item_submission_db):
+def mock_item_submission_db_with_records(mock_item_submission_db):
     # create two records for 'batch-aaa'
     ItemSubmissionDB(
         batch_id="aaa",
         item_identifier="123",
         workflow_name="test",
-        status=ItemSubmissionStatus.BATCH_CREATED,
+        status=ItemSubmissionStatus.CREATE_SUCCESS,
     ).create()
     ItemSubmissionDB(
         batch_id="aaa",
         item_identifier="456",
         workflow_name="test",
-        status=ItemSubmissionStatus.BATCH_CREATED,
+        status=ItemSubmissionStatus.CREATE_SUCCESS,
     ).create()
 
 

@@ -9,7 +9,7 @@ from dsc.db.models import ItemSubmissionDB, ItemSubmissionStatus
 
 @freeze_time("2025-01-01 09:00:00")
 def test_workflow_specific_processing_success(
-    mocked_item_submission_db,
+    mock_item_submission_db,
     archivesspace_workflow_instance,
     mocked_s3,
     s3_client,
@@ -46,7 +46,7 @@ def test_workflow_specific_processing_success(
 @freeze_time("2025-01-01 09:00:00")
 def test_workflow_specific_processing_wrong_status_skipped(
     archivesspace_workflow_instance,
-    mocked_item_submission_db,
+    mock_item_submission_db,
     mocked_s3,
     s3_client,
     caplog,
@@ -82,7 +82,7 @@ def test_workflow_specific_processing_wrong_status_skipped(
 @freeze_time("2025-01-01 09:00:00")
 def test_workflow_specific_processing_wrong_date_skipped(
     archivesspace_workflow_instance,
-    mocked_item_submission_db,
+    mock_item_submission_db,
     mocked_s3,
     s3_client,
     caplog,
