@@ -116,9 +116,8 @@ class MetricsClient:
             ValueError: If unit is not allowed by AWS CloudWatch.
         """
         if unit not in UNIT_VALUES:
-            raise ValueError(
-                f"Invalid unit '{unit}'. Must be one of: {', '.join(sorted(UNIT_VALUES))}"
-            )
+            allowed_units = ", ".join(sorted(UNIT_VALUES))
+            raise ValueError(f"Invalid unit '{unit}'. Must be one of: {allowed_units}")
         return True
 
     def _publish_metrics(self, metrics: list[Metric]) -> None:
