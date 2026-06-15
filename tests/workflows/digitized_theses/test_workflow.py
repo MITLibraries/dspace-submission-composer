@@ -393,7 +393,7 @@ def test_workflow_submit_items_success(
         "001": {
             "thesis_type": "New thesis",
             "metadata_file": ["001.xml"],
-            "bitstream_files": ["001-MIT.pdf"],
+            "bitstream_files": ["001.pdf"],
         }
     }
     mock_workflow_get_transformed_metadata.return_value = None
@@ -454,7 +454,7 @@ def test_workflow_submit_items_handles_errors(
         "001": {
             "thesis_type": "New thesis",
             "metadata_file": ["001.xml"],
-            "bitstream_files": ["001-MIT.pdf"],
+            "bitstream_files": ["001.pdf"],
         }
     }
     mock_workflow_get_transformed_metadata.side_effect = Exception
@@ -503,9 +503,9 @@ def test_workflow_get_item_collection_handle():
 
     assert (
         workflow._get_item_collection_handle(
-            item_metadata={"mit.theses.degree": ["Bachelor"]}
+            item_metadata={"mit.thesis.degree": ["Bachelor"]}
         )
-        == "1721.1/test"
+        == "1721.1/131024"
     )
 
 
@@ -539,4 +539,4 @@ def test_workflow_parse_record_from_sru_response_no_records(alma_sru_response_no
 def test_workflow_parse_item_identifier():
     workflow = DigitizedTheses(batch_id="batch-aaa")
 
-    assert workflow.parse_item_identifier("s3://bucket/prefix/123456-MIT.pdf") == "123456"
+    assert workflow.parse_item_identifier("s3://bucket/prefix/123456.pdf") == "123456"

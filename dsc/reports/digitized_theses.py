@@ -13,9 +13,7 @@ class DigitizedThesesFinalizeReport(FinalizeReport):
         Attachment(
             filename="FM_DSpaceURLS_Tab.txt", method_name="create_filemaker_export_text"
         ),
-        Attachment(
-            filename="ALMA_DSpaceURLS_Tab.xml", method_name="create_alma_export_xml"
-        ),
+        Attachment(filename="ALMA_DSpaceURLS.xml", method_name="create_alma_export_xml"),
     )
 
     # ====================
