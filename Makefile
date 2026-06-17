@@ -7,7 +7,7 @@ MINIO_COMPOSE_FILE=tests/minio/docker-compose.yaml
 ### and review the other commented lines in the document. ###
 ECR_NAME_DEV := dspace-submission-composer-dev
 ECR_URL_DEV := 222053980223.dkr.ecr.us-east-1.amazonaws.com/dspace-submission-composer-dev
-CPU_ARCH ?= $(shell cat .aws-architecture 2>/dev/null || echo \"linux/amd64\")
+CPU_ARCH ?= $(shell cat .aws-architecture 2>/dev/null || echo "linux/amd64")
 # FUNCTION_DEV := 
 ### End of Terraform-generated header ###
 
@@ -96,6 +96,7 @@ dist-dev: check-arch # Build docker container (intended for developer-based manu
 		--tag $(ECR_URL_DEV):make-$$ARCH_TAG \
 		--tag $(ECR_URL_DEV):make-$(shell git describe --always) \
 		--tag $(ECR_NAME_DEV):$$ARCH_TAG \
+		.
 		
 publish-dev: dist-dev # Build, tag and push (intended for developer-based manual publish)
 	@ARCH_TAG=$$(cat .arch_tag); \

@@ -22,7 +22,7 @@ class DigitizedThesesTransformer:
     are based on the transformations in the  MIT-customized 'marc21-to-dc.xsl'
     stylesheet, which itself is based on the Library of Congress MARC-to-DC
     crosswalk. The transformer includes crosswalks to normalize values
-    for select fields (dc.contributor.department and mit.theses.degree).
+    for select fields (dc.contributor.department and mit.thesis.degree).
     """
 
     fields: Iterable[str] = [
@@ -80,7 +80,7 @@ class DigitizedThesesTransformer:
         "dc_subject_other",
         "dc_title_alternative",
         "dc_type",
-        "mit_theses_degree",
+        "mit_thesis_degree",
     ]
 
     degree_types_crosswalk: ClassVar = [
@@ -1098,7 +1098,7 @@ class DigitizedThesesTransformer:
         return cls.types_crosswalk.get(value, value)
 
     @classmethod
-    def mit_theses_degree(cls, record: etree._Element) -> list[str]:
+    def mit_thesis_degree(cls, record: etree._Element) -> list[str]:
         """MARC 502, normalized using cls.degree_types_crosswalk.
 
         If the 502 $b value does not match any of the patterns in the
@@ -1119,7 +1119,7 @@ class DigitizedThesesTransformer:
 
     @classmethod
     def _normalize_degree_type(cls, value: str) -> str | None:
-        """Normalize 502 $b (degree type) value for mit.theses.degree.
+        """Normalize 502 $b (degree type) value for mit.thesis.degree.
 
         Returns the normalized degree [Bachelor, Doctoral, Engineer, Master]
         given cls.degree_types_crosswalk. If there are no matches,

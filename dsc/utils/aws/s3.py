@@ -156,7 +156,7 @@ def run_aws_cli_sync(
     if process.stdout:
         for line in process.stdout:
             if line:
-                logger.info(line)
+                logger.debug(line)
     else:
         logger.info("No changes detected in source, no sync required")
 

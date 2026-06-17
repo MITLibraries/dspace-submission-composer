@@ -30,17 +30,16 @@ from dsc.workflows.digitized_theses import NSMAP, DigitizedThesesTransformer
 CONFIG = Config()
 logger = logging.getLogger(__name__)
 
-# TODO: Update collection handles for test instance once ready
 MIT_THESES_COLLECTION_HANDLES = {
-    "Bachelor": {"dev": "1721.1/test", "prod": "1721.1/131024"},
-    "Engineer": {"dev": "1721.1/test", "prod": "1721.1/131023"},
-    "Master": {"dev": "1721.1/test", "prod": "1721.1/131023"},
-    "Doctoral": {"dev": "1721.1/test", "prod": "1721.1/131022"},
+    "Bachelor": {"dev": "1721.1/131024", "prod": "1721.1/131024"},
+    "Engineer": {"dev": "1721.1/131023", "prod": "1721.1/131023"},
+    "Master": {"dev": "1721.1/131023", "prod": "1721.1/131023"},
+    "Doctoral": {"dev": "1721.1/131022", "prod": "1721.1/131022"},
 }
 
 
 class MITThesesCommunityUUID(StrEnum):
-    DEV = ""  # TODO: Update to uuid for 'MIT Theses' community in test
+    DEV = "6fc02cc2-0d14-4023-8a6f-d9900d0c4302"
     PROD = "6fc02cc2-0d14-4023-8a6f-d9900d0c4302"
 
 
@@ -50,7 +49,7 @@ class DigitizedTheses(Workflow):
     This workflow is unique to other workflows in that it relies on an
     additional S3 bucket that serves as a "workspace" for digitized theses.
     Users create a batch folder in this workspace S3 bucket and upload
-    theses (PDF files) named with the OCLC number: <oclc-number>-MIT.pdf.
+    theses (PDF files) named with the OCLC number: <oclc-number>.pdf.
 
     When this workflow creates a batch *without* syncing, it will first
     copy the contents of the original batch folder in the workspace S3 bucket
@@ -474,7 +473,7 @@ class DigitizedTheses(Workflow):
 
         return True
 
-    def submit_items(self, _collection_handle: str | None = None) -> list:
+    def submit_items(self, collection_handle: str | None = None) -> list:
         """Submit items to the DSpace Submission Service according to the workflow class.
 
         This method begins by creating a manifest for the batch of item submissions. The
@@ -484,7 +483,7 @@ class DigitizedTheses(Workflow):
 
         1. Check if the item submission is "ready to submit"
         2. Transform the item metadata to Qualified Dublin Core (QDC)
-        3. Get the item's collection handle based on the mit.theses.degree field
+        3. Get the item's collection handle based on the mit.thesis.degree field
         4. Send a submission message based on the thesis type ("New thesis" vs.
            "Replacement thesis")
             - New theses must provide the "CollectionHandle"
@@ -541,9 +540,10 @@ class DigitizedTheses(Workflow):
                         item_handle=item_submission.dspace_handle,
                     )
                 else:
-                    # get collection handle based on mit.theses.degree
-                    item_submission.collection_handle = self._get_item_collection_handle(
-                        item_metadata
+                    # get collection handle based on mit.thesis.degree
+                    item_submission.collection_handle = (
+                        collection_handle
+                        or self._get_item_collection_handle(item_metadata)
                     )
 
                     response = item_submission.send_submission_message(
@@ -656,7 +656,7 @@ class DigitizedTheses(Workflow):
         return transformed_metadata
 
     def _get_item_collection_handle(self, item_metadata: dict) -> str:
-        """Get collection handle for item based on mit.theses.degree.
+        """Get collection handle for item based on mit.thesis.degree.
 
         There are three collection handles for the MIT Theses Community:
             1. Doctoral Theses
@@ -664,34 +664,34 @@ class DigitizedTheses(Workflow):
             3. Undergraduate Theses
 
         Each item submission belongs to one of the three collection handles based
-        on the derived mit.theses.degree value, where this field is constrained to
+        on the derived mit.thesis.degree value, where this field is constrained to
         the set: ['Bachelor', 'Engineer', 'Master', 'Doctoral'].
 
         The global variables MIT_THESES_COLLECTION_HANDLES includes mappings of
-        mit.theses.degree value to collection handles in the 'dev' and 'prod'
+        mit.thesis.degree value to collection handles in the 'dev' and 'prod'
         environments.
         """
-        mit_theses_degrees = item_metadata.get("mit.theses.degree")
+        mit_thesis_degrees = item_metadata.get("mit.thesis.degree")
 
-        if not mit_theses_degrees:
+        if not mit_thesis_degrees:
             raise TypeError(
-                f"Cannot determine collection handle when mit.theses.degree={mit_theses_degrees}"  # noqa: E501
+                f"Cannot determine collection handle when mit.thesis.degree={mit_thesis_degrees}"  # noqa: E501
             )
 
-        if len(mit_theses_degrees) > 1:
+        if len(mit_thesis_degrees) > 1:
             logger.warning(
-                f"Found multiple values for mit.theses.degree={mit_theses_degrees}; "
+                f"Found multiple values for mit.thesis.degree={mit_thesis_degrees}; "
                 "retrieving collection handle for first match"
             )
 
-        for value in mit_theses_degrees:
+        for value in mit_thesis_degrees:
             if value in MIT_THESES_COLLECTION_HANDLES:
                 if CONFIG.workspace == "prod":
                     return MIT_THESES_COLLECTION_HANDLES[value]["prod"]
                 return MIT_THESES_COLLECTION_HANDLES[value]["dev"]
 
         raise ValueError(
-            f"No collection handles found for mit.theses.degree={mit_theses_degrees}"
+            f"No collection handles found for mit.thesis.degree={mit_thesis_degrees}"
         )
 
     @staticmethod
@@ -715,4 +715,4 @@ class DigitizedTheses(Workflow):
 
     @staticmethod
     def parse_item_identifier(filename: str) -> str:
-        return filename.rsplit("/", maxsplit=1)[-1].removesuffix("-MIT.pdf")
+        return filename.rsplit("/", maxsplit=1)[-1].removesuffix(".pdf")

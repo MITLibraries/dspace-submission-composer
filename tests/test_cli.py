@@ -290,6 +290,7 @@ def test_finalize_success(
 
 def test_sync_success(caplog, runner, monkeypatch, moto_server, config_instance):
     """Run sync using moto stand-alone server."""
+    caplog.set_level("DEBUG")
     monkeypatch.setenv("S3_BUCKET_SUBMISSION_ASSETS", "destination")
     monkeypatch.setenv("S3_BUCKET_SYNC_SOURCE", "source")
     monkeypatch.setenv("AWS_ENDPOINT_URL", moto_server)
@@ -335,6 +336,7 @@ def test_sync_use_source_and_destination_success(
     caplog, runner, monkeypatch, moto_server, config_instance
 ):
     """Run sync using moto stand-alone server."""
+    caplog.set_level("DEBUG")
     monkeypatch.setenv("S3_BUCKET_SUBMISSION_ASSETS", "destination")
     monkeypatch.setenv("AWS_ENDPOINT_URL", moto_server)
 
