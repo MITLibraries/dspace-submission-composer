@@ -16,7 +16,9 @@ def test_report_init_success():
     assert create_report.workflow_name == "test"
     assert create_report.batch_id == "batch-aaa"
     assert create_report.report_date == "20250101T090000Z"
-    assert create_report.subject == ("DSC Create Batch Results - test, batch='batch-aaa'")
+    assert create_report.subject == (
+        "[test] DSC Create Batch Results - test, batch='batch-aaa'"
+    )
 
 
 def test_report_get_item_submissions(mock_item_submission_db_with_records):
