@@ -486,9 +486,11 @@ def test_workflow_load_batch_manifest(mock_s3_digitized_theses_dsc):
 def test_workflow_get_transformed_metadata(mock_s3_digitized_theses_dsc):
     workflow = DigitizedTheses(batch_id="batch-aaa")
     item_metadata = workflow._get_transformed_metadata(
-        source_metadata_file="tests/fixtures/digitized-theses/batch-aaa/replacement-theses/05588126/05588126.xml"
+        item_identifier="05588126",
+        source_metadata_file="tests/fixtures/digitized-theses/batch-aaa/replacement-theses/05588126/05588126.xml",
     )
 
+    assert item_metadata["dc.identifier.oclc"] == "05588126"
     assert item_metadata["dc.title"] == [
         "Global solvability of invariant differential operators."
     ]
