@@ -512,9 +512,10 @@ class DigitizedTheses(Workflow):
             try:
                 # get item metadata
                 item_metadata = self._get_transformed_metadata(
+                    item_identifier=item_submission.item_identifier,
                     source_metadata_file=manifest[item_submission.item_identifier][
                         "metadata_file"
-                    ]
+                    ],
                 )
 
                 # prepare submission assets
@@ -620,7 +621,9 @@ class DigitizedTheses(Workflow):
 
         return manifest
 
-    def _get_transformed_metadata(self, source_metadata_file: str) -> dict:
+    def _get_transformed_metadata(
+        self, item_identifier: str, source_metadata_file: str
+    ) -> dict:
         """Get transformed metadata for an item submission.
 
         This method expects a filepath to an Alma MARC XML file.
@@ -637,6 +640,9 @@ class DigitizedTheses(Workflow):
             source_metadata = file.read()
 
         transformed_metadata = self.metadata_transformer.transform(source_metadata)
+
+        # set dc.identifier.oclc to item identifier
+        transformed_metadata["dc.identifier.oclc"] = item_identifier
 
         # if replacement thesis, include additional dc.description.provenance entry
         if "replacement-theses" in source_metadata_file:

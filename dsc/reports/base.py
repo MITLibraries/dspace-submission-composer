@@ -165,7 +165,7 @@ class CreateReport(Report):
 
     @property
     def subject(self) -> str:
-        return f"DSC Create Batch Results - {self.workflow_name}, batch='{self.batch_id}'"
+        return f"[{CONFIG.workspace}] DSC Create Batch Results - {self.workflow_name}, batch='{self.batch_id}'"  # noqa: E501
 
     @property
     def summary_template(self) -> Template:
@@ -196,7 +196,7 @@ class CreateReport(Report):
 class SubmitReport(Report):
     @property
     def subject(self) -> str:
-        return f"DSC Submit Results - {self.workflow_name}, batch='{self.batch_id}'"
+        return f"[{CONFIG.workspace}] DSC Submit Results - {self.workflow_name}, batch='{self.batch_id}'"  # noqa: E501
 
     @property
     def summary_template(self) -> Template:
