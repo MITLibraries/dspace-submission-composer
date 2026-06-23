@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING, Any, ClassVar, Literal, final
 import jsonschema
 import jsonschema.exceptions
 
-from dsc.config import Config
+from dsc.config import ALLOWED_METRICS, METRICS_NAMESPACE, Config
 from dsc.db.models import ItemSubmissionStatus
 from dsc.exceptions import (
     BatchCreationFailedError,
@@ -19,7 +19,7 @@ from dsc.exceptions import (
 )
 from dsc.item_submission import ItemSubmission
 from dsc.reports import CreateReport, FinalizeReport, SubmitReport
-from dsc.utils.aws import SESClient, SQSClient
+from dsc.utils.aws import Metric, MetricsClient, SESClient, SQSClient
 from dsc.utils.validate.schemas import RESULT_MESSAGE_ATTRIBUTES, RESULT_MESSAGE_BODY
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -129,6 +129,13 @@ class Workflow(ABC):
             "submitted": 0,
             "skipped": 0,
             "errors": 0,
+        }
+        self.metrics_client = MetricsClient(
+            namespace=METRICS_NAMESPACE, allowed_metrics=ALLOWED_METRICS
+        )
+        self.metrics_dimensions = {
+            "application": "dsc",
+            "workflow_name": self.workflow_name,
         }
 
         # cache list of bitstreams
@@ -328,6 +335,7 @@ class Workflow(ABC):
                 item_submission.status_details = None
                 item_submission.submit_attempts += 1
                 item_submission.upsert_db()
+                self._publish_count_metric("item_submitted", f"item {item_identifier}")
             except NotImplementedError:
                 raise
             except Exception as exception:  # noqa: BLE001
@@ -336,6 +344,9 @@ class Workflow(ABC):
                 item_submission.status_details = str(exception)
                 item_submission.submit_attempts += 1
                 item_submission.upsert_db()
+                self._publish_count_metric(
+                    "submission_error", f"item {item_submission.item_identifier}"
+                )
 
         logger.info(
             f"Submitted messages to the DSS input queue '{CONFIG.sqs_queue_dss_input}' "
@@ -421,11 +432,14 @@ class Workflow(ABC):
                 )
                 sqs_results_summary["ingest_success"] += 1
                 logger.debug(f"Record {log_str} was ingested")
+                self._publish_count_metric("ingested_item", f"record {log_str}")
             elif result_message.result_type == "error":
                 item_submission.status = ItemSubmissionStatus.INGEST_FAILED
                 item_submission.status_details = result_message.error_info
                 sqs_results_summary["ingest_failed"] += 1
                 logger.debug(f"Record {log_str} failed to ingest")
+                self._publish_count_metric("ingest_error", f"record {log_str}")
+
             else:
                 item_submission.status = ItemSubmissionStatus.INGEST_UNKNOWN
                 sqs_results_summary["ingest_unknown"] += 1
@@ -450,6 +464,27 @@ class Workflow(ABC):
         logger.info(
             f"No extra processing for batch based on workflow: '{self.workflow_name}' "
         )
+
+    def _publish_count_metric(self, metric_name: str, log_data: str) -> None:
+        """Publish a count metric to CloudWatch.
+
+        Any exceptions are caught and logged.
+
+        Args:
+            metric_name: The name of the metric to publish.
+            log_data: Additional data included in the log message.
+        """
+        try:
+            self.metrics_client.publish_metric(
+                Metric(
+                    name=metric_name,
+                    value=1,
+                    unit="Count",
+                    dimensions=self.metrics_dimensions,
+                )
+            )
+        except Exception:
+            logger.exception(f"Failed to publish '{metric_name}' metric: {log_data}")
 
     def send_report(
         self,

@@ -588,7 +588,7 @@ requires-dist = [
     { name = "lxml", specifier = ">=6.0.2" },
     { name = "pandas", specifier = ">=2.3.3" },
     { name = "pynamodb", specifier = ">=6.1.0" },
-    { name = "requests", specifier = ">=2.33.0" },
+    { name = "requests", specifier = ">=2.34.0" },
     { name = "sentry-sdk", specifier = ">=2.50.0" },
     { name = "smart-open" },
 ]
