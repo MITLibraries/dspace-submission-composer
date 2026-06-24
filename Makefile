@@ -16,13 +16,13 @@ help: # Preview Makefile commands
 /^[-_[:alpha:]]+:.?*#/ { printf "  %-15s%s\n", $$1, $$2 }' $(MAKEFILE_LIST)
 
 # ensure OS binaries aren't called if naming conflict with Make recipes
-.PHONY: help venv install update test coveralls lint black mypy ruff safety lint-apply black-apply ruff-apply
+.PHONY: help venv install update dsc test coveralls lint lint-fix security check-arch dist-dev publish-dev docker-clean start-minio-server stop-minio-server
 
 ##############################################
 # Python environment and dependency commands
 ##############################################
 
-install: .venv .git/hooks/pre-commit # Install Python dependencies and create virtual environment if needed
+install: .venv .git/hooks/pre-commit .git/hooks/pre-push # Install Python dependencies and create virtual environment if needed
 	uv sync --dev
 
 .venv: # Creates virtual environment if not found
@@ -42,6 +42,12 @@ venv: .venv # Create the Python virtual environment
 update: # Update Python dependencies
 	uv lock --upgrade
 	uv sync --dev
+
+##############################
+# CLI convenience commands
+##############################
+dsc: # Run dsc CLI without any arguments, utilizing uv script entrypoint
+	uv run dsc
 
 
 ######################

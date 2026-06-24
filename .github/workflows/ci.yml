@@ -3,6 +3,7 @@ on:
   pull_request:
     paths-ignore:
       - '.github/**'
+permissions: read-all
 jobs:
   test:
     uses: mitlibraries/.github/.github/workflows/python-uv-shared-test.yml@main

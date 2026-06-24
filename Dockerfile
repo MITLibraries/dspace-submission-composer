@@ -1,9 +1,8 @@
-FROM python:3.12-slim as build
+FROM python:3.13-slim AS build
 
 RUN apt-get update && apt-get upgrade -y && \
-    apt-get install -y git && \
-    apt-get install -y curl && \
-    apt-get install -y unzip && \
+    apt-get install -y --no-install-recommends git curl unzip && \
+    rm -rf /var/lib/apt/lists/* && \
     curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip" && \
     unzip awscliv2.zip && ./aws/install 
 
@@ -14,7 +13,7 @@ ENV PYTHONPATH=/app
 WORKDIR /app
 
 # Copy project metadata
-COPY pyproject.toml ./
+COPY pyproject.toml uv.lock* ./
 
 # Install package into system python
 RUN uv pip install --system .

@@ -13,7 +13,7 @@ See additional documentation in the :
 - To update dependencies: `make update`
 - To run unit tests: `make test`
 - To lint the repo: `make lint`
-- To run the app: `pipenv run dsc --help`
+- To run the app: `uv run dsc --help`
 
 ### Running a Local MinIO Server
 
@@ -23,9 +23,9 @@ Several DSC workflows involve reading metadata CSV files and searching for bitst
 
 1. Configure your `.env` file. The following environment variables must also be set:
    ```text
-   MINIO_S3_LOCAL_STORAGE=# full file system path to the directory where MinIO stores its object data on the local disk
-   MINIO_ROOT_USER=# username for root user account for MinIO server
-   MINIO_ROOT_PASSWORD=# password for root user account MinIO server
+   MINIO_S3_LOCAL_STORAGE=### full file system path to the directory where MinIO stores its object data on the local disk
+   MINIO_ROOT_USER=### username for root user account for MinIO server
+   MINIO_ROOT_PASSWORD=### password for root user account MinIO server
    ```
 
 2. Create an AWS profile `minio`. When prompted for an "AWS Access Key ID" and "AWS Secret Access Key", pass the values set for the `MINIO_ROOT_USER` and `MINIO_ROOT_PASSWORD` environment variables, respectively.
@@ -58,17 +58,20 @@ S3_BUCKET_SUBMISSION_ASSETS=### The name of the S3 bucket for DSC workflows hold
 S3_BUCKET_SYNC_SOURCE=### The name of the S3 bucket to sync data from. If not set, sync is not performed.
 SOURCE_EMAIL=### The email address from which reports are sent.
 SQS_QUEUE_DSS_INPUT=### The name of the SQS queue to which submission messages are sent. This must be a valid input queue for DSS.
+DSPACE_CREDENTIALS=### A JSON string containing credentials for all supported DSpace instances. Each entry requires 'url', 'user', and 'password' fields. Example: {"ir-6":{"url":"...","user":"...","password":"..."},"ddc-6":{...},"ir-8":{...},"ddc-8":{...}}
+METADATA_API_URL=### The endpoint for the Alma SRU (Search/Retrieve via URL) API, excluding the 'http' scheme.
+S3_BUCKET_DIGITIZED_THESES=### The name of the 'workspace' S3 bucket where Imaging Lab uploads batches of item submissions.
 ```
 
 ### Optional
 
 ```shell
-WARNING_ONLY_LOGGERS=# Comma-separated list of logger names to set as WARNING only, e.g. 'botocore,smart_open,urllib3'.
-MINIO_S3_LOCAL_STORAGE=# Full file system path to the directory where MinIO stores its object data on the local disk.
-MINIO_S3_URL=# Endpoint for MinIO server API; default is "http://localhost:9000/".
-MINIO_S3_CONTAINER_URL=# Endpoint for the MinIO server when acccessed from inside a Docker container; default is "http://host.docker.internal:9000/".
-MINIO_ROOT_USER=# Username for root user account for MinIO server.
-MINIO_ROOT_PASSWORD=# Password for root user account MinIO server.
+WARNING_ONLY_LOGGERS=### Comma-separated list of logger names to set as WARNING only, e.g. 'botocore,smart_open,urllib3'.
+MINIO_S3_LOCAL_STORAGE=### Full file system path to the directory where MinIO stores its object data on the local disk.
+MINIO_S3_URL=### Endpoint for MinIO server API; default is "http://localhost:9000/".
+MINIO_S3_CONTAINER_URL=### Endpoint for the MinIO server when acccessed from inside a Docker container; default is "http://host.docker.internal:9000/".
+MINIO_ROOT_USER=### Username for root user account for MinIO server.
+MINIO_ROOT_PASSWORD=### Password for root user account MinIO server.
 ```
 
 ## Related Assets
