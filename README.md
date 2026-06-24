@@ -13,7 +13,7 @@ See additional documentation in the :
 - To update dependencies: `make update`
 - To run unit tests: `make test`
 - To lint the repo: `make lint`
-- To run the app: `pipenv run dsc --help`
+- To run the app: `uv run dsc --help`
 
 ### Running a Local MinIO Server
 
