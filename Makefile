@@ -43,6 +43,9 @@ update: # Update Python dependencies
 	uv lock --upgrade
 	uv sync --dev
 
+##############################
+# CLI convenience commands
+##############################
 dsc: # Run dsc CLI without any arguments, utilizing uv script entrypoint
 	uv run dsc
 
