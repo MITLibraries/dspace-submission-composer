@@ -198,6 +198,7 @@ def test_workflow_get_item_submissions_from_synced_batch_replacement(
             item_identifier="05588126",
             workflow_name="digitized-theses",
             dspace_handle="1721.1/157651",
+            operation="update",
             status=ItemSubmissionStatus.CREATE_SUCCESS,
             status_details="Replacement thesis",
         )
@@ -241,6 +242,7 @@ def test_workflow_get_item_submissions_from_synced_batch_new(mock_s3client_files
             item_identifier="05588126",
             workflow_name="digitized-theses",
             dspace_handle=None,
+            operation="create",
             status=ItemSubmissionStatus.CREATE_SUCCESS,
             status_details="New thesis",
         )

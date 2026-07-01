@@ -57,6 +57,7 @@ class ItemSubmission:
     ingest_date: str | None = None
     last_result_message: str | None = None
     dspace_handle: str | None = None
+    operation: Literal["create", "update"] | None = None
     status: str | None = None
     status_details: str | None = None
 

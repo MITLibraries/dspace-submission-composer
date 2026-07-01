@@ -3,7 +3,7 @@ from io import BytesIO, StringIO
 import pandas as pd
 from lxml import etree
 
-from dsc.db.models import ItemSubmissionStatus
+from dsc.db.models import ItemSubmissionOperation, ItemSubmissionStatus
 from dsc.reports.base import Attachment, FinalizeReport
 
 
@@ -30,6 +30,7 @@ class DigitizedThesesFinalizeReport(FinalizeReport):
             item_submission.asdict(attrs=fields)
             for item_submission in self.get_item_submissions()
             if item_submission.status == ItemSubmissionStatus.INGEST_SUCCESS
+            and item_submission.operation == ItemSubmissionOperation.CREATE
         ]
         pd.DataFrame(item_submission_dicts).to_csv(
             buffer, sep="\t", header=False, index=False
@@ -48,6 +49,7 @@ class DigitizedThesesFinalizeReport(FinalizeReport):
             item_submission.asdict(attrs=fields)
             for item_submission in self.get_item_submissions()
             if item_submission.status == ItemSubmissionStatus.INGEST_SUCCESS
+            and item_submission.operation == ItemSubmissionOperation.CREATE
         ]
 
         root = etree.Element("collection")
@@ -56,7 +58,7 @@ class DigitizedThesesFinalizeReport(FinalizeReport):
 
             # write OCoLC (item identifier) to MARC 035 $a
             system_control_number = self._create_datafield_element(
-                text=item_submission["item_identifier"],
+                text=f"(OCoLC){item_submission['item_identifier']}",
                 tag="035",
                 subfield_code="a",
                 ind1=" ",

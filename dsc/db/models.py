@@ -1,6 +1,5 @@
 import logging
 from enum import StrEnum
-from typing import TypedDict
 
 from pynamodb.attributes import (
     JSONAttribute,
@@ -20,6 +19,11 @@ ITEM_SUBMISSION_LOG_STR = (
 )
 
 
+class ItemSubmissionOperation(StrEnum):
+    CREATE = "create"
+    UPDATE = "update"
+
+
 class ItemSubmissionStatus(StrEnum):
     CREATE_SUCCESS = "create_success"
     CREATE_FAILED = "create_failed"
@@ -30,19 +34,6 @@ class ItemSubmissionStatus(StrEnum):
     INGEST_FAILED = "ingest_failed"
     INGEST_UNKNOWN = "ingest_unknown"
     MAX_RETRIES_REACHED = "max_retries_reached"
-
-
-class OptionalItemAttributes(TypedDict, total=False):
-    source_system_identifier: str
-    collection_handle: str
-    dspace_handle: str
-    status: str
-    status_details: str
-    ingest_date: str
-    last_result_message: str
-    last_run_date: str
-    submit_attempts: int
-    ingest_attempts: int
 
 
 class ItemSubmissionDB(Model):
@@ -68,6 +59,7 @@ class ItemSubmissionDB(Model):
             an item is successfully ingested into DSpace.
             NOTE: If the item is sent to a DSpace submission queue, the handle is
             NOT provided.
+        operation: item operation to perform [create, update]. Defaults to None.
         status: The current state of an item submission in the DSC workflow.
             See dsc.db.models.ItemSubmissionStatus for accepted values.
         status_details: Additional details regarding the status of an item
@@ -96,6 +88,7 @@ class ItemSubmissionDB(Model):
     source_system_identifier = UnicodeAttribute(null=True)
     collection_handle = UnicodeAttribute(null=True)
     dspace_handle = UnicodeAttribute(null=True)
+    operation = UnicodeAttribute(null=True)
     status = UnicodeAttribute(null=True)
     status_details = UnicodeAttribute(null=True)
     ingest_date = UTCDateTimeAttribute(null=True)
