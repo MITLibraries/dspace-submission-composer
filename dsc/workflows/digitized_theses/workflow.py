@@ -204,12 +204,14 @@ class DigitizedTheses(Workflow):
                         item_submission.item_identifier
                     )
                     item_submission.dspace_handle = dspace_item.handle
+                    item_submission.operation = "update"
                     item_submission.status = ItemSubmissionStatus.CREATE_SUCCESS
                     item_submission.status_details = "Replacement thesis"
                 except exceptions.DSpaceClientSearchError as exception:
                     item_submission.status = ItemSubmissionStatus.CREATE_SKIPPED
                     item_submission.status_details = str(exception)
             elif theses_subfolder == "new-theses":
+                item_submission.operation = "create"
                 item_submission.status = ItemSubmissionStatus.CREATE_SUCCESS
                 item_submission.status_details = "New thesis"
             else:
@@ -294,9 +296,11 @@ class DigitizedTheses(Workflow):
 
             if dspace_item and self._is_replacement_thesis(dspace_item):
                 item_submission.dspace_handle = dspace_item.handle
+                item_submission.operation = "update"
                 item_submission.status = ItemSubmissionStatus.CREATE_SUCCESS
                 item_submission.status_details = "Replacement thesis"
             else:
+                item_submission.operation = "create"
                 item_submission.status = ItemSubmissionStatus.CREATE_SUCCESS
                 item_submission.status_details = "New thesis"
             item_submissions.append(item_submission)
@@ -529,15 +533,12 @@ class DigitizedTheses(Workflow):
                 ]["bitstream_files"]
 
                 # send submission message based on thesis type
-                if (
-                    manifest[item_submission.item_identifier]["thesis_type"]
-                    == "Replacement thesis"
-                ):
+                if item_submission.operation == "update":
                     response = item_submission.send_submission_message(
                         submission_source=self.workflow_name,
                         output_queue=self.output_queue,
                         submission_system=self.submission_system,
-                        operation="update",
+                        operation=item_submission.operation,
                         item_handle=item_submission.dspace_handle,
                     )
                 else:
