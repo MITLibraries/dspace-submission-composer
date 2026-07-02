@@ -135,6 +135,7 @@ class Report(ABC):
                 "batch_id",
                 "item_identifier",
                 "source_system_identifier",
+                "operation",
                 "status",
                 "status_details",
                 "dspace_handle",
