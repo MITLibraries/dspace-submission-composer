@@ -216,7 +216,9 @@ def sync(
     return_code = run_aws_cli_sync(
         source, destination, exclude_patterns=["dspace_metadata/*"], dry_run=dry_run
     )
-    ctx.exit(return_code)
+
+    if return_code != 0:
+        ctx.exit(return_code)
 
 
 @main.command()
