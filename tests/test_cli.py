@@ -388,6 +388,59 @@ def test_sync_use_source_and_destination_success(
     )
 
 
+@patch("dsc.cli.run_aws_cli_sync")
+def test_sync_failure_raises_system_exit(
+    mock_run_aws_cli_sync, caplog, runner, monkeypatch, moto_server, config_instance
+):
+    """Run sync using moto stand-alone server."""
+    caplog.set_level("DEBUG")
+    monkeypatch.setenv("S3_BUCKET_SUBMISSION_ASSETS", "destination")
+    monkeypatch.setenv("AWS_ENDPOINT_URL", moto_server)
+
+    # set fake AWS credentials
+    monkeypatch.setenv("AWS_ACCESS_KEY_ID", "testing")
+    monkeypatch.setenv("AWS_SECRET_ACCESS_KEY", "testing")
+    monkeypatch.setenv("AWS_DEFAULT_REGION", "us-east-1")
+
+    # raise error code 1
+    mock_run_aws_cli_sync.return_value = 1
+
+    # point boto3 client to test server
+    s3 = boto3.client(
+        "s3", region_name=config_instance.aws_region_name, endpoint_url=moto_server
+    )
+
+    # create 'source' bucket for syncing
+    s3.create_bucket(Bucket="source")
+    s3.put_object(
+        Bucket="source",
+        Key="test/batch-aaa/123.zip",
+        Body=b"",
+    )
+
+    # create 'destination' bucket
+    s3.create_bucket(Bucket="destination")
+
+    result = runner.invoke(
+        main,
+        [
+            "--verbose",
+            "--workflow-name",
+            "test",
+            "--batch-id",
+            "batch-aaa",
+            "sync",
+            "--source",
+            "s3://source/test/batch-aaa",
+            "--destination",
+            "s3://destination/test/batch-aaa",
+        ],
+    )
+
+    assert result.exit_code == 1
+    assert isinstance(result.exception, SystemExit)
+
+
 def test_sync_bad_usage_raise_error(
     caplog, runner, monkeypatch, moto_server, config_instance
 ):
