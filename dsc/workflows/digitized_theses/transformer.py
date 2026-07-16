@@ -10,6 +10,7 @@ if TYPE_CHECKING:
 from lxml import etree
 
 from dsc.config import load_external_config
+from dsc.exceptions import MetadataTransformationError
 
 NSMAP = {"marc": "http://www.loc.gov/MARC21/slim", "sru": "http://www.loc.gov/zing/srw/"}
 
@@ -148,13 +149,17 @@ class DigitizedThesesTransformer:
         for field in cls.fields:
             field_method = getattr(cls, field)
             formatted_field_name = field.replace("_", ".")
-
-            # if field method requires the record XML pass it
-            if "record" in inspect.signature(field_method).parameters:
-                transformed_metadata[formatted_field_name] = field_method(record)
-            # else, run field method without input
-            else:
-                transformed_metadata[formatted_field_name] = field_method()
+            try:
+                # if field method requires the record XML pass it
+                if "record" in inspect.signature(field_method).parameters:
+                    transformed_metadata[formatted_field_name] = field_method(record)
+                # else, run field method without input
+                else:
+                    transformed_metadata[formatted_field_name] = field_method()
+            except Exception as e:
+                raise MetadataTransformationError(
+                    f"Error transforming field '{formatted_field_name}': {e}"
+                ) from e
 
         return transformed_metadata
 
@@ -315,9 +320,12 @@ class DigitizedThesesTransformer:
 
     @classmethod
     def _normalize_departments(cls, values: list[str]) -> list[str]:
-        return [
-            cls.departments_crosswalk.get(department, department) for department in values
-        ]
+        department_strings = []
+        for department in values:
+            if department not in cls.departments_crosswalk:
+                raise KeyError(f"Department not found in crosswalk: {department}")
+            department_strings.append(cls.departments_crosswalk[department])
+        return department_strings
 
     @classmethod
     def dc_contributor_other(cls, record: etree._Element) -> list[str] | None:
