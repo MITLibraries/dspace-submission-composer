@@ -1,9 +1,11 @@
 # ruff: noqa: SLF001
 import re
+from unittest.mock import patch
 
 import pytest
 from lxml import etree
 
+from dsc.exceptions import MetadataTransformationError
 from dsc.workflows.digitized_theses import DigitizedThesesTransformer
 
 
@@ -128,5 +130,16 @@ def test_normalize_departments_success():
 
 def test_normalize_departments_raises_error_for_unknown_department():
 
-    with pytest.raises(ValueError, match="Department not found in crosswalk"):
+    with pytest.raises(KeyError, match="Department not found in crosswalk"):
         DigitizedThesesTransformer._normalize_departments(["Unknown Department XYZ"])
+
+
+@patch.object(
+    DigitizedThesesTransformer,
+    "dc_contributor_department",
+    side_effect=KeyError("Department XYZ"),
+)
+def test_transform_raises_custom_exception_for_errors(mock_dc_contributor_department):
+    source_metadata = create_marc_source_metadata_stub()
+    with pytest.raises(MetadataTransformationError, match="Department XYZ"):
+        DigitizedThesesTransformer.transform(source_metadata)

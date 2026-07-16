@@ -26,6 +26,10 @@ class ItemSubmissionExistsError(Exception):
     pass
 
 
+class MetadataTransformationError(Exception):
+    pass
+
+
 class SQSMessageSendError(Exception):
     pass
 
