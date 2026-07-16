@@ -1,6 +1,7 @@
 # ruff: noqa: SLF001
 import re
 
+import pytest
 from lxml import etree
 
 from dsc.workflows.digitized_theses import DigitizedThesesTransformer
@@ -114,3 +115,18 @@ def test_digitized_theses_transformer_normalize_degree_type():
     assert (
         DigitizedThesesTransformer._normalize_degree_type(value="Ph   D") == "Doctoral"
     )  # method = "regex"
+
+
+def test_normalize_departments_success():
+    result = DigitizedThesesTransformer._normalize_departments(
+        ["Abdul Latif Jameel Poverty Action Lab"]
+    )
+    assert result == [
+        "Abdul Latif Jameel Poverty Action Lab (Massachusetts Institute of Technology)"
+    ]
+
+
+def test_normalize_departments_raises_error_for_unknown_department():
+
+    with pytest.raises(ValueError, match="Department not found in crosswalk"):
+        DigitizedThesesTransformer._normalize_departments(["Unknown Department XYZ"])

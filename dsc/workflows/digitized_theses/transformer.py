@@ -315,9 +315,12 @@ class DigitizedThesesTransformer:
 
     @classmethod
     def _normalize_departments(cls, values: list[str]) -> list[str]:
-        return [
-            cls.departments_crosswalk.get(department, department) for department in values
-        ]
+        department_strings = []
+        for department in values:
+            if department not in cls.departments_crosswalk:
+                raise ValueError(f"Department not found in crosswalk: {department}")
+            department_strings.append(cls.departments_crosswalk[department])
+        return department_strings
 
     @classmethod
     def dc_contributor_other(cls, record: etree._Element) -> list[str] | None:
