@@ -63,7 +63,7 @@ class SQSClient:
         }
 
     @staticmethod
-    def create_dss_message_body(
+    def create_dss_message_body(  # noqa: PLR0917
         submission_system: str,
         metadata_s3_uri: str,
         bitstream_s3_uris: list[str],

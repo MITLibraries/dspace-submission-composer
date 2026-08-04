@@ -32,8 +32,8 @@
         "language": "en_US",
         "delimiter": "|"
     },
-    "dc.contributor.department": {
-        "source_field_name": "dc.contributor.department"
+    "dc.relation.orgunit": {
+        "source_field_name": "dc.relation.orgunit"
     },
     "dc.relation.isversionof": {
         "source_field_name": "dc.relation.isversionof"

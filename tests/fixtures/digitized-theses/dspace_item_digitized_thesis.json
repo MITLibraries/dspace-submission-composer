@@ -59,7 +59,7 @@
                 "value": "McClure, Ghyslaine."
             }
         ],
-        "dc.contributor.department": [
+        "dc.relation.orgunit": [
             {
                 "authority": null,
                 "confidence": 500,

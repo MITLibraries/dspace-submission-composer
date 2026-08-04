@@ -13,8 +13,8 @@
     "dc.contributor.author": {
         "source_field_name": "dc.contributor.author"
     },
-    "dc.contributor.department": {
-        "source_field_name": "dc.contributor.department"
+    "dc.relation.orgunit": {
+        "source_field_name": "dc.relation.orgunit"
     },
     "creativework.learningresourcetype": {
         "source_field_name": "creativework.learningresourcetype"
