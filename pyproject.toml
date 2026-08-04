@@ -70,6 +70,7 @@ ignore = [
     # default
     "C90",
     "COM812",
+    "CPY001",
     "D100",
     "D101", 
     "D102",
@@ -89,6 +90,7 @@ ignore = [
     "TRY003", 
 ]
 
+
 # allow autofix behavior for specified rules
 fixable = ["E", "F", "I", "Q"]
 
@@ -102,6 +104,7 @@ fixture-parentheses = false
 "tests/**/*" = [
     "ANN",
     "ARG001",
+    "PLR0917",
     "S101",
 ]
 

@@ -56,7 +56,7 @@ def test_workflow_ocw_metadata_mapping_dspace_metadata_success(
             }
         ],
         "dc.contributor.author": [{"value": "Caballero, Ricardo"}],
-        "dc.contributor.department": [
+        "dc.relation.orgunit": [
             {"value": "Massachusetts Institute of Technology. Department of Economics"}
         ],
         "creativework.learningresourcetype": [
@@ -145,7 +145,7 @@ def test_workflow_ocw_item_metadata_iter_success(
             "the United States and other economies.\n"
         ),
         "dc.contributor.author": ["Caballero, Ricardo"],
-        "dc.contributor.department": [
+        "dc.relation.orgunit": [
             "Massachusetts Institute of Technology. Department of Economics"
         ],
         "creativework.learningresourcetype": [

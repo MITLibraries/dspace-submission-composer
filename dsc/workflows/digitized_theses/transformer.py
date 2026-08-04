@@ -23,7 +23,7 @@ class DigitizedThesesTransformer:
     are based on the transformations in the  MIT-customized 'marc21-to-dc.xsl'
     stylesheet, which itself is based on the Library of Congress MARC-to-DC
     crosswalk. The transformer includes crosswalks to normalize values
-    for select fields (dc.contributor.department and mit.thesis.degree).
+    for select fields (dc.relation.orgunit and mit.thesis.degree).
     """
 
     fields: Iterable[str] = [
@@ -32,7 +32,6 @@ class DigitizedThesesTransformer:
         "dc_date_issued",
         "dc_contributor_advisor",
         "dc_contributor_author",
-        "dc_contributor_department",
         "dc_contributor_other",
         "dc_coverage_spatial",
         "dc_coverage_temporal",
@@ -67,6 +66,7 @@ class DigitizedThesesTransformer:
         "dc_relation_ispartofseries",
         "dc_relation_isreferencedby",
         "dc_relation_isreplacedby",
+        "dc_relation_orgunit",
         "dc_relation_replaces",
         "dc_relation_requires",
         "dc_relation_uri",
@@ -296,7 +296,7 @@ class DigitizedThesesTransformer:
         return results or None
 
     @classmethod
-    def dc_contributor_department(cls, record: etree._Element) -> list[str] | None:
+    def dc_relation_orgunit(cls, record: etree._Element) -> list[str] | None:
         """MARC 710 or 502 (if 710a or 710b is not set)."""
         results: list[str] = []
 
@@ -901,9 +901,11 @@ class DigitizedThesesTransformer:
     def dc_rights(cls, record: etree._Element) -> list[str]:
         """MARC 540; includes default statement."""
         results: list[str] = [
-            "MIT theses may be protected by copyright. Please reuse MIT thesis "
-            "content according to the MIT Libraries Permissions Policy, which is "
-            "available through the URL provided."
+            (
+                "MIT theses may be protected by copyright. Please reuse MIT thesis "
+                "content according to the MIT Libraries Permissions Policy, which is "
+                "available through the URL provided."
+            )
         ]
 
         for datafield in cls._datafields(record, "540", ind1=" ", ind2=" "):

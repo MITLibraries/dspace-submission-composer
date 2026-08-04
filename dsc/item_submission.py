@@ -437,7 +437,7 @@ class ItemSubmission:
         logger.info(f"Metadata uploaded to S3: {metadata_s3_uri}")
         self.metadata_s3_uri = metadata_s3_uri
 
-    def send_submission_message(
+    def send_submission_message(  # noqa: PLR0917
         self,
         submission_source: str,
         output_queue: str,

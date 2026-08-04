@@ -12,7 +12,7 @@ class OpenCourseWareTransformer:
         "dc_date_issued",
         "dc_description_abstract",
         "dc_contributor_author",
-        "dc_contributor_department",
+        "dc_relation_orgunit",
         "creativework_learningresourcetype",
         "dc_subject",
         "dc_identifier_other",
@@ -194,7 +194,7 @@ class OpenCourseWareTransformer:
         return instructor_name.strip()
 
     @classmethod
-    def dc_contributor_department(cls, source_metadata: dict) -> list[str] | None:
+    def dc_relation_orgunit(cls, source_metadata: dict) -> list[str] | None:
         """Return a list of department names mapped from department numbers.
 
         Example:

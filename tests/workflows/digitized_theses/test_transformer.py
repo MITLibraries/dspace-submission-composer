@@ -136,10 +136,10 @@ def test_normalize_departments_raises_error_for_unknown_department():
 
 @patch.object(
     DigitizedThesesTransformer,
-    "dc_contributor_department",
+    "dc_relation_orgunit",
     side_effect=KeyError("Department XYZ"),
 )
-def test_transform_raises_custom_exception_for_errors(mock_dc_contributor_department):
+def test_transform_raises_custom_exception_for_errors(mock_dc_relation_orgunit):
     source_metadata = create_marc_source_metadata_stub()
     with pytest.raises(MetadataTransformationError, match="Department XYZ"):
         DigitizedThesesTransformer.transform(source_metadata)
