@@ -44,6 +44,9 @@ class Config:
         "DIGITIZED_THESES_COMMUNITY_UUID",
         "DIGITIZED_THESES_METADATA_API_URL",
         "DIGITIZED_THESES_S3_BUCKET",
+        # wiley
+        "WILEY_BITSTREAM_API_URL",
+        "WILEY_METADATA_API_URL",
     ]
 
     @property
@@ -141,6 +144,20 @@ class Config:
             raise ValueError("Env var 'DIGITIZED_THESES_S3_BUCKET' must be defined")
         return value
 
+    @property
+    def wiley_bitstream_api_url(self) -> str | None:
+        value = os.getenv("WILEY_BITSTREAM_API_URL")
+        if not value:
+            raise ValueError("Env var 'WILEY_BITSTREAM_API_URL' must be defined")
+        return value
+
+    @property
+    def wiley_metadata_api_url(self) -> str | None:
+        value = os.getenv("WILEY_METADATA_API_URL")
+        if not value:
+            raise ValueError("Env var 'WILEY_METADATA_API_URL' must be defined")
+        return value
+
     def check_required_env_vars(self) -> None:
         """Method to raise exception if required env vars not set."""
         missing_vars = [var for var in self.REQUIRED_ENV_VARS if not os.getenv(var)]
@@ -175,9 +192,8 @@ class Config:
             for name in self.warning_only_loggers:
                 logging.getLogger(name).setLevel(logging.WARNING)
 
-        handler = logging.StreamHandler()
-        handler.setFormatter(logging.Formatter(log_format))
-        root_logger.addHandler(handler)
+        for handler in root_logger.handlers:
+            handler.setFormatter(logging.Formatter(log_format))
 
         return (
             f"Logger '{root_logger.name}' configured with level="

@@ -56,6 +56,15 @@ class S3Client:
         )
         logger.debug(f"Moved file from {source_file} to {destination_file}")
 
+    def download_file(self, s3_uri: str, destination_file: str) -> None:
+        parsed_s3_uri = urlparse(s3_uri, allow_fragments=False)
+        bucket, key = (
+            parsed_s3_uri.netloc,
+            parsed_s3_uri.path.lstrip("/"),
+        )
+        self.client.download_file(Bucket=bucket, Key=key, Filename=destination_file)
+        logger.debug(f"Downloaded file to {destination_file}")
+
     def put_file(
         self,
         bucket: str,
