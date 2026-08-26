@@ -9,6 +9,7 @@ from dsc.workflows.digitized_theses import DigitizedTheses
 from dsc.workflows.opencourseware import OpenCourseWare
 from dsc.workflows.sccs import SCCS
 from dsc.workflows.simple_csv import SimpleCSV
+from dsc.workflows.wiley import Wiley
 
 __all__ = [
     "SCCS",
@@ -16,5 +17,6 @@ __all__ = [
     "DigitizedTheses",
     "OpenCourseWare",
     "SimpleCSV",
+    "Wiley",
     "Workflow",
 ]
