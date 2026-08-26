@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING, Any, Literal
 
 from botocore.exceptions import ClientError
 from pynamodb.exceptions import DoesNotExist
+from pynamodb.expressions.condition import And
 
 from dsc.config import Config
 from dsc.db.models import ITEM_SUBMISSION_LOG_STR, ItemSubmissionDB, ItemSubmissionStatus
@@ -123,6 +124,24 @@ class ItemSubmission:
         hydrated with data from the corresponding record in DynamoDB.
         """
         for item_submission_db in ItemSubmissionDB.query(batch_id):
+            yield cls._from_db(item_submission_db)
+
+    @classmethod
+    def get_workflow_submissions(
+        cls,
+        workflow_name: str,
+        status: str | None = None,
+        attributes_to_get: list[str] | None = None,
+    ) -> Iterator[ItemSubmission]:
+        conditions = [ItemSubmissionDB.workflow_name == workflow_name]
+        if status:
+            conditions.append(ItemSubmissionDB.status == status)
+
+        for item_submission_db in ItemSubmissionDB.scan(
+            filter_condition=And(*conditions),
+            limit=1000,
+            attributes_to_get=attributes_to_get,
+        ):
             yield cls._from_db(item_submission_db)
 
     @classmethod

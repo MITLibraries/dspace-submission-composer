@@ -58,12 +58,10 @@ def test_itemsubmission_create_success():
         batch_id="batch-aaa",
         item_identifier="123",
         workflow_name="test",
-        source_system_identifier="abcde",
     ) == ItemSubmission(
         batch_id="batch-aaa",
         item_identifier="123",
         workflow_name="test",
-        source_system_identifier="abcde",
     )
 
 
