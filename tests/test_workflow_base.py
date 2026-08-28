@@ -7,36 +7,6 @@ from botocore.exceptions import ClientError
 from freezegun import freeze_time
 
 from dsc.db.models import ItemSubmissionDB, ItemSubmissionStatus
-from dsc.exceptions import (
-    InvalidWorkflowNameError,
-)
-from dsc.workflows.base import Workflow
-
-
-def test_base_workflow_init_with_defaults_success():
-    workflow_class = Workflow.get_workflow(workflow_name="test")
-    workflow_instance = workflow_class(batch_id="batch-aaa")
-    assert workflow_instance.workflow_name == "test"
-    assert workflow_instance.submission_system == "Test@MIT"
-    assert (
-        workflow_instance.metadata_mapping_path
-        == "tests/fixtures/test_metadata_mapping.json"
-    )
-    assert workflow_instance.batch_id == "batch-aaa"
-    assert workflow_instance.s3_bucket == "dsc"
-    assert workflow_instance.output_queue == "mock-output-queue"
-
-
-def test_base_workflow_get_workflow_success():
-    workflow_class = Workflow.get_workflow("test")
-    assert workflow_class.workflow_name == "test"
-
-
-def test_base_workflow_get_workflow_invalid_workflow_name_raises_error(
-    base_workflow_instance,
-):
-    with pytest.raises(InvalidWorkflowNameError):
-        base_workflow_instance.get_workflow("tast")
 
 
 @freeze_time("2025-01-01 09:00:00")

@@ -100,6 +100,11 @@ class TestSimpleCSV(SimpleCSV):
 
 # Test Workflow instances ####################
 @pytest.fixture
+def test_workflow_instance():
+    return TestWorkflow(batch_id="batch-aaa")
+
+
+@pytest.fixture
 @freeze_time("2025-01-01 09:00:00")
 def base_workflow_instance(item_metadata, metadata_mapping, mocked_s3):
     return TestWorkflow(batch_id="batch-aaa")
@@ -134,13 +139,6 @@ def _test_env(monkeypatch):
     monkeypatch.setenv("S3_BUCKET_SUBMISSION_ASSETS", "dsc")
     monkeypatch.setenv("SOURCE_EMAIL", "noreply@example.com")
     monkeypatch.setenv("SQS_QUEUE_DSS_INPUT", "mock-input-queue")
-    # workflow-specific
-    monkeypatch.setenv(
-        "DSPACE_CREDENTIALS",
-        '{"ir-8": {"url": "mock://mit-dspace.test.4science.cloud/server/api", "user": "user@test.com", "password": "topsecret"}, "ddc-8": {"url": "mock://dome.test.mitlibrary.net/rest", "user": "user@test.com", "password": "topsecret"}}',  # noqa: E501
-    )
-    monkeypatch.setenv("METADATA_API_URL", "mock.com/view/sru/01MIT_INST?version=1.2")
-    monkeypatch.setenv("S3_BUCKET_DIGITIZED_THESES", "digitized-theses-workspace-test")
 
 
 @pytest.fixture
