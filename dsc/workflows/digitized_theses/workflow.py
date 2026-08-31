@@ -595,7 +595,10 @@ class DigitizedTheses(Workflow):
         This method "walks" the contents of the batch in S3, examining contents
         of the new- and replacement-theses subfolders. The method returns
         a dictionary where the keys = item identifiers and the value
-        is a dict with important meta about the item submission: thesis type and
+        is a dict with item submission details:
+            - thesis_type: Thesis type
+            - metadata_file: S3 URI of the source metadata file (.xml)
+            - bitstream_files: List of S3 URIs to associated bitstreams (.pdf)
         the S3 URIs for the metadata file and the associated bitstream.
         """
         manifest: defaultdict = defaultdict(dict)
