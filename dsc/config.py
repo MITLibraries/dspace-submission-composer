@@ -16,24 +16,32 @@ ALLOWED_METRICS = {
 
 
 class Config:
+    """App configurations loaded from environment variables.
+
+    All workflow-scoped environment variables are considered optional
+    from the config context. When defining property methods for
+    workflow-scoped env vars, the methods should raise ValueError
+    when value is not set.
+    """
+
     REQUIRED_ENV_VARS: Iterable[str] = [
         "WORKSPACE",
         "SENTRY_DSN",
-        "AWS_REGION_NAME",
         "ITEM_SUBMISSIONS_TABLE_NAME",
         "S3_BUCKET_SUBMISSION_ASSETS",
         "SOURCE_EMAIL",
         "SQS_QUEUE_DSS_INPUT",
-        # workflow-specific
-        "DSPACE_CREDENTIALS",
-        "METADATA_API_URL",
-        "S3_BUCKET_DIGITIZED_THESES",
     ]
 
     OPTIONAL_ENV_VARS: Iterable[str] = [
+        "AWS_REGION_NAME",
         "RETRY_THRESHOLD",
         "S3_BUCKET_SYNC_SOURCE",
+        "DSPACE_CREDENTIALS",
         "WARNING_ONLY_LOGGERS",
+        # digitized-theses
+        "DIGITIZED_THESES_METADATA_API_URL",
+        "DIGITIZED_THESES_S3_BUCKET",
     ]
 
     @property
@@ -52,7 +60,28 @@ class Config:
     def item_submissions_table_name(self) -> str:
         value = os.getenv("ITEM_SUBMISSIONS_TABLE_NAME")
         if not value:
-            raise OSError("Env var 'ITEM_SUBMISSIONS_TABLE_NAME' must be defined")
+            raise ValueError("Env var 'ITEM_SUBMISSIONS_TABLE_NAME' must be defined")
+        return value
+
+    @property
+    def s3_bucket_submission_assets(self) -> str:
+        value = os.getenv("S3_BUCKET_SUBMISSION_ASSETS")
+        if not value:
+            raise ValueError("Env var 'S3_BUCKET_SUBMISSION_ASSETS' must be defined")
+        return value
+
+    @property
+    def source_email(self) -> str:
+        value = os.getenv("SOURCE_EMAIL")
+        if not value:
+            raise ValueError("Env var 'SOURCE_EMAIL' must be defined")
+        return value
+
+    @property
+    def sqs_queue_dss_input(self) -> str:
+        value = os.getenv("SQS_QUEUE_DSS_INPUT")
+        if not value:
+            raise ValueError("Env var 'SQS_QUEUE_DSS_INPUT' must be defined")
         return value
 
     @property
@@ -60,29 +89,8 @@ class Config:
         return int(os.getenv("RETRY_THRESHOLD", "20"))
 
     @property
-    def s3_bucket_submission_assets(self) -> str:
-        value = os.getenv("S3_BUCKET_SUBMISSION_ASSETS")
-        if not value:
-            raise OSError("Env var 'S3_BUCKET_SUBMISSION_ASSETS' must be defined")
-        return value
-
-    @property
     def s3_bucket_sync_source(self) -> str | None:
         return os.getenv("S3_BUCKET_SYNC_SOURCE")
-
-    @property
-    def source_email(self) -> str:
-        value = os.getenv("SOURCE_EMAIL")
-        if not value:
-            raise OSError("Env var 'SOURCE_EMAIL' must be defined")
-        return value
-
-    @property
-    def sqs_queue_dss_input(self) -> str:
-        value = os.getenv("SQS_QUEUE_DSS_INPUT")
-        if not value:
-            raise OSError("Env var 'SQS_QUEUE_DSS_INPUT' must be defined")
-        return value
 
     @property
     def warning_only_loggers(self) -> list:
@@ -95,31 +103,33 @@ class Config:
     def dspace_credentials(self) -> dict:
         value = os.getenv("DSPACE_CREDENTIALS")
         if not value:
-            raise OSError("Env var 'DSPACE_CREDENTIALS' must be defined")
+            raise ValueError("Env var 'DSPACE_CREDENTIALS' must be defined")
         credentials = json.loads(value)
-
         return {"IR-8": credentials["ir-8"], "DDC-8": credentials["ddc-8"]}
 
     @property
-    def metadata_api_url(self) -> str:
-        value = os.getenv("METADATA_API_URL")
+    def digitized_theses_metadata_api_url(self) -> str | None:
+        value = os.getenv("DIGITIZED_THESES_METADATA_API_URL")
         if not value:
-            raise OSError("Env var 'METADATA_API_URL' must be defined")
+            raise ValueError(
+                "Env var 'DIGITIZED_THESES_METADATA_API_URL' must be defined"
+            )
         return value
 
     @property
-    def s3_bucket_digitized_theses(self) -> str:
-        value = os.getenv("S3_BUCKET_DIGITIZED_THESES")
+    def digitized_theses_s3_bucket(self) -> str | None:
+        value = os.getenv("DIGITIZED_THESES_S3_BUCKET")
         if not value:
-            raise OSError("Env var 'S3_BUCKET_DIGITIZED_THESES' must be defined")
+            raise ValueError("Env var 'DIGITIZED_THESES_S3_BUCKET' must be defined")
         return value
 
     def check_required_env_vars(self) -> None:
         """Method to raise exception if required env vars not set."""
         missing_vars = [var for var in self.REQUIRED_ENV_VARS if not os.getenv(var)]
         if missing_vars:
-            message = f"Missing required environment variables: {', '.join(missing_vars)}"
-            raise OSError(message)
+            raise RuntimeError(
+                f"Missing required environment variables: {', '.join(missing_vars)}"
+            )
 
     def configure_logger(
         self,

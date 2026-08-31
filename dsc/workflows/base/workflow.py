@@ -102,6 +102,7 @@ class Workflow(ABC):
 
     workflow_name: str = "base"
     submission_system: str = "IR-8"
+    required_env_vars: ClassVar[list] = []
     reporting_modules: ClassVar[dict[str, type[Report]]] = {
         "create": CreateReport,
         "submit": SubmitReport,
@@ -117,6 +118,7 @@ class Workflow(ABC):
                 This subfolder is where the S3 client will search for bitstream
                 and metadata files.
         """
+        self.check_required_env_vars()
         self.batch_id = batch_id
         self.run_date = datetime.now(UTC)
         self.exclude_prefixes: list[str] = [
@@ -194,6 +196,23 @@ class Workflow(ABC):
         for subclass in cls.__subclasses__():
             yield from subclass._get_subclasses()  # noqa: SLF001
             yield subclass
+
+    @classmethod
+    def check_required_env_vars(cls) -> None:
+        """Verify that environment variables required by the workflow are configured."""
+        missing_env_vars = []
+        for var in cls.required_env_vars:
+            try:
+                getattr(CONFIG, var.lower())
+            except Exception:
+                logger.exception(f"Failed to retrieve or parse env var '{var}'")
+                missing_env_vars.append(var.upper())
+
+        if missing_env_vars:
+            raise RuntimeError(
+                "Missing required environment variables for workflow: "
+                f"{', '.join(missing_env_vars)}"
+            )
 
     @abstractmethod
     def get_batch_bitstream_uris(self) -> list[str]:

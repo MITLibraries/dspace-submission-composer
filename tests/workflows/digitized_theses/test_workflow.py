@@ -17,6 +17,20 @@ from dsc.workflows.digitized_theses import (
     DigitizedTheses,
 )
 
+
+@pytest.fixture(autouse=True)
+def _test_env_digitized_theses(monkeypatch):
+    monkeypatch.setenv(
+        "DSPACE_CREDENTIALS",
+        '{"ir-8": {"url": "mock://awesome-test-instance/server/api", "user": "user@test.com", "password": "topsecret"}, "ddc-8": {"url": "mock://awesome-test-instance/rest", "user": "user@test.com", "password": "topsecret"}}',  # noqa: E501
+    )
+    monkeypatch.setenv(
+        "DIGITIZED_THESES_METADATA_API_URL",
+        "mock.com/view/sru/awesome-institution-code?version=1.2",
+    )
+    monkeypatch.setenv("DIGITIZED_THESES_S3_BUCKET", "digitized-theses-workspace-test")
+
+
 # ===================================
 # Fixtures: DSpace client and items
 # ===================================
@@ -149,7 +163,7 @@ def test_workflow_dspace_client_init(mock_dspace_client, patched_dspace_client):
 
     mock_dspace_client.authenticate.assert_called_once()
     patched_dspace_client.assert_called_once_with(
-        api_endpoint="mock://mit-dspace.test.4science.cloud/server/api",
+        api_endpoint="mock://awesome-test-instance/server/api",
         username="user@test.com",
         password="topsecret",  # noqa: S106
         fake_user_agent=True,

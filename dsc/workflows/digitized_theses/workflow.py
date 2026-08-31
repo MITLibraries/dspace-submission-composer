@@ -77,6 +77,11 @@ class DigitizedTheses(Workflow):
 
     workflow_name: str = "digitized-theses"
     metadata_transformer = DigitizedThesesTransformer
+    required_env_vars: ClassVar[list] = [
+        "DSPACE_CREDENTIALS",
+        "DIGITIZED_THESES_METADATA_API_URL",
+        "DIGITIZED_THESES_S3_BUCKET",
+    ]
     reporting_modules: ClassVar[dict[str, type[Report]]] = {
         "create": CreateReport,
         "submit": SubmitReport,
@@ -252,7 +257,7 @@ class DigitizedTheses(Workflow):
         # to dated batch folder in temp directory
         tmp_batch_path = f"{tmp_dir.name}/{self.batch_id}"
         run_aws_cli_sync(
-            source=f"s3://{CONFIG.s3_bucket_digitized_theses}/{original_batch_id}",
+            source=f"s3://{CONFIG.digitized_theses_s3_bucket}/{original_batch_id}",
             destination=tmp_batch_path,
         )
 
@@ -346,7 +351,7 @@ class DigitizedTheses(Workflow):
             f"Retrieving metadata from Alma for an item with alma.oclc_control_number_035_a={item_submission.item_identifier}"  # noqa: E501
         )
 
-        query_url = f"https://{CONFIG.metadata_api_url}"
+        query_url = f"https://{CONFIG.digitized_theses_metadata_api_url}"
         response = requests.get(
             query_url,
             params={
