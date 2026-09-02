@@ -4,7 +4,7 @@
 
 [project]
 name = "dsc"
-version = "2.1.6" # See https://packaging.python.org/en/latest/guides/writing-pyproject-toml/#version
+version = "2.1.7" # See https://packaging.python.org/en/latest/guides/writing-pyproject-toml/#version
 requires-python = ">=3.13"
 
 dependencies = [

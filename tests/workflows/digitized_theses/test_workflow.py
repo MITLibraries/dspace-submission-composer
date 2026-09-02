@@ -25,6 +25,11 @@ def _test_env_digitized_theses(monkeypatch):
         '{"ir-8": {"url": "mock://awesome-test-instance/server/api", "user": "user@test.com", "password": "topsecret"}, "ddc-8": {"url": "mock://awesome-test-instance/rest", "user": "user@test.com", "password": "topsecret"}}',  # noqa: E501
     )
     monkeypatch.setenv(
+        "DIGITIZED_THESES_COLLECTION_HANDLES",
+        '{"Bachelor": "1234.5/6", "Engineer": "1234.5/7", "Master": "1234.5/8", "Doctoral": "1234.5/9"}',  # noqa: E501
+    )
+    monkeypatch.setenv("DIGITIZED_THESES_COMMUNITY_UUID", "uuid")
+    monkeypatch.setenv(
         "DIGITIZED_THESES_METADATA_API_URL",
         "mock.com/view/sru/awesome-institution-code?version=1.2",
     )
@@ -523,7 +528,7 @@ def test_workflow_get_item_collection_handle():
         workflow._get_item_collection_handle(
             item_metadata={"mit.thesis.degree": ["Bachelor"]}
         )
-        == "1721.1/131024"
+        == "1234.5/6"
     )
 
 

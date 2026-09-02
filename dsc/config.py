@@ -40,6 +40,8 @@ class Config:
         "DSPACE_CREDENTIALS",
         "WARNING_ONLY_LOGGERS",
         # digitized-theses
+        "DIGITIZED_THESES_COLLECTION_HANDLES",
+        "DIGITIZED_THESES_COMMUNITY_UUID",
         "DIGITIZED_THESES_METADATA_API_URL",
         "DIGITIZED_THESES_S3_BUCKET",
     ]
@@ -98,7 +100,6 @@ class Config:
             return _excluded_loggers.split(",")
         return []
 
-    # Workflow-specific env vars
     @property
     def dspace_credentials(self) -> dict:
         value = os.getenv("DSPACE_CREDENTIALS")
@@ -107,8 +108,25 @@ class Config:
         credentials = json.loads(value)
         return {"IR-8": credentials["ir-8"], "DDC-8": credentials["ddc-8"]}
 
+    # Workflow-specific env vars
     @property
-    def digitized_theses_metadata_api_url(self) -> str | None:
+    def digitized_theses_collection_handles(self) -> dict:
+        value = os.getenv("DIGITIZED_THESES_COLLECTION_HANDLES")
+        if not value:
+            raise ValueError(
+                "Env var 'DIGITIZED_THESES_COLLECTION_HANDLES' must be defined"
+            )
+        return json.loads(value)
+
+    @property
+    def digitized_theses_community_uuid(self) -> str:
+        value = os.getenv("DIGITIZED_THESES_COMMUNITY_UUID")
+        if not value:
+            raise ValueError("Env var 'DIGITIZED_THESES_COMMUNITY_UUID' must be defined")
+        return value
+
+    @property
+    def digitized_theses_metadata_api_url(self) -> str:
         value = os.getenv("DIGITIZED_THESES_METADATA_API_URL")
         if not value:
             raise ValueError(
@@ -117,7 +135,7 @@ class Config:
         return value
 
     @property
-    def digitized_theses_s3_bucket(self) -> str | None:
+    def digitized_theses_s3_bucket(self) -> str:
         value = os.getenv("DIGITIZED_THESES_S3_BUCKET")
         if not value:
             raise ValueError("Env var 'DIGITIZED_THESES_S3_BUCKET' must be defined")

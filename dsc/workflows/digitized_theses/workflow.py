@@ -8,7 +8,6 @@ import shutil
 import tempfile
 from collections import defaultdict
 from collections.abc import Iterator
-from enum import StrEnum
 from pathlib import Path
 from typing import Any, ClassVar
 
@@ -29,18 +28,6 @@ from dsc.workflows.digitized_theses import NSMAP, DigitizedThesesTransformer
 
 CONFIG = Config()
 logger = logging.getLogger(__name__)
-
-MIT_THESES_COLLECTION_HANDLES = {
-    "Bachelor": {"dev": "1721.1/131024", "prod": "1721.1/131024"},
-    "Engineer": {"dev": "1721.1/131023", "prod": "1721.1/131023"},
-    "Master": {"dev": "1721.1/131023", "prod": "1721.1/131023"},
-    "Doctoral": {"dev": "1721.1/131022", "prod": "1721.1/131022"},
-}
-
-
-class MITThesesCommunityUUID(StrEnum):
-    DEV = "6fc02cc2-0d14-4023-8a6f-d9900d0c4302"
-    PROD = "6fc02cc2-0d14-4023-8a6f-d9900d0c4302"
 
 
 class DigitizedTheses(Workflow):
@@ -79,6 +66,8 @@ class DigitizedTheses(Workflow):
     metadata_transformer = DigitizedThesesTransformer
     required_env_vars: ClassVar[list] = [
         "DSPACE_CREDENTIALS",
+        "DIGITIZED_THESES_COLLECTION_HANDLES",
+        "DIGITIZED_THESES_COMMUNITY_UUID",
         "DIGITIZED_THESES_METADATA_API_URL",
         "DIGITIZED_THESES_S3_BUCKET",
     ]
@@ -90,11 +79,6 @@ class DigitizedTheses(Workflow):
 
     def __init__(self, batch_id: str):
         self._dspace_client = None
-        self.community_uuid = (
-            MITThesesCommunityUUID.PROD
-            if CONFIG.workspace == "prod"
-            else MITThesesCommunityUUID.DEV
-        )
         super().__init__(batch_id)
 
     @property
@@ -395,19 +379,19 @@ class DigitizedTheses(Workflow):
 
         dspace_objects = self.dspace_client.search_objects(
             query=f"dc.identifier.oclc:{item_identifier}",
-            scope=self.community_uuid,
+            scope=CONFIG.digitized_theses_community_uuid,
             dso_type="item",
         )
 
         if dspace_objects is None:
             raise exceptions.DSpaceClientSearchError(
                 f"Failed search for item with dc.identifier.oclc={item_identifier} "
-                f"in community {'<community>'}"
+                f"in community {CONFIG.digitized_theses_community_uuid}"
             )
         if len(dspace_objects) > 1:
             raise exceptions.DSpaceClientSearchError(
                 f"Expecting one item with dc.identifier.oclc={item_identifier} "
-                f"in community {'<community>'}; found {len(dspace_objects)} items"
+                f"in community {CONFIG.digitized_theses_community_uuid}; found {len(dspace_objects)} items"  # noqa: E501
             )
         if len(dspace_objects) == 0:
             return None
@@ -679,9 +663,8 @@ class DigitizedTheses(Workflow):
         on the derived mit.thesis.degree value, where this field is constrained to
         the set: ['Bachelor', 'Engineer', 'Master', 'Doctoral'].
 
-        The global variables MIT_THESES_COLLECTION_HANDLES includes mappings of
-        mit.thesis.degree value to collection handles in the 'dev' and 'prod'
-        environments.
+        The env var DIGITIZED_THESES_COLLECTION_HANDLES includes mappings of
+        mit.thesis.degree value to collection handles.
         """
         mit_thesis_degrees = item_metadata.get("mit.thesis.degree")
 
@@ -697,10 +680,10 @@ class DigitizedTheses(Workflow):
             )
 
         for value in mit_thesis_degrees:
-            if value in MIT_THESES_COLLECTION_HANDLES:
+            if value in CONFIG.digitized_theses_collection_handles:
                 if CONFIG.workspace == "prod":
-                    return MIT_THESES_COLLECTION_HANDLES[value]["prod"]
-                return MIT_THESES_COLLECTION_HANDLES[value]["dev"]
+                    return CONFIG.digitized_theses_collection_handles[value]
+                return CONFIG.digitized_theses_collection_handles[value]
 
         raise ValueError(
             f"No collection handles found for mit.thesis.degree={mit_thesis_degrees}"
