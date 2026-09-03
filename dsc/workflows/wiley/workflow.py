@@ -392,9 +392,7 @@ class Wiley(Workflow):
             if file.endswith(".json"):
                 manifest[item_identifier]["metadata_file"] = file
             if file.endswith(".pdf"):
-                manifest[item_identifier]["bitstream_file"].setdefault(
-                    "bitstream_files", []
-                ).append(file)
+                manifest[item_identifier].setdefault("bitstream_files", []).append(file)
 
         return manifest
 

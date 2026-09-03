@@ -22,6 +22,128 @@ def wiley_workflow_instance():
     return Wiley(batch_id="batch-aaa")
 
 
+@pytest.fixture
+def mock_item_submission():
+    """Factory for a fake ItemSubmission with sensible defaults."""
+
+    def _make(item_identifier="001", message_id="abc", *, ready_to_submit=True):
+        item = MagicMock(name=f"ItemSubmission({item_identifier})")
+        item.item_identifier = item_identifier
+        item.ready_to_submit.return_value = ready_to_submit
+        item.prepare_dspace_metadata.return_value = None
+        item.send_submission_message.return_value = {"MessageId": message_id}
+        item.upsert_db.return_value = None
+        return item
+
+    return _make
+
+
+@patch("dsc.workflows.wiley.workflow.Wiley._load_batch_manifest")
+@patch("dsc.workflows.wiley.workflow.Wiley._get_transformed_metadata")
+@patch("dsc.workflows.wiley.workflow.ItemSubmission.get_batch")
+def test_workflow_submit_items_success(
+    mock_item_submission_get_batch,
+    mock_get_transformed_metadata,
+    mock_load_batch_manifest,
+    wiley_workflow_instance,
+    mock_item_submission,
+    caplog,
+):
+    mock_item_submission_get_batch.return_value = [
+        mock_item_submission(
+            item_identifier="10.1234/abcd",
+            ready_to_submit=True,
+            message_id="message-001",
+        ),
+        mock_item_submission(item_identifier="10.5678/efgh", ready_to_submit=False),
+    ]
+    mock_load_batch_manifest.return_value = {
+        "10.1234/abcd": {
+            "metadata_file": "s3://dsc/wiley/batch-aaa/10.1234-abcd/10.1234-abcd.json",
+            "bitstream_files": [
+                "s3://dsc/wiley/batch-aaa/10.1234-abcd/10.1234-abcd.pdf",
+            ],
+        }
+    }
+    mock_get_transformed_metadata.return_value = {"dc.title": ["Title"]}
+
+    items = wiley_workflow_instance.submit_items()
+
+    assert items == [{"item_identifier": "10.1234/abcd", "message_id": "message-001"}]
+    assert (
+        json.dumps({"total": 2, "created": 0, "skipped": 1, "errors": 0}) in caplog.text
+    )
+    mock_get_transformed_metadata.assert_called_once_with(
+        source_metadata_file="s3://dsc/wiley/batch-aaa/10.1234-abcd/10.1234-abcd.json",
+    )
+
+
+@patch("dsc.workflows.wiley.workflow.Wiley._load_batch_manifest")
+@patch("dsc.workflows.wiley.workflow.Wiley._get_transformed_metadata")
+@patch("dsc.workflows.wiley.workflow.ItemSubmission.get_batch")
+def test_workflow_submit_items_handles_errors(
+    mock_item_submission_get_batch,
+    mock_get_transformed_metadata,
+    mock_load_batch_manifest,
+    wiley_workflow_instance,
+    mock_item_submission,
+    caplog,
+):
+    mock_item_submission_get_batch.return_value = [
+        mock_item_submission(item_identifier="10.1234/abcd", ready_to_submit=True),
+        mock_item_submission(item_identifier="10.5678/efgh", ready_to_submit=False),
+    ]
+    mock_load_batch_manifest.return_value = {
+        "10.1234/abcd": {
+            "metadata_file": "s3://dsc/wiley/batch-aaa/10.1234-abcd/10.1234-abcd.json",
+            "bitstream_files": [
+                "s3://dsc/wiley/batch-aaa/10.1234-abcd/10.1234-abcd.pdf",
+            ],
+        }
+    }
+    mock_get_transformed_metadata.side_effect = Exception("boom")
+
+    items = wiley_workflow_instance.submit_items()
+
+    assert items == []
+    assert (
+        json.dumps({"total": 2, "created": 0, "skipped": 1, "errors": 1}) in caplog.text
+    )
+
+
+@patch("dsc.workflows.wiley.workflow.S3Client.files_iter")
+def test_workflow_load_batch_manifest_success(mock_files_iter, wiley_workflow_instance):
+    mock_files_iter.return_value = [
+        "s3://dsc/wiley/batch-aaa/10.1234-abcd/10.1234-abcd.json",
+        "s3://dsc/wiley/batch-aaa/10.1234-abcd/10.1234-abcd.pdf",
+    ]
+
+    assert wiley_workflow_instance._load_batch_manifest() == {
+        "10.1234/abcd": {
+            "metadata_file": "s3://dsc/wiley/batch-aaa/10.1234-abcd/10.1234-abcd.json",
+            "bitstream_files": [
+                "s3://dsc/wiley/batch-aaa/10.1234-abcd/10.1234-abcd.pdf",
+            ],
+        }
+    }
+
+
+@patch("dsc.workflows.wiley.workflow.WileyTransformer.transform")
+def test_workflow_get_transformed_metadata_success(
+    mock_transform,
+    wiley_workflow_instance,
+    tmp_path,
+):
+    source_metadata_file = tmp_path / "10.1234-abcd.json"
+    source_metadata_file.write_text(json.dumps({"title": ["Title"]}))
+    mock_transform.return_value = {"dc.title": ["Title"]}
+
+    assert wiley_workflow_instance._get_transformed_metadata(
+        source_metadata_file=str(source_metadata_file),
+    ) == {"dc.title": ["Title"]}
+    mock_transform.assert_called_once()
+
+
 @patch("dsc.workflows.wiley.workflow.Wiley._download_bitstream")
 @patch("dsc.workflows.wiley.workflow.Wiley._get_crossref_metadata")
 def test_workflow_prepare_item_submission_success(
