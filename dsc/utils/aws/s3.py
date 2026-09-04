@@ -56,6 +56,15 @@ class S3Client:
         )
         logger.debug(f"Moved file from {source_file} to {destination_file}")
 
+    def download_file(self, s3_uri: str, destination_file: str) -> None:
+        parsed_s3_uri = urlparse(s3_uri, allow_fragments=False)
+        bucket, key = (
+            parsed_s3_uri.netloc,
+            parsed_s3_uri.path.lstrip("/"),
+        )
+        self.client.download_file(Bucket=bucket, Key=key, Filename=destination_file)
+        logger.debug(f"Downloaded file to {destination_file}")
+
     def put_file(
         self,
         bucket: str,
@@ -134,7 +143,7 @@ def run_aws_cli_sync(
     *,
     exclude_patterns: list[str] | None = None,
     dry_run: bool = False,
-) -> int:
+) -> None:
     logger.info(f"Syncing data from {source} to {destination}")
 
     args = ["aws", "s3", "sync", source, destination, "--delete"]
@@ -170,8 +179,6 @@ def run_aws_cli_sync(
     return_code = process.returncode
 
     if return_code != 0:
-        logger.error(f"Failed to sync (exit code: {return_code})")
-    else:
-        logger.info("Sync completed successfully")
+        raise RuntimeError(f"Failed to sync (exit code: {return_code})")
 
-    return return_code
+    logger.info("Sync completed successfully")
