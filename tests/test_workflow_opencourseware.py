@@ -10,7 +10,7 @@ from dsc.item_submission import ItemSubmission
 @patch(
     "dsc.workflows.opencourseware.workflow.OpenCourseWare._read_metadata_from_zip_file"
 )
-def test_workflow_ocw_metadata_mapping_dspace_metadata_success(
+def test_workflow_ocw_transformer_success(
     mock_opencourseware_read_metadata_from_zip_file,
     caplog,
     mocked_s3,
@@ -30,9 +30,12 @@ def test_workflow_ocw_metadata_mapping_dspace_metadata_success(
     item_submission = ItemSubmission(
         batch_id="aaa", item_identifier="123", workflow_name="opencourseware"
     )
-    item_submission.create_dspace_metadata(
-        item_metadata=next(opencourseware_workflow_instance.item_metadata_iter()),
-        metadata_mapping=opencourseware_workflow_instance.metadata_mapping,
+    source_metadata = next(opencourseware_workflow_instance.item_metadata_iter())
+    transformed_metadata = (
+        opencourseware_workflow_instance.metadata_transformer.transform(source_metadata)
+    )
+    item_submission.create_dspace_metadata_without_mapping(
+        item_metadata=transformed_metadata,
     )
 
     assert item_submission.dspace_metadata == {
@@ -134,36 +137,7 @@ def test_workflow_ocw_item_metadata_iter_success(
     )
     assert next(opencourseware_workflow_instance.item_metadata_iter()) == {
         "item_identifier": "123",
-        "dc.title": "14.02 Principles of Macroeconomics, Fall 2004",
-        "dc.date.issued": "2004",
-        "dc.description.abstract": (
-            "This course provides an overview of the following macroeconomic issues: "
-            "the determination of output, employment, unemployment, interest rates, "
-            "and inflation. Monetary and fiscal policies are discussed, as are public "
-            "debt and international economic issues. This course also introduces basic "
-            "models of macroeconomics and illustrates principles with the experience of "
-            "the United States and other economies.\n"
-        ),
-        "dc.contributor.author": ["Caballero, Ricardo"],
-        "dc.relation.orgunit": [
-            "Massachusetts Institute of Technology. Department of Economics"
-        ],
-        "creativework.learningresourcetype": [
-            "Problem Sets with Solutions",
-            "Exams with Solutions",
-            "Lecture Notes",
-        ],
-        "dc.subject": [
-            "Social Science - Economics - International Economics",
-            "Social Science - Economics - Macroeconomics",
-        ],
-        "dc.identifier.other": ["14.02", "14.02-Fall2004"],
-        "dc.coverage.temporal": "Fall 2004",
-        "dc.audience.educationlevel": ["Undergraduate"],
-        "dc.type": "Learning Object",
-        "dc.rights": ("Attribution-NonCommercial-NoDerivs 4.0 United States"),
-        "dc.rights.uri": ("https://creativecommons.org/licenses/by-nc-nd/4.0/deed.en"),
-        "dc.language.iso": "en_US",
+        **opencourseware_source_metadata,
     }
 
 
