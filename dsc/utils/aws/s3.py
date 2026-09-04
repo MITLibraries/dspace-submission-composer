@@ -143,7 +143,7 @@ def run_aws_cli_sync(
     *,
     exclude_patterns: list[str] | None = None,
     dry_run: bool = False,
-) -> int:
+) -> None:
     logger.info(f"Syncing data from {source} to {destination}")
 
     args = ["aws", "s3", "sync", source, destination, "--delete"]
@@ -179,8 +179,6 @@ def run_aws_cli_sync(
     return_code = process.returncode
 
     if return_code != 0:
-        logger.error(f"Failed to sync (exit code: {return_code})")
-    else:
-        logger.info("Sync completed successfully")
+        raise RuntimeError(f"Failed to sync (exit code: {return_code})")
 
-    return return_code
+    logger.info("Sync completed successfully")

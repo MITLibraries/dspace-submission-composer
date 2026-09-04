@@ -212,13 +212,12 @@ def sync(
             "Either provide '--source / -s' and '--destination / -d' "
             "or set the S3_BUCKET_SYNC_SOURCE environment variable"
         )
-
-    return_code = run_aws_cli_sync(
-        source, destination, exclude_patterns=["dspace_metadata/*"], dry_run=dry_run
-    )
-
-    if return_code != 0:
-        ctx.exit(return_code)
+    try:
+        run_aws_cli_sync(
+            source, destination, exclude_patterns=["dspace_metadata/*"], dry_run=dry_run
+        )
+    except RuntimeError as exception:
+        raise click.ClickException(str(exception)) from exception
 
 
 @main.command()

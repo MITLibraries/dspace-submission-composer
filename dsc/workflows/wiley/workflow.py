@@ -5,7 +5,7 @@ import os
 import tempfile
 from collections.abc import Iterator
 from pathlib import Path
-from typing import Any
+from typing import Any, ClassVar
 
 import pandas as pd
 import requests
@@ -30,6 +30,10 @@ WILEY_HEADERS = {
 class Wiley(Workflow):
     workflow_name: str = "wiley"
     metadata_transformer = WileyTransformer
+    required_env_vars: ClassVar[list] = [
+        "WILEY_BITSTREAM_API_URL",
+        "WILEY_METADATA_API_URL",
+    ]
 
     @property
     def metadata_mapping_path(self) -> str:
@@ -68,7 +72,8 @@ class Wiley(Workflow):
         self.batch_id = self._update_batch_id(original_batch_id)
 
         # create temporary directory
-        tmp_batch_path = self._create_tmp_batch_dir()
+        tmp_dir = tempfile.TemporaryDirectory(delete=False)
+        tmp_batch_path = self._create_tmp_batch_dir(tmp_dir)
 
         # copy csv of DOIs into temp batch folder
         s3_client = S3Client()
@@ -79,6 +84,10 @@ class Wiley(Workflow):
             ),
         )
 
+        # get list of DOIs for completed item submissions
+        skip_list = self._get_completed_item_submission_ids()
+        logger.info(f"There are {len(skip_list)} completed Wiley item submissions")
+
         # get list of DOIs
         dois = pd.read_csv(
             Path(tmp_batch_path) / "MIT_Authored_Articles_Wiley.csv",
@@ -86,9 +95,6 @@ class Wiley(Workflow):
             header=None,
         )[0].to_list()
         logger.info(f"Retrieved {len(dois)} DOIs from input file")
-
-        # get list of DOIs for completed item submissions
-        skip_list = self._get_completed_item_submission_ids()
 
         # prepare an ItemSubmission for each DOI
         with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
@@ -116,6 +122,10 @@ class Wiley(Workflow):
             source=tmp_batch_path,
             destination=f"s3://{CONFIG.s3_bucket_submission_assets}/{self.batch_path}",
         )
+
+        # clean up temp directory
+        tmp_dir.cleanup()
+
         logger.info(
             f"Created items for batch '{self.batch_id}': {json.dumps(create_summary)}"
         )
@@ -193,9 +203,8 @@ class Wiley(Workflow):
         )
         return [item_submission.item_identifier for item_submission in item_submissions]
 
-    def _create_tmp_batch_dir(self) -> str:
+    def _create_tmp_batch_dir(self, tmp_dir: tempfile.TemporaryDirectory) -> str:
         """Create temporary directory for batch preparation."""
-        tmp_dir = tempfile.TemporaryDirectory(delete=False)
         tmp_batch_path = Path(tmp_dir.name) / self.batch_id
         os.makedirs(tmp_batch_path)
         logger.info(f"Created batch folder in temporary directory: {tmp_dir.name}")
@@ -213,13 +222,14 @@ class Wiley(Workflow):
         try:
             response = requests.get(url, headers=WILEY_HEADERS, timeout=30)
             response.raise_for_status()
-        except requests.exceptions.HTTPError as exception:
+        except requests.exceptions.RequestException as exception:
             logger.exception(f"Failed to retrieve content from {url}")
             raise exceptions.ItemBitstreamsNotFoundError from exception
 
-        if not response.headers["content-type"].startswith("application/pdf"):
+        content_type = response.headers.get("content-type", "")
+        if not content_type.startswith("application/pdf"):
             logger.error(
-                f"Expected PDF but retrieved {response.headers['content-type']} instead"
+                f"Expected PDF but retrieved {content_type or 'no content type'} instead"
             )
             raise exceptions.ItemBitstreamsNotFoundError
 
@@ -238,8 +248,8 @@ class Wiley(Workflow):
     def _get_crossref_metadata(self, item_identifier: str, output_dir: str) -> None:
         """Fetch metadata from Crossref.
 
-        PDFs are saved to a folder named with the item identifier,
-        using the filename: <item_identifier>.pdf.
+        Metadata is saved to a folder named with the item identifier,
+        using the filename: <item_identifier>.json.
         """
         logger.info("Fetching metadata from Crossref")
         url = f"https://{CONFIG.wiley_metadata_api_url}{item_identifier}"
@@ -247,6 +257,7 @@ class Wiley(Workflow):
             response = requests.get(
                 url, params={"mailto": "dspace-lib@mit.edu"}, timeout=30
             )
+            response.raise_for_status()
             metadata = response.json()
         except requests.exceptions.JSONDecodeError as exception:
             logger.exception("Failed to parse JSON from response")
