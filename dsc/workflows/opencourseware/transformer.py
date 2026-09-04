@@ -2,11 +2,13 @@ import inspect
 from collections.abc import Iterable
 from typing import Any, ClassVar
 
+from dsc.workflows.base.transformer import MetadataTransformer
 
-class OpenCourseWareTransformer:
+
+class OpenCourseWareTransformer(MetadataTransformer):
     """Transformer for OpenCourseWare (OCW) source metadata."""
 
-    fields: Iterable[str] = [
+    fields: ClassVar[Iterable[str]] = [
         # fields with derived values
         "dc_title",
         "dc_date_issued",

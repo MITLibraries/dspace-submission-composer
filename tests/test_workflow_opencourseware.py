@@ -10,7 +10,7 @@ from dsc.item_submission import ItemSubmission
 @patch(
     "dsc.workflows.opencourseware.workflow.OpenCourseWare._read_metadata_from_zip_file"
 )
-def test_workflow_ocw_metadata_mapping_dspace_metadata_success(
+def test_workflow_ocw_transformer_success(
     mock_opencourseware_read_metadata_from_zip_file,
     caplog,
     mocked_s3,
@@ -30,9 +30,8 @@ def test_workflow_ocw_metadata_mapping_dspace_metadata_success(
     item_submission = ItemSubmission(
         batch_id="aaa", item_identifier="123", workflow_name="opencourseware"
     )
-    item_submission.create_dspace_metadata(
+    item_submission.create_dspace_metadata_without_mapping(
         item_metadata=next(opencourseware_workflow_instance.item_metadata_iter()),
-        metadata_mapping=opencourseware_workflow_instance.metadata_mapping,
     )
 
     assert item_submission.dspace_metadata == {

@@ -1,3 +1,4 @@
+from dsc.workflows.sccs.transformer import SCCSTransformer
 from dsc.workflows.simple_csv import SimpleCSV
 
 
@@ -10,6 +11,7 @@ class SCCS(SimpleCSV):
     """
 
     workflow_name: str = "sccs"
+    metadata_transformer = SCCSTransformer
 
     @property
     def metadata_mapping_path(self) -> str:

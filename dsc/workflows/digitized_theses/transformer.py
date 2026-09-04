@@ -4,6 +4,8 @@ import inspect
 import re
 from typing import TYPE_CHECKING, Any, ClassVar
 
+from dsc.workflows.base.transformer import MetadataTransformer
+
 if TYPE_CHECKING:
     from collections.abc import Iterable
 
@@ -15,7 +17,7 @@ from dsc.exceptions import MetadataTransformationError
 NSMAP = {"marc": "http://www.loc.gov/MARC21/slim", "sru": "http://www.loc.gov/zing/srw/"}
 
 
-class DigitizedThesesTransformer:
+class DigitizedThesesTransformer(MetadataTransformer):
     """Transformer for Digitized Theses source metadata.
 
     The transformer expects a MARC XML record in byte-string form as its input
@@ -26,7 +28,7 @@ class DigitizedThesesTransformer:
     for select fields (dc.relation.orgunit and mit.thesis.degree).
     """
 
-    fields: Iterable[str] = [
+    fields: ClassVar[Iterable[str]] = [
         # fields with derived values
         "dc_title",
         "dc_date_issued",
