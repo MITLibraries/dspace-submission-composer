@@ -192,6 +192,8 @@ class Config:
             for name in self.warning_only_loggers:
                 logging.getLogger(name).setLevel(logging.WARNING)
 
+        if not root_logger.handlers:
+            root_logger.addHandler(logging.StreamHandler())
         for handler in root_logger.handlers:
             handler.setFormatter(logging.Formatter(log_format))
 

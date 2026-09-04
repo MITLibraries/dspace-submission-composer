@@ -139,7 +139,7 @@ class ItemSubmission:
 
         for item_submission_db in ItemSubmissionDB.scan(
             filter_condition=And(*conditions),
-            limit=1000,
+            page_size=1000,
             attributes_to_get=attributes_to_get,
         ):
             yield cls._from_db(item_submission_db)

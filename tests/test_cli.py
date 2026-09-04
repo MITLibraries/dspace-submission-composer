@@ -403,7 +403,7 @@ def test_sync_failure_raises_system_exit(
     monkeypatch.setenv("AWS_DEFAULT_REGION", "us-east-1")
 
     # raise error code 1
-    mock_run_aws_cli_sync.return_value = 1
+    mock_run_aws_cli_sync.side_effect = RuntimeError("Failed to sync (exit code: 1)")
 
     # point boto3 client to test server
     s3 = boto3.client(
