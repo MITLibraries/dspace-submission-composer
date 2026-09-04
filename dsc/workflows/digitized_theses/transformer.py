@@ -1061,7 +1061,7 @@ class DigitizedThesesTransformer:
         results: list[str] = []
 
         for datafield in cls._datafields(record, "650", ind1=" ", ind2="7"):
-            value = cls._subfield_text(datafield, codes="a2")
+            value = cls._subfield_text(datafield, codes="a")
             if value:
                 results.append(value)
 
