@@ -59,7 +59,9 @@ class DigitizedTheses(Workflow):
     The submission message informs DSS on whether to create or update
     an item.
 
-    TODO: Add description `finalize` method.
+    When this workflow "finalizes" a batch, it creates two custom reports:
+    1.  A tab-delimited text file with OCLC numbers and DSpace handles
+    2.  An XML file with OCLC numbers and DSpace handles
     """
 
     workflow_name: str = "digitized-theses"

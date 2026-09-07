@@ -28,6 +28,22 @@ WILEY_HEADERS = {
 
 
 class Wiley(Workflow):
+    """Workflow for MIT author accepted manuscripts from Wiley.
+
+    This workflow is unique to other workflows in that it relies on a CSV
+    file containing a cumulative list of DOIs for all author-accepted manuscripts
+    as the starting input.
+
+    Given the cumulative nature of this workflow, when preparing item submissions
+    during batch creation, the workflow checks whether the DOI is associated with an
+    item in the DynamoDB table that has already been ingested (sent to the submission
+    queue) to avoid duplication. This requires a full scan of the DynamoDB table,
+    retrieving all items where the attribute `workflow_name` is set to "wiley".
+
+    TODO: Add description for submit.
+    TODO: Add description for finalize.
+    """
+
     workflow_name: str = "wiley"
     metadata_transformer = WileyTransformer
     required_env_vars: ClassVar[list] = [
@@ -51,6 +67,12 @@ class Wiley(Workflow):
         This method will first prepare the batch in a local temp directory
         before uploading the batch to S3. Each time the method is called,
         it mints a new batch ID using the run date.
+
+        To prepare a batch, this method runs a sequence of steps to prepare
+        each item submission, which involves querying APIs for downloading
+        PDFs (bitstreams) and fetching metadata and writing files to S3.
+        Thread-based parallelism is used so multiple DOIs can be prepared
+        concurrently, allowing improved throughput for large batches.
 
         NOTE: Item creation failures are recorded in DynamoDB, so the method
         will always return an empty 'errors' list.
