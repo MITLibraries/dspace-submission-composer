@@ -190,11 +190,11 @@ class Wiley(Workflow):
         )
 
         try:
-            self._download_bitstream(
+            self._get_manuscript_from_wiley(
                 item_identifier=item_submission.item_identifier,
                 output_dir=output_dir,
             )
-            self._get_crossref_metadata(
+            self._get_metadata_from_crossref(
                 item_identifier=item_submission.item_identifier,
                 output_dir=output_dir,
             )
@@ -232,7 +232,7 @@ class Wiley(Workflow):
         logger.info(f"Created batch folder in temporary directory: {tmp_dir.name}")
         return str(tmp_batch_path)
 
-    def _download_bitstream(self, item_identifier: str, output_dir: str) -> None:
+    def _get_manuscript_from_wiley(self, item_identifier: str, output_dir: str) -> str:
         """Download PDF from Wiley.
 
         PDFs are saved to a folder named with the item identifier,
@@ -248,18 +248,19 @@ class Wiley(Workflow):
             logger.exception(f"Failed to retrieve content from {url}")
             raise exceptions.ItemBitstreamsNotFoundError from exception
 
-        content_type = response.headers.get("content-type", "")
-        if not content_type.startswith("application/pdf"):
+        content_type = response.headers.get("content-type")
+        if not content_type or not content_type.startswith("application/pdf"):
             logger.error(
                 f"Expected PDF but retrieved {content_type or 'no content type'} instead"
             )
             raise exceptions.ItemBitstreamsNotFoundError
 
         # set filepath for bitstream PDF file, creating intermediate directories
+        normalized_item_identifier = item_identifier.replace("/", "-")
         filepath = (
             Path(output_dir)
-            / item_identifier.replace("/", "-")
-            / f"{item_identifier.replace('/', '-')}.pdf"
+            / normalized_item_identifier
+            / f"{normalized_item_identifier}.pdf"
         )
         filepath.parent.mkdir(parents=True, exist_ok=True)
 
@@ -267,7 +268,9 @@ class Wiley(Workflow):
             file.write(response.content)
             logger.info(f"Saved PDF to {file.name}")
 
-    def _get_crossref_metadata(self, item_identifier: str, output_dir: str) -> None:
+        return str(filepath)
+
+    def _get_metadata_from_crossref(self, item_identifier: str, output_dir: str) -> str:
         """Fetch metadata from Crossref.
 
         Metadata is saved to a folder named with the item identifier,
@@ -289,16 +292,19 @@ class Wiley(Workflow):
             raise exceptions.ItemMetadataNotFoundError from exception
 
         # set filepath for metadata JSON file, creating intermediate directories
+        normalized_item_identifier = item_identifier.replace("/", "-")
         filepath = (
             Path(output_dir)
-            / item_identifier.replace("/", "-")
-            / f"{item_identifier.replace('/', '-')}.json"
+            / normalized_item_identifier
+            / f"{normalized_item_identifier}.json"
         )
         filepath.parent.mkdir(parents=True, exist_ok=True)
 
         with open(filepath, "w") as file:
             json.dump(metadata, file)
             logger.info(f"Saved metadata to {file.name}")
+
+        return str(filepath)
 
     def _update_batch_id(self, batch_id: str) -> str:
         """Create a new batch ID with a date timestamp.

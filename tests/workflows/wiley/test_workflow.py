@@ -22,11 +22,11 @@ def wiley_workflow_instance():
     return Wiley(batch_id="batch-aaa")
 
 
-@patch("dsc.workflows.wiley.workflow.Wiley._download_bitstream")
-@patch("dsc.workflows.wiley.workflow.Wiley._get_crossref_metadata")
+@patch("dsc.workflows.wiley.workflow.Wiley._get_manuscript_from_wiley")
+@patch("dsc.workflows.wiley.workflow.Wiley._get_metadata_from_crossref")
 def test_workflow_prepare_item_submission_success(
-    mock_get_crossref_metadata,
-    mock_download_bitstream,
+    mock_get_metadata_from_crossref,
+    mock_get_manuscript_from_wiley,
     wiley_workflow_instance,
     tmp_path,
 ):
@@ -41,23 +41,23 @@ def test_workflow_prepare_item_submission_success(
         workflow_name="wiley",
         status=ItemSubmissionStatus.CREATE_SUCCESS,
     )
-    mock_download_bitstream.assert_called_once_with(
+    mock_get_manuscript_from_wiley.assert_called_once_with(
         item_identifier="10.1234/abcd",
         output_dir=str(tmp_path),
     )
-    mock_get_crossref_metadata.assert_called_once_with(
+    mock_get_metadata_from_crossref.assert_called_once_with(
         item_identifier="10.1234/abcd",
         output_dir=str(tmp_path),
     )
 
 
-@patch("dsc.workflows.wiley.workflow.Wiley._download_bitstream")
+@patch("dsc.workflows.wiley.workflow.Wiley._get_manuscript_from_wiley")
 def test_workflow_prepare_item_submission_failed(
-    mock_download_bitstream,
+    mock_get_manuscript_from_wiley,
     wiley_workflow_instance,
     tmp_path,
 ):
-    mock_download_bitstream.side_effect = exceptions.ItemBitstreamsNotFoundError
+    mock_get_manuscript_from_wiley.side_effect = exceptions.ItemBitstreamsNotFoundError
 
     result = wiley_workflow_instance._prepare_item_submission(
         doi="10.1234/abcd",
@@ -74,7 +74,7 @@ def test_workflow_prepare_item_submission_failed(
 
 
 @patch("dsc.workflows.wiley.workflow.requests.get")
-def test_workflow_download_bitstream_success(
+def test_workflow_get_manuscript_from_wiley_success(
     mock_requests_get, wiley_workflow_instance, tmp_path
 ):
     mock_response = MagicMock()
@@ -83,7 +83,7 @@ def test_workflow_download_bitstream_success(
     mock_response.raise_for_status.return_value = None
     mock_requests_get.return_value = mock_response
 
-    wiley_workflow_instance._download_bitstream(
+    wiley_workflow_instance._get_manuscript_from_wiley(
         item_identifier="10.1234/abcd",
         output_dir=str(tmp_path),
     )
@@ -94,14 +94,14 @@ def test_workflow_download_bitstream_success(
 
 
 @patch("dsc.workflows.wiley.workflow.requests.get")
-def test_workflow_get_crossref_metadata_success(
+def test_workflow_get_metadata_from_crossref_success(
     mock_requests_get, wiley_workflow_instance, tmp_path
 ):
     mock_response = MagicMock()
     mock_response.json.return_value = {"message": {"title": ["Title"]}}
     mock_requests_get.return_value = mock_response
 
-    wiley_workflow_instance._get_crossref_metadata(
+    wiley_workflow_instance._get_metadata_from_crossref(
         item_identifier="10.1234/abcd",
         output_dir=str(tmp_path),
     )
