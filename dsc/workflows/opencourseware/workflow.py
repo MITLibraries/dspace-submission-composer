@@ -48,7 +48,7 @@ class OpenCourseWare(Workflow):
 
         If the zip file does not include a metadata JSON file (data.json),
         this method yields a dict containing only the item identifier.
-        Otherwise, a dict containing the item identifier and transformed metadata
+        Otherwise, a dict containing the item identifier and source metadata
         is yielded.
 
         NOTE: Item identifiers are retrieved from the filenames of the zip
@@ -60,11 +60,9 @@ class OpenCourseWare(Workflow):
             except FileNotFoundError:
                 source_metadata = {}
 
-            transformed_metadata = self.metadata_transformer.transform(source_metadata)
-
             yield {
                 "item_identifier": self._parse_item_identifier(file),
-                **transformed_metadata,
+                **source_metadata,
             }
 
     def _read_metadata_from_zip_file(self, file: str) -> dict[str, str]:
