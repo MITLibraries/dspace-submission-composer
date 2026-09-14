@@ -1,9 +1,9 @@
 from typing import ClassVar
 
-from dsc.workflows.base import BaseTransformer
+from dsc.workflows.simple_csv.transformer import SimpleCSVTransformer
 
 
-class SCCSTransformer(BaseTransformer):
+class SCCSTransformer(SimpleCSVTransformer):
     """Transformer for SCCS source metadata."""
 
     fields: ClassVar[list[str]] = [

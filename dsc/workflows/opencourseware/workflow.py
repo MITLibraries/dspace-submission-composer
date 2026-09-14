@@ -29,7 +29,7 @@ class OpenCourseWare(Workflow):
 
     @property
     def metadata_mapping_path(self) -> str:
-        return "dsc/workflows/opencourseware/metadata_mapping.json"
+        raise NotImplementedError
 
     def get_batch_bitstream_uris(self) -> list[str]:
         """Get list of URIs for all zipfiles within the batch folder."""

@@ -15,7 +15,7 @@ class SCCS(SimpleCSV):
 
     @property
     def metadata_mapping_path(self) -> str:
-        return "dsc/workflows/sccs/metadata_mapping.json"
+        raise NotImplementedError
 
     @property
     def item_identifier_column_names(self) -> list[str]:
