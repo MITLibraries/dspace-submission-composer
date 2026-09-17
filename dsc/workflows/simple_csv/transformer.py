@@ -6,6 +6,8 @@ from dsc.workflows.base.transformer import MetadataTransformer
 class SimpleCSVTransformer(MetadataTransformer):
     """Simple CSV transformer for workflows where fields align with DSpace field names.
 
+    This transformer MUST be subclassed and have the `fields` class variable defined.
+
     Subclasses declare which fields to include and which are pipe-delimited.
     """
 
