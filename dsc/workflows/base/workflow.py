@@ -28,6 +28,8 @@ if TYPE_CHECKING:  # pragma: no cover
     from mypy_boto3_sqs.type_defs import MessageTypeDef
 
     from dsc.reports import Report
+    from dsc.workflows.base.transformer import MetadataTransformer
+
 
 logger = logging.getLogger(__name__)
 CONFIG = Config()
@@ -103,6 +105,7 @@ class Workflow(ABC):
     workflow_name: str = "base"
     submission_system: str = "IR-8"
     required_env_vars: ClassVar[list] = []
+    metadata_transformer: ClassVar[type[MetadataTransformer] | None] = None
     reporting_modules: ClassVar[dict[str, type[Report]]] = {
         "create": CreateReport,
         "submit": SubmitReport,
@@ -316,19 +319,29 @@ class Workflow(ABC):
                 continue
             try:
                 # prepare submission assets
-                item_submission.prepare_dspace_metadata(
-                    metadata_mapping=self.metadata_mapping,
-                    item_metadata=batch_metadata[item_identifier],
-                    s3_bucket=self.s3_bucket,
-                    batch_path=self.batch_path,
-                )
+                if self.metadata_transformer:
+                    item_metadata = self._run_metadata_transformer(
+                        batch_metadata[item_identifier]
+                    )
+                    item_submission.prepare_dspace_metadata(
+                        item_metadata=item_metadata,
+                        s3_bucket=self.s3_bucket,
+                        batch_path=self.batch_path,
+                    )
+                else:
+                    item_metadata = batch_metadata[item_identifier]
+                    item_submission.prepare_dspace_metadata(
+                        metadata_mapping=self.metadata_mapping,
+                        item_metadata=item_metadata,
+                        s3_bucket=self.s3_bucket,
+                        batch_path=self.batch_path,
+                    )
                 item_submission.bitstream_s3_uris = self.get_item_bitstream_uris(
                     item_identifier
                 )
 
                 item_submission.collection_handle = (
-                    collection_handle
-                    or self._get_item_collection_handle(batch_metadata[item_identifier])
+                    collection_handle or self._get_item_collection_handle(item_metadata)
                 )
 
                 # Send submission message to DSS input queue
@@ -372,6 +385,14 @@ class Workflow(ABC):
             f"for batch '{self.batch_id}': {json.dumps(self.submission_summary)}"
         )
         return items
+
+    def _run_metadata_transformer(self, item_metadata: dict) -> dict:
+        """Transform source metadata with workflow's metadata transformer."""
+        if self.metadata_transformer:
+            return self.metadata_transformer.transform(item_metadata)
+        raise NotImplementedError(
+            f"'{self.workflow_name}' does not have a metadata_transformer."
+        )
 
     def _get_item_collection_handle(self, item_metadata: dict) -> str:
         """Get collection handle for an item submission.
