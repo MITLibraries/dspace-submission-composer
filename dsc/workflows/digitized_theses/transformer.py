@@ -133,7 +133,10 @@ class DigitizedThesesTransformer(MetadataTransformer):
         "dsc/workflows/digitized_theses/config/departments_crosswalk.json"
     )
 
-    types_crosswalk: ClassVar = {"Academic thesis.": "Thesis"}
+    types_crosswalk: ClassVar = {
+        "Academic thesis.": "Thesis",
+        "Academic theses.": "Thesis",
+    }
 
     @classmethod
     def transform(cls, source_metadata: str | bytes) -> dict:
@@ -217,6 +220,7 @@ class DigitizedThesesTransformer(MetadataTransformer):
         separator: str = " ",
         *,
         first_only: bool = False,
+        rstrip_chars: str = "",
     ) -> str:
         """Concatenate subfield values for the given codes in document order.
 
@@ -225,12 +229,13 @@ class DigitizedThesesTransformer(MetadataTransformer):
             codes: String of one-character subfield codes, e.g. "abcvxyz"
             separator: Joining separator (default single space)
             first_only: if True, return text of the first matching subfield only
+            rstrip_chars: Trailing characters to remove from each subfield value
         """
         parts: list[str] = []
         for subfield in DigitizedThesesTransformer._xpath(datafield, "marc:subfield"):
             code = subfield.get("code", "")
             if code in codes:
-                text = (subfield.text or "").strip()
+                text = (subfield.text or "").strip().rstrip(rstrip_chars)
                 if text:
                     if first_only:
                         return text
@@ -265,7 +270,7 @@ class DigitizedThesesTransformer(MetadataTransformer):
             if dissertation_note:
                 results.append(re.sub(r".*(\d{4}).*", r"\1", dissertation_note))
             if degree_year:
-                results.append(degree_year)
+                results.append(re.sub(r"^(\d{4})\.$", r"\1", degree_year))
 
         return results
 
@@ -453,7 +458,9 @@ class DigitizedThesesTransformer(MetadataTransformer):
                 results.append(value)
                 continue
 
-            value = cls._subfield_text(datafield, codes="bcdg", separator=", ")
+            value = cls._subfield_text(
+                datafield, codes="bcdg", separator=", ", rstrip_chars=" ,;"
+            )
             if value:
                 results.append(f"Thesis: {value}")
 
@@ -488,13 +495,7 @@ class DigitizedThesesTransformer(MetadataTransformer):
         results: list[str] = []
 
         for datafield in cls._datafields(record, "502"):
-            degree_type = cls._subfield_text(datafield, "b").replace(
-                "Massachusetts Institute of Technology,",
-                "Massachusetts Institute of Technology.",
-            )
-            institution = cls._subfield_text(datafield, "c")
-
-            value = f"{degree_type} {institution}".strip()
+            value = cls._subfield_text(datafield, codes="bc", rstrip_chars=" ,;")
             if value:
                 results.append(value)
 

@@ -109,6 +109,50 @@ def test_digitized_theses_transformer_subfield_text_multi_codes():
     )
 
 
+def test_digitized_theses_transformer_dc_type_crosswalk():
+    source_metadata = create_marc_source_metadata_stub(
+        datafield_insert="""
+        <datafield ind1=" " ind2="7" tag="655">
+            <subfield code="a">Academic theses.</subfield>
+            <subfield code="2">lcgft</subfield>
+        </datafield>"""
+    )
+    record = etree.fromstring(source_metadata)
+
+    assert DigitizedThesesTransformer.dc_type(record) == ["Thesis"]
+
+
+def test_digitized_theses_transformer_502_punctuation():
+    """Strip trailing punctuation from structured dissertation note components."""
+    source_metadata = create_marc_source_metadata_stub(
+        datafield_insert="""
+        <datafield ind1=" " ind2=" " tag="502">
+            <subfield code="b">(Ocean E.)</subfield>
+            <subfield code="c">Massachusetts Institute of Technology, Dept. of Ocean Engineering; and,</subfield>
+            <subfield code="b">(M.S.)</subfield>
+            <subfield code="c">Massachusetts Institute of Technology, Sloan School of Management,</subfield>
+            <subfield code="d">1976.</subfield>
+        </datafield>"""  # noqa: E501
+    )
+    record = etree.fromstring(source_metadata)
+
+    assert DigitizedThesesTransformer.dc_description(record) == [
+        (
+            "Thesis: (Ocean E.), Massachusetts Institute of Technology, "
+            "Dept. of Ocean Engineering; and, (M.S.), "
+            "Massachusetts Institute of Technology, Sloan School of Management, 1976."
+        )
+    ]
+    assert DigitizedThesesTransformer.dc_description_collection(record) == [
+        (
+            "(Ocean E.) Massachusetts Institute of Technology, "
+            "Dept. of Ocean Engineering; and (M.S.) "
+            "Massachusetts Institute of Technology, Sloan School of Management"
+        )
+    ]
+    assert DigitizedThesesTransformer.dc_date_issued(record) == ["1976"]
+
+
 def test_digitized_theses_transformer_normalize_degree_type():
     assert (
         DigitizedThesesTransformer._normalize_degree_type(value="B. Arch.") == "Bachelor"
