@@ -300,16 +300,14 @@ def test_workflow_download_metadata_from_alma(
     mock_requests.get.return_value = mock_response
 
     workflow = DigitizedTheses(batch_id="batch-aaa")
-    workflow._download_metadata_from_alma(
-        item_submission=ItemSubmission(
-            batch_id="batch-aaa",
-            item_identifier="36570527",
-            workflow_name=workflow.workflow_name,
-        ),
-        batch_location=tmp_path,
+    response = workflow._download_metadata_from_alma(
+        item_identifier="36570527", batch_location=tmp_path
     )
 
-    assert os.path.exists(tmp_path / "36570527.xml")
+    assert response == (tmp_path / "36570527.xml").read_bytes()
+    record = etree.fromstring(response)
+    # assert single MARC XML bytes returned, not raw API response
+    assert etree.QName(record).localname == "record"
 
 
 def test_workflow_get_item_from_dspace(
