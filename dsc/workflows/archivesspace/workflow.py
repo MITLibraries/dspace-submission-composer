@@ -1,4 +1,5 @@
 import logging
+from typing import Literal
 
 import pandas as pd
 import smart_open
@@ -22,7 +23,7 @@ class ArchivesSpace(SimpleCSV):
     """
 
     workflow_name: str = "archivesspace"
-    submission_system: str = "Dome"
+    submission_system: Literal["IR-8", "DDC-8"] = "DDC-8"
     metadata_transformer = ArchivesSpaceTransformer
 
     @property

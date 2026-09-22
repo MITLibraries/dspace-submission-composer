@@ -21,8 +21,8 @@ from dsc.workflows.digitized_theses import (
 @pytest.fixture(autouse=True)
 def _test_env_digitized_theses(monkeypatch):
     monkeypatch.setenv(
-        "DSPACE_CREDENTIALS",
-        '{"ir-8": {"url": "mock://awesome-test-instance/server/api", "user": "user@test.com", "password": "topsecret"}, "ddc-8": {"url": "mock://awesome-test-instance/rest", "user": "user@test.com", "password": "topsecret"}}',  # noqa: E501
+        "OPENSCHOL_RW_API_CREDENTIALS_JSON",
+        '{"url": "mock://awesome-test-instance/server/api", "user": "user@test.com", "password": "topsecret"}',  # noqa: E501
     )
     monkeypatch.setenv(
         "DIGITIZED_THESES_COLLECTION_HANDLES",
