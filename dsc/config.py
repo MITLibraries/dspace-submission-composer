@@ -2,6 +2,7 @@ import json
 import logging
 import os
 from collections.abc import Iterable
+from typing import Literal
 
 import sentry_sdk
 
@@ -37,8 +38,10 @@ class Config:
         "AWS_REGION_NAME",
         "RETRY_THRESHOLD",
         "S3_BUCKET_SYNC_SOURCE",
-        "DSPACE_CREDENTIALS",
         "WARNING_ONLY_LOGGERS",
+        # dspace credentials
+        "DIGCOLL_RW_API_CREDENTIALS_JSON",
+        "OPENSCHOL_RW_API_CREDENTIALS_JSON",
         # digitized-theses
         "DIGITIZED_THESES_COLLECTION_HANDLES",
         "DIGITIZED_THESES_COMMUNITY_UUID",
@@ -103,13 +106,22 @@ class Config:
             return _excluded_loggers.split(",")
         return []
 
+    # dspace credentials
     @property
-    def dspace_credentials(self) -> dict:
-        value = os.getenv("DSPACE_CREDENTIALS")
+    def digcoll_rw_api_credentials_json(self) -> dict:
+        value = os.getenv("DIGCOLL_RW_API_CREDENTIALS_JSON")
         if not value:
-            raise ValueError("Env var 'DSPACE_CREDENTIALS' must be defined")
-        credentials = json.loads(value)
-        return {"IR-8": credentials["ir-8"], "DDC-8": credentials["ddc-8"]}
+            raise ValueError("Env var 'DIGCOLL_RW_API_CREDENTIALS_JSON' must be defined")
+        return json.loads(value)
+
+    @property
+    def openschol_rw_api_credentials_json(self) -> dict:
+        value = os.getenv("OPENSCHOL_RW_API_CREDENTIALS_JSON")
+        if not value:
+            raise ValueError(
+                "Env var 'OPENSCHOL_RW_API_CREDENTIALS_JSON' must be defined"
+            )
+        return json.loads(value)
 
     # Workflow-specific env vars
     @property
@@ -157,6 +169,17 @@ class Config:
         if not value:
             raise ValueError("Env var 'WILEY_METADATA_API_URL' must be defined")
         return value
+
+    def get_dspace_credentials(self, submission_system: Literal["IR-8", "DDC-8"]) -> dict:
+        """Get parsed dspace credentials."""
+        if submission_system == "IR-8":
+            return self.openschol_rw_api_credentials_json
+        if submission_system == "DDC-8":
+            return self.digcoll_rw_api_credentials_json
+
+        raise ValueError(
+            f"'submission_system' should be one of ['IR-8', 'DDC-8'], got '{submission_system}'"  # noqa: E501
+        )
 
     def check_required_env_vars(self) -> None:
         """Method to raise exception if required env vars not set."""

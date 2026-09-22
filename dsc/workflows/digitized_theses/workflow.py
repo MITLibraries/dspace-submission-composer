@@ -67,7 +67,7 @@ class DigitizedTheses(Workflow):
     workflow_name: str = "digitized-theses"
     metadata_transformer = DigitizedThesesTransformer
     required_env_vars: ClassVar[list] = [
-        "DSPACE_CREDENTIALS",
+        "OPENSCHOL_RW_API_CREDENTIALS_JSON",
         "DIGITIZED_THESES_COLLECTION_HANDLES",
         "DIGITIZED_THESES_COMMUNITY_UUID",
         "DIGITIZED_THESES_METADATA_API_URL",
@@ -95,7 +95,9 @@ class DigitizedTheses(Workflow):
             )
 
             try:
-                credentials = CONFIG.dspace_credentials[self.submission_system]
+                credentials = CONFIG.get_dspace_credentials(
+                    submission_system=self.submission_system
+                )
             except KeyError as exception:
                 raise exceptions.DSpaceClientCredentialsNotFoundError(
                     f"No credentials for {self.submission_system}"
@@ -107,15 +109,26 @@ class DigitizedTheses(Workflow):
                 password=credentials["password"],
                 fake_user_agent=True,
             )
+            # add custom request headers
+            # TODO: Remove after header management has been standardized in
+            #       the 3rd party dspace-rest-python client
+            if credentials.get("headers"):
+                headers = json.loads(credentials["headers"])
+                client.request_headers.update(headers)
+                client.auth_request_headers.update(headers)
+                client.list_request_headers.update(headers)
+                client.session.headers.update(headers)
+
             authenticated = client.authenticate()
             if not authenticated:
                 raise exceptions.DSpaceClientAuthenticationError(
                     credentials["url"], credentials["user"]
                 )
+
             self._dspace_client = client
             logger.info(
                 f"Successfully authenticated to {credentials['url']} "
-                f"as {credentials['url']}"
+                f"as {credentials['user']}"
             )
 
         return self._dspace_client

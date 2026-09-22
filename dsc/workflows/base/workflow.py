@@ -103,7 +103,7 @@ class Workflow(ABC):
     """A base workflow class from which other workflow classes are derived."""
 
     workflow_name: str = "base"
-    submission_system: str = "IR-8"
+    submission_system: Literal["IR-8", "DDC-8"] = "IR-8"
     required_env_vars: ClassVar[list] = []
     metadata_transformer: ClassVar[type[MetadataTransformer] | None] = None
     reporting_modules: ClassVar[dict[str, type[Report]]] = {
