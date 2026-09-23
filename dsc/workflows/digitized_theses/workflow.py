@@ -270,7 +270,7 @@ class DigitizedTheses(Workflow):
             # get MARC XML metadata from Alma
             try:
                 self._download_metadata_from_alma(
-                    item_submission, batch_location=tmp_batch_path
+                    item_submission.item_identifier, batch_location=tmp_batch_path
                 )
             except (
                 requests.exceptions.HTTPError,
@@ -336,18 +336,17 @@ class DigitizedTheses(Workflow):
         return f"{batch_id}-{self.run_date.strftime('%Y%m%dT%H%M%SZ')}"
 
     def _download_metadata_from_alma(
-        self, item_submission: ItemSubmission, batch_location: str
+        self, item_identifier: str, batch_location: str
     ) -> bytes:
-        """Download MARC XML metadata for an item submission from Alma.
+        """Download MARC XML metadata for an OCLC number from Alma.
 
-        This method writes an XML file with MARC metadata to the
-        batch folder in S3 named: '<oclc-number>-MIT.xml'
-
+        Write the MARC record to <item_identifier>.xml in batch_location and
+        return the same XML bytes.
         For more information, see:
         https://developers.exlibrisgroup.com/alma/integrations/sru/.
         """
         logger.debug(
-            f"Retrieving metadata from Alma for an item with alma.oclc_control_number_035_a={item_submission.item_identifier}"  # noqa: E501
+            f"Retrieving metadata from Alma for an item with alma.oclc_control_number_035_a={item_identifier}"  # noqa: E501
         )
 
         query_url = f"https://{CONFIG.digitized_theses_metadata_api_url}"
@@ -356,9 +355,7 @@ class DigitizedTheses(Workflow):
             params={
                 "operation": "searchRetrieve",
                 "recordSchema": "marcxml",
-                "query": (
-                    f"alma.oclc_control_number_035_a={item_submission.item_identifier}"
-                ),
+                "query": (f"alma.oclc_control_number_035_a={item_identifier}"),
             },
             timeout=180,
         )
@@ -372,14 +369,15 @@ class DigitizedTheses(Workflow):
         # get nested `<marc:record>` element from SRU response
         record_element = self._parse_record_from_sru_response(response.content)
 
-        # write an XML file to batch folder
-        with open(
-            Path(batch_location) / f"{item_submission.item_identifier}.xml", "wb"
-        ) as file:
-            tree = etree.ElementTree(record_element)
-            tree.write(file, xml_declaration=True, encoding="UTF-8")
+        record_bytes = etree.tostring(
+            record_element, xml_declaration=True, encoding="UTF-8"
+        )
 
-        return response.content
+        # write an XML file to batch folder
+        with open(Path(batch_location) / f"{item_identifier}.xml", "wb") as file:
+            file.write(record_bytes)
+
+        return record_bytes
 
     def _get_item_from_dspace(self, item_identifier: str) -> DSpaceItem:
         """Get Item object from DSpace given an item identifier.
