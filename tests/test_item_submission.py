@@ -153,15 +153,22 @@ def test_itemsubmission_ready_to_submit_with_ingest_failed(item_submission_insta
 
 
 def test_itemsubmission_create_dspace_metadata_success(
-    item_submission_instance, item_metadata, metadata_mapping
+    item_submission_instance,
 ):
-    item_metadata["topics"] = [
-        "Topic Header - Topic Subheading - Topic Name",
-        "Topic Header 2 - Topic Subheading 2 - Topic Name 2",
-    ]
-    item_submission_instance.create_dspace_metadata(item_metadata, metadata_mapping)
+    item_submission_instance.create_dspace_metadata(
+        item_metadata={
+            "dc.title": "Title",
+            "dc.date.issued": "Year",
+            "dc.contributor": ["Author 1", "Author 2"],
+            "dc.subject": [
+                "Topic Header - Topic Subheading - Topic Name",
+                "Topic Header 2 - Topic Subheading 2 - Topic Name 2",
+            ],
+        }
+    )
     assert item_submission_instance.dspace_metadata == {
         "dc.title": [{"value": "Title"}],
+        "dc.date.issued": [{"value": "Year"}],
         "dc.contributor": [{"value": "Author 1"}, {"value": "Author 2"}],
         "dc.subject": [
             {
@@ -173,11 +180,15 @@ def test_itemsubmission_create_dspace_metadata_success(
 
 
 def test_itemsubmission_create_dspace_metadata_required_field_missing_raises_exception(
-    item_submission_instance, item_metadata, metadata_mapping
+    item_submission_instance, item_metadata
 ):
-    item_metadata.pop("title")
     with pytest.raises(ItemMetadataMissingRequiredFieldError):
-        item_submission_instance.create_dspace_metadata(item_metadata, metadata_mapping)
+        item_submission_instance.create_dspace_metadata(
+            item_metadata={
+                "dc.date.issued": "Year",
+                "dc.contributor": ["Author 1", "Author 2"],
+            }
+        )
 
 
 def test_itemsubmission_upload_dspace_metadata_success(

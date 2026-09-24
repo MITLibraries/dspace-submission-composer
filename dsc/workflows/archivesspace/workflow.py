@@ -27,10 +27,6 @@ class ArchivesSpace(SimpleCSV):
     metadata_transformer = ArchivesSpaceTransformer
 
     @property
-    def metadata_mapping_path(self) -> str:
-        raise NotImplementedError
-
-    @property
     def output_path(self) -> str:
         return "output-bucket"
 

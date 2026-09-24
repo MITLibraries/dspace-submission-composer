@@ -1,7 +1,7 @@
-from dsc.workflows.simple_csv.transformer import SimpleCSVTransformer
+from dsc.workflows.base import DirectMappingTransformer
 
 
-class ArchivesSpaceTransformer(SimpleCSVTransformer):
+class ArchivesSpaceTransformer(DirectMappingTransformer):
     @classmethod
     def transform(cls, source_metadata: object) -> dict:
         """Transform ArchivesSpace source metadata."""

@@ -14,9 +14,5 @@ class SCCS(SimpleCSV):
     metadata_transformer = SCCSTransformer
 
     @property
-    def metadata_mapping_path(self) -> str:
-        raise NotImplementedError
-
-    @property
     def item_identifier_column_names(self) -> list[str]:
         return ["item_identifier", "filename"]

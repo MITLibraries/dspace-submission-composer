@@ -51,10 +51,6 @@ class Wiley(Workflow):
         "WILEY_METADATA_API_URL",
     ]
 
-    @property
-    def metadata_mapping_path(self) -> str:
-        raise NotImplementedError
-
     def get_batch_bitstream_uris(self) -> list[str]:
         raise NotImplementedError
 
