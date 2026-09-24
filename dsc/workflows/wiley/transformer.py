@@ -1,7 +1,7 @@
-from dsc.workflows.base.transformer import MetadataTransformer
+from dsc.workflows.base.transformer import FieldMethodTransformer
 
 
-class WileyTransformer(MetadataTransformer):
+class WileyTransformer(FieldMethodTransformer):
     @classmethod
     def transform(cls, source_metadata: object) -> dict:
         """Transform Wiley source metadata."""
