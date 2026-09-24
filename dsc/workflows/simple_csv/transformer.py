@@ -1,9 +1,9 @@
 from typing import ClassVar
 
-from dsc.workflows.base.transformer import MetadataTransformer
+from dsc.workflows.base.transformer import BaseTransformer
 
 
-class SimpleCSVTransformer(MetadataTransformer):
+class SimpleCSVTransformer(BaseTransformer):
     """Simple CSV transformer for workflows where fields align with DSpace field names.
 
     This transformer MUST be subclassed and have the `fields` class variable defined.
@@ -15,7 +15,11 @@ class SimpleCSVTransformer(MetadataTransformer):
 
     @classmethod
     def transform(cls, source_metadata: dict) -> dict:
-        """Transform source metadata."""
+        """Transform source metadata with direct mapping.
+
+        For fields with multiple values, values should be separated with the
+        delimiter indicated for the field in `delimited_fields`.
+        """
         transformed_metadata = {}
         for field in cls.fields:
             value = source_metadata.get(field)

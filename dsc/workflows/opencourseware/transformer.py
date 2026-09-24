@@ -1,30 +1,29 @@
-import inspect
 from collections.abc import Iterable
-from typing import Any, ClassVar
+from typing import ClassVar
 
-from dsc.workflows.base.transformer import MetadataTransformer
+from dsc.workflows.base.transformer import BaseTransformer
 
 
-class OpenCourseWareTransformer(MetadataTransformer):
+class OpenCourseWareTransformer(BaseTransformer):
     """Transformer for OpenCourseWare (OCW) source metadata."""
 
     fields: ClassVar[Iterable[str]] = [
         # fields with derived values
-        "dc_title",
-        "dc_date_issued",
-        "dc_description_abstract",
-        "dc_contributor_author",
-        "dc_relation_orgunit",
-        "creativework_learningresourcetype",
-        "dc_subject",
-        "dc_identifier_other",
-        "dc_coverage_temporal",
-        "dc_audience_educationlevel",
-        # fields with static values
-        "dc_type",
-        "dc_rights",
-        "dc_rights_uri",
-        "dc_language_iso",
+        "dc.title",
+        "dc.date.issued",
+        "dc.description.abstract",
+        "dc.contributor.author",
+        "dc.relation.orgunit",
+        "creativework.learningresourcetype",
+        "dc.subject",
+        "dc.identifier.other",
+        "dc.coverage.temporal",
+        "dc.audience.educationlevel",
+        # fields with fixed values
+        "dc.type",
+        "dc.rights",
+        "dc.rights.uri",
+        "dc.language.iso",
     ]
 
     department_mappings: ClassVar = {
@@ -66,27 +65,6 @@ class OpenCourseWareTransformer(MetadataTransformer):
         "ESG": "MIT Experimental Study Group",
         "EC": "Edgerton Center (Massachusetts Institute of Technology)",
     }
-
-    @classmethod
-    def transform(cls, source_metadata: dict) -> dict:
-        """Transform source metadata."""
-        transformed_metadata: dict[str, Any] = {}
-
-        if not source_metadata:
-            return transformed_metadata
-
-        for field in cls.fields:
-            field_method = getattr(cls, field)
-            formatted_field_name = field.replace("_", ".")
-
-            # check if 'source_metadata' is in signature
-            signature = inspect.signature(field_method)
-            if "source_metadata" in signature.parameters:
-                transformed_metadata[formatted_field_name] = field_method(source_metadata)
-            else:
-                transformed_metadata[formatted_field_name] = field_method()
-
-        return transformed_metadata
 
     @classmethod
     def dc_title(cls, source_metadata: dict) -> str:
