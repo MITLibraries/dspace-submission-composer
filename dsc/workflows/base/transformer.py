@@ -85,7 +85,13 @@ class FieldMethodTransformer(MetadataTransformer[str | bytes]):
 
         transformed_metadata = {}
         for field in cls.fields:
-            field_method = getattr(cls, field.replace(".", "_"))
+            try:
+                field_method = getattr(cls, field.replace(".", "_"))
+            except AttributeError as exception:
+                raise MetadataTransformationError(
+                    f"Error transforming field '{field}': No field method"
+                ) from exception
+
             try:
                 # if field method requires the source metadata, pass it
                 if "source_metadata" in inspect.signature(field_method).parameters:
