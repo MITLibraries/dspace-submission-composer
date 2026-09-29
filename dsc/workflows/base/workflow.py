@@ -371,6 +371,10 @@ class Workflow(ABC):
             except NotImplementedError:
                 raise
             except Exception as exception:  # noqa: BLE001
+                logger.info(
+                    f"Error submitting item '{item_submission.item_identifier}': "
+                    f"{exception}"
+                )
                 self.submission_summary["errors"] += 1
                 item_submission.status = ItemSubmissionStatus.SUBMIT_FAILED
                 item_submission.status_details = str(exception)

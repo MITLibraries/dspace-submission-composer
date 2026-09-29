@@ -408,9 +408,14 @@ class ItemSubmission:
             all_required_fields = set(default_required_fields)
 
         # check if all required fields in item metadata
-        if not all_required_fields.issubset(set(item_metadata.keys())):
-            raise ItemMetadataMissingRequiredFieldError
+        missing_keys = all_required_fields.difference(set(item_metadata.keys()))
+        if missing_keys:
+            raise ItemMetadataMissingRequiredFieldError(
+                f"Missing required field: {missing_keys}"
+            )
 
+        # check if all required fields have values
+        missing_values = []
         for field, value in item_metadata.items():
             if field == "item_identifier":
                 continue
@@ -420,10 +425,15 @@ class ItemSubmission:
             values = [value for value in values if value]
 
             if not values and field in all_required_fields:
-                raise ItemMetadataMissingRequiredFieldError
+                missing_values.append(field)
 
             if values:
                 metadata[field].extend([{"value": value} for value in values])
+
+        if missing_values:
+            raise ItemMetadataMissingRequiredFieldError(
+                f"Missing values for required fields: {missing_values}"
+            )
 
         self.dspace_metadata = dict(metadata)
 
