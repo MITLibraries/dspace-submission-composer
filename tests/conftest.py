@@ -4,6 +4,7 @@ import time
 import uuid
 import zipfile
 from io import StringIO
+from typing import ClassVar
 
 import boto3
 import pytest
@@ -19,16 +20,19 @@ from dsc.utils.aws.s3 import S3Client
 from dsc.utils.aws.ses import SESClient
 from dsc.utils.aws.sqs import SQSClient
 from dsc.workflows import ArchivesSpace, OpenCourseWare, SimpleCSV, Workflow
+from dsc.workflows.simple_csv.transformer import SimpleCSVTransformer
 
 
 # Test Workflow classes ######################
+class TestTransformer(SimpleCSVTransformer):
+    fields: ClassVar[list[str]] = ["dc.title", "dc.contributor", "dc.date.issued"]
+    delimited_fields: ClassVar[dict[str, str]] = {"dc.contributor": "|"}
+
+
 class TestWorkflow(Workflow):
     workflow_name: str = "test"
     submission_system: str = "Test@MIT"
-
-    @property
-    def metadata_mapping_path(self) -> str:
-        return "tests/fixtures/test_metadata_mapping.json"
+    metadata_transformer = TestTransformer
 
     @property
     def output_queue(self) -> str:
@@ -44,13 +48,15 @@ class TestWorkflow(Workflow):
     def item_metadata_iter(self):
         yield from [
             {
-                "title": "Title",
-                "contributor": "Author 1|Author 2",
+                "dc.title": "Title",
+                "dc.contributor": "Author 1|Author 2",
+                "dc.date.issued": "2025",
                 "item_identifier": "123",
             },
             {
-                "title": "2nd Title",
-                "contributor": "Author 3|Author 4",
+                "dc.title": "2nd Title",
+                "dc.contributor": "Author 3|Author 4",
+                "dc.date.issued": "2025",
                 "item_identifier": "789",
             },
         ]
@@ -84,10 +90,7 @@ class TestOpenCourseWare(OpenCourseWare):
 class TestSimpleCSV(SimpleCSV):
     workflow_name = "simple-csv"
     submission_system: str = "Test@MIT"
-
-    @property
-    def metadata_mapping_path(self) -> str:
-        return "tests/fixtures/test_metadata_mapping.json"
+    metadata_transformer = TestTransformer
 
     @property
     def item_identifier_column_names(self) -> list[str]:
@@ -106,12 +109,12 @@ def test_workflow_instance():
 
 @pytest.fixture
 @freeze_time("2025-01-01 09:00:00")
-def base_workflow_instance(item_metadata, metadata_mapping, mocked_s3):
+def base_workflow_instance(item_metadata, mocked_s3):
     return TestWorkflow(batch_id="batch-aaa")
 
 
 @pytest.fixture
-def simple_csv_workflow_instance(metadata_mapping):
+def simple_csv_workflow_instance():
     return TestSimpleCSV(batch_id="batch-aaa")
 
 
@@ -202,12 +205,6 @@ def item_submission_instance(dspace_metadata):
             "s3://dsc/workflow/folder/123_02.pdf",
         ],
     )
-
-
-@pytest.fixture
-def metadata_mapping():
-    with open("tests/fixtures/test_metadata_mapping.json") as mapping_file:
-        return json.load(mapping_file)
 
 
 @pytest.fixture

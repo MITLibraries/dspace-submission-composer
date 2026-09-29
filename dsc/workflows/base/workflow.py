@@ -106,7 +106,6 @@ class Workflow(ABC):
     workflow_name: str = "base"
     submission_system: Literal["IR-8", "DDC-8"] = "IR-8"
     required_env_vars: ClassVar[list] = []
-    metadata_transformer: ClassVar[type[MetadataTransformer] | None] = None
     reporting_modules: ClassVar[dict[str, type[Report]]] = {
         "create": CreateReport,
         "submit": SubmitReport,
@@ -151,13 +150,11 @@ class Workflow(ABC):
 
     @property
     @abstractmethod
-    def metadata_mapping_path(self) -> str:
-        """Path to the JSON metadata mapping file for the workflow."""
+    def metadata_transformer(self) -> type[MetadataTransformer]:
+        """Transformer class that converts source metadata to DSpace metadata.
 
-    @property
-    def metadata_mapping(self) -> dict:
-        with open(self.metadata_mapping_path) as mapping_file:
-            return json.load(mapping_file)
+        MUST be overridden by workflow subclasses, typically as a class attribute.
+        """
 
     @final
     @property
@@ -337,23 +334,15 @@ class Workflow(ABC):
                     raise ItemMetadataNotFoundError  # noqa: TRY301
 
                 # prepare submission assets
-                item_metadata = self.prepare_item_metadata(
+                item_metadata = self.transform_item_metadata(
                     item_identifier=item_identifier,
                     source_metadata=batch_metadata[item_identifier],
                 )
-                if self.metadata_transformer:
-                    item_submission.prepare_dspace_metadata(
-                        item_metadata=item_metadata,
-                        s3_bucket=self.s3_bucket,
-                        batch_path=self.batch_path,
-                    )
-                else:
-                    item_submission.prepare_dspace_metadata(
-                        metadata_mapping=self.metadata_mapping,
-                        item_metadata=item_metadata,
-                        s3_bucket=self.s3_bucket,
-                        batch_path=self.batch_path,
-                    )
+                item_submission.prepare_dspace_metadata(
+                    item_metadata=item_metadata,
+                    s3_bucket=self.s3_bucket,
+                    batch_path=self.batch_path,
+                )
                 item_submission.bitstream_s3_uris = self.get_item_bitstream_uris(
                     item_identifier
                 )
@@ -411,25 +400,17 @@ class Workflow(ABC):
         )
         return items
 
-    def _run_metadata_transformer(self, item_metadata: dict) -> dict:
-        """Transform source metadata with workflow's metadata transformer."""
-        if self.metadata_transformer:
-            return self.metadata_transformer.transform(item_metadata)
-        raise NotImplementedError(
-            f"'{self.workflow_name}' does not have a metadata_transformer."
-        )
-
-    def prepare_item_metadata(
+    def transform_item_metadata(
         self,
         item_identifier: str,  # noqa: ARG002  # used by workflow overrides
         source_metadata: dict,
     ) -> dict:
-        """Prepare item metadata for an item submission.
+        """Transform source metadata for an item submission to DSpace metadata.
 
-        By default, if the workflow defines a metadata_transformer, the source
-        metadata is transformed with it; otherwise the source metadata is
-        returned unchanged, and the workflow's metadata_mapping is applied
-        by ItemSubmission.prepare_dspace_metadata().
+        By default, the source metadata is transformed with the workflow's
+        metadata_transformer. The returned metadata is keyed by DSpace field
+        names (e.g., 'dc.title') and is passed to
+        ItemSubmission.prepare_dspace_metadata().
 
         OPTIONAL override by workflow subclasses, e.g. to transform raw source
         metadata (such as bytes of an XML file) and/or to enrich the
@@ -441,9 +422,7 @@ class Workflow(ABC):
             source_metadata: Raw source metadata for the item from
                 Workflow.batch_metadata.
         """
-        if self.metadata_transformer:
-            return self._run_metadata_transformer(source_metadata)
-        return source_metadata
+        return self.metadata_transformer.transform(source_metadata)
 
     def _get_item_collection_handle(self, item_metadata: dict) -> str:
         """Get collection handle for an item submission.
@@ -475,7 +454,7 @@ class Workflow(ABC):
 
         Args:
             item_submission: The item submission to be sent.
-            item_metadata: Prepared item metadata from prepare_item_metadata.
+            item_metadata: Transformed item metadata from transform_item_metadata.
             collection_handle: The collection handle argument passed to
                 submit_items(), or None.
         """

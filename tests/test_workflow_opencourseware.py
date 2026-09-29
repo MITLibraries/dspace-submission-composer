@@ -34,7 +34,7 @@ def test_workflow_ocw_transformer_success(
     transformed_metadata = (
         opencourseware_workflow_instance.metadata_transformer.transform(source_metadata)
     )
-    item_submission.create_dspace_metadata_without_mapping(
+    item_submission.create_dspace_metadata(
         item_metadata=transformed_metadata,
     )
 

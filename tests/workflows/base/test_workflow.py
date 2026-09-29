@@ -13,10 +13,6 @@ def test_workflow_get_workflow_success():
 
     assert workflow_instance.workflow_name == "test"
     assert workflow_instance.submission_system == "Test@MIT"
-    assert (
-        workflow_instance.metadata_mapping_path
-        == "tests/fixtures/test_metadata_mapping.json"
-    )
     assert workflow_instance.batch_id == "batch-aaa"
     assert workflow_instance.s3_bucket == "dsc"
     assert workflow_instance.output_queue == "mock-output-queue"

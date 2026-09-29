@@ -86,10 +86,6 @@ class DigitizedTheses(Workflow):
         super().__init__(batch_id)
 
     @property
-    def metadata_mapping_path(self) -> str:
-        raise NotImplementedError
-
-    @property
     def dspace_client(self) -> DSpaceClient:
         if not self._dspace_client:
             logger.debug(
@@ -510,7 +506,7 @@ class DigitizedTheses(Workflow):
 
         Args:
             item_submission: The item submission to be sent.
-            item_metadata: Prepared QDC metadata from prepare_item_metadata.
+            item_metadata: Transformed QDC metadata from transform_item_metadata.
             collection_handle: The collection handle argument passed to
                 submit_items(), or None.
         """
@@ -523,8 +519,10 @@ class DigitizedTheses(Workflow):
             item_submission, item_metadata, collection_handle
         )
 
-    def prepare_item_metadata(self, item_identifier: str, source_metadata: dict) -> dict:
-        """Prepare QDC metadata for an item submission from its manifest entry.
+    def transform_item_metadata(
+        self, item_identifier: str, source_metadata: dict
+    ) -> dict:
+        """Transform an item's MARC XML metadata to QDC from its manifest entry.
 
         Delegates to _get_transformed_metadata, which transforms the item's
         MARC XML metadata file in S3 to QDC metadata and adds additional
