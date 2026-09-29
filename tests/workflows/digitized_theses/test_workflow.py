@@ -391,7 +391,7 @@ def test_workflow_submit_items_success(
     mock_item_submission,
     caplog,
 ):
-    """Test control flow of DigitizedTheses.submit_items.
+    """Test control flow of Workflow.submit_items with DigitizedTheses hooks.
 
     This tests the scenario in which a batch comprises of two item submissions:
     one ready to submit and one that is not. This assumes a happy path in which
@@ -449,14 +449,14 @@ def test_workflow_submit_items_handles_errors(
     mock_item_submission,
     caplog,
 ):
-    """Test control flow of DigitizedTheses.submit_items.
+    """Test control flow of Workflow.submit_items with DigitizedTheses hooks.
 
     This tests the scenario in which a batch comprises of two item submissions:
-    one ready to submit and one that is not. The test throws
-    exceptions.ItemMetadataNotFoundError when DSC calls _get_item_metadata() for
-    the item submission ready for submission. The test demonstrates that if any
-    exception is raised in the try-except block, all errors--except for
-    NotImplementedError--are handled and simply recorded.
+    one ready to submit and one that is not. The test throws an exception when
+    DSC calls _get_transformed_metadata() for the item submission ready for
+    submission. The test demonstrates that if any exception is raised in the
+    try-except block, all errors--except for NotImplementedError--are handled
+    and simply recorded.
     """
     # mock ItemSubmission methods
     mock_item_submission_get_batch.return_value = [
@@ -507,6 +507,7 @@ def test_workflow_get_transformed_metadata(mock_s3_digitized_theses_dsc):
     item_metadata = workflow._get_transformed_metadata(
         item_identifier="05588126",
         source_metadata_file="tests/fixtures/digitized-theses/batch-aaa/replacement-theses/05588126/05588126.xml",
+        thesis_type="Replacement thesis",
     )
 
     assert item_metadata["dc.identifier.oclc"] == "05588126"
@@ -516,6 +517,113 @@ def test_workflow_get_transformed_metadata(mock_s3_digitized_theses_dsc):
     assert item_metadata["dspace.imported"] == "2025-01-01T09:00:00Z"
     assert "2025-01-01T09:00:00Z" in " | ".join(
         item_metadata["dc.description.provenance"]
+    )
+
+
+@freeze_time("2025-01-01 09:00:00")
+def test_workflow_get_transformed_metadata_new_thesis_skips_provenance(
+    mock_s3_digitized_theses_dsc,
+):
+    workflow = DigitizedTheses(batch_id="batch-aaa")
+    item_metadata = workflow._get_transformed_metadata(
+        item_identifier="05588126",
+        source_metadata_file="tests/fixtures/digitized-theses/batch-aaa/replacement-theses/05588126/05588126.xml",
+        thesis_type="New thesis",
+    )
+
+    assert "2025-01-01T09:00:00Z" not in " | ".join(
+        item_metadata.get("dc.description.provenance") or []
+    )
+
+
+def test_workflow_item_metadata_iter_yields_manifest_entries(
+    mock_s3_digitized_theses_dsc,
+):
+    workflow = DigitizedTheses(batch_id="batch-aaa")
+
+    assert list(workflow.item_metadata_iter()) == [
+        {
+            "thesis_type": "Replacement thesis",
+            "metadata_file": "s3://dsc/digitized-theses/batch-aaa/replacement-theses/05588126/05588126.xml",
+            "item_identifier": "05588126",
+        }
+    ]
+
+
+@patch("dsc.workflows.digitized_theses.workflow.DigitizedTheses._load_batch_manifest")
+def test_workflow_get_item_bitstream_uris_from_manifest(
+    mock_workflow_load_batch_manifest,
+):
+    mock_workflow_load_batch_manifest.return_value = {
+        "001": {"thesis_type": "New thesis", "bitstream_files": ["001.pdf"]},
+        "002": {"thesis_type": "New thesis"},
+    }
+    workflow = DigitizedTheses(batch_id="batch-aaa")
+
+    assert workflow.get_item_bitstream_uris("001") == ["001.pdf"]
+    assert workflow.get_item_bitstream_uris("002") == []
+
+
+def test_workflow_get_submission_params_replacement_thesis(mock_item_submission):
+    workflow = DigitizedTheses(batch_id="batch-aaa")
+    item_submission = mock_item_submission()
+    item_submission.operation = "update"
+    item_submission.dspace_handle = "1721.1/123"
+
+    assert workflow.get_submission_params(
+        item_submission, item_metadata={}, collection_handle=None
+    ) == {"operation": "update", "item_handle": "1721.1/123"}
+
+
+def test_workflow_get_submission_params_new_thesis(mock_item_submission):
+    workflow = DigitizedTheses(batch_id="batch-aaa")
+    item_submission = mock_item_submission()
+    item_submission.operation = "create"
+
+    assert workflow.get_submission_params(
+        item_submission,
+        item_metadata={"mit.thesis.degree": ["Doctoral"]},
+        collection_handle=None,
+    ) == {"collection_handle": "1234.5/9"}
+
+
+@patch("dsc.workflows.digitized_theses.workflow.DigitizedTheses.get_item_bitstream_uris")
+@patch(
+    "dsc.workflows.digitized_theses.workflow.DigitizedTheses._get_transformed_metadata"
+)
+@patch("dsc.workflows.digitized_theses.workflow.DigitizedTheses._load_batch_manifest")
+@patch("dsc.workflows.digitized_theses.workflow.ItemSubmission.get_batch")
+def test_workflow_submit_items_derives_collection_handle_per_item(
+    mock_item_submission_get_batch,
+    mock_workflow_load_batch_manifest,
+    mock_workflow_get_transformed_metadata,
+    mock_workflow_get_item_bitstream_uris,
+    mock_item_submission,
+):
+    item_001 = mock_item_submission(item_identifier="001")
+    item_002 = mock_item_submission(item_identifier="002")
+    item_001.operation = item_002.operation = "create"
+    mock_item_submission_get_batch.return_value = [item_001, item_002]
+    mock_workflow_load_batch_manifest.return_value = {
+        "001": {"thesis_type": "New thesis", "metadata_file": "001.xml"},
+        "002": {"thesis_type": "New thesis", "metadata_file": "002.xml"},
+    }
+    mock_workflow_get_transformed_metadata.side_effect = [
+        {"mit.thesis.degree": ["Doctoral"]},
+        {"mit.thesis.degree": ["Master"]},
+    ]
+    mock_workflow_get_item_bitstream_uris.return_value = ["file.pdf"]
+
+    workflow = DigitizedTheses(batch_id="batch-aaa")
+    workflow.submit_items()
+
+    assert (
+        item_001.send_submission_message.call_args.kwargs["collection_handle"]
+        == "1234.5/9"
+    )
+    assert (
+        item_002.send_submission_message.call_args.kwargs["collection_handle"]
+        == "1234.5/8"
     )
 
 

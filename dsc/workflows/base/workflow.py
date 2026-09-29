@@ -16,6 +16,7 @@ from dsc.exceptions import (
     BatchCreationFailedError,
     InvalidSQSMessageError,
     InvalidWorkflowNameError,
+    ItemMetadataNotFoundError,
 )
 from dsc.item_submission import ItemSubmission
 from dsc.reports import CreateReport, FinalizeReport, SubmitReport
@@ -145,6 +146,8 @@ class Workflow(ABC):
 
         # cache list of bitstreams
         self._batch_bitstream_uris: list[str] | None = None
+        # cache mapping of item identifiers to batch source metadata
+        self._batch_metadata: dict[str, Any] | None = None
 
     @property
     @abstractmethod
@@ -172,9 +175,19 @@ class Workflow(ABC):
 
     @property
     def batch_bitstream_uris(self) -> list[str]:
-        if not self._batch_bitstream_uris:
+        if self._batch_bitstream_uris is None:
             self._batch_bitstream_uris = self.get_batch_bitstream_uris()
         return self._batch_bitstream_uris
+
+    @property
+    def batch_metadata(self) -> dict[str, Any]:
+        """Map of item identifiers to source metadata for the batch (cached)."""
+        if self._batch_metadata is None:
+            self._batch_metadata = {
+                item_metadata["item_identifier"]: item_metadata
+                for item_metadata in self.item_metadata_iter()
+            }
+        return self._batch_metadata
 
     @property
     def retry_threshold(self) -> int:
@@ -221,9 +234,13 @@ class Workflow(ABC):
     def get_batch_bitstream_uris(self) -> list[str]:
         """Get list of bitstream URIs for a batch."""
 
-    @final
     def get_item_bitstream_uris(self, item_identifier: str) -> list[str]:
-        """Get list of bitstreams URIs for an item."""
+        """Get list of bitstreams URIs for an item.
+
+        OPTIONAL override by workflow subclasses, e.g. when bitstream URIs
+        are retrieved from a batch manifest rather than filtered from
+        Workflow.batch_bitstream_uris by item_identifier.
+        """
         return [uri for uri in self.batch_bitstream_uris if item_identifier in uri]
 
     @abstractmethod
@@ -301,10 +318,8 @@ class Workflow(ABC):
             f"for batch '{self.batch_id}'"
         )
 
-        batch_metadata = {
-            item_metadata["item_identifier"]: item_metadata
-            for item_metadata in self.item_metadata_iter()
-        }
+        # load batch metadata up front so a bad metadata generator fails the batch fast
+        batch_metadata = self.batch_metadata
 
         items = []
         for item_submission in ItemSubmission.get_batch(self.batch_id):
@@ -318,18 +333,21 @@ class Workflow(ABC):
                 self.submission_summary["skipped"] += 1
                 continue
             try:
+                if item_identifier not in batch_metadata:
+                    raise ItemMetadataNotFoundError  # noqa: TRY301
+
                 # prepare submission assets
+                item_metadata = self.prepare_item_metadata(
+                    item_identifier=item_identifier,
+                    source_metadata=batch_metadata[item_identifier],
+                )
                 if self.metadata_transformer:
-                    item_metadata = self._run_metadata_transformer(
-                        batch_metadata[item_identifier]
-                    )
                     item_submission.prepare_dspace_metadata(
                         item_metadata=item_metadata,
                         s3_bucket=self.s3_bucket,
                         batch_path=self.batch_path,
                     )
                 else:
-                    item_metadata = batch_metadata[item_identifier]
                     item_submission.prepare_dspace_metadata(
                         metadata_mapping=self.metadata_mapping,
                         item_metadata=item_metadata,
@@ -340,16 +358,19 @@ class Workflow(ABC):
                     item_identifier
                 )
 
-                item_submission.collection_handle = (
-                    collection_handle or self._get_item_collection_handle(item_metadata)
+                # assemble params for the submission message
+                submission_params = self.get_submission_params(
+                    item_submission, item_metadata, collection_handle
                 )
+                if item_collection_handle := submission_params.get("collection_handle"):
+                    item_submission.collection_handle = item_collection_handle
 
                 # Send submission message to DSS input queue
                 response = item_submission.send_submission_message(
                     submission_source=self.workflow_name,
                     output_queue=self.output_queue,
                     submission_system=self.submission_system,
-                    collection_handle=item_submission.collection_handle,
+                    **submission_params,
                 )
 
                 # Record details of the item submission message
@@ -398,6 +419,32 @@ class Workflow(ABC):
             f"'{self.workflow_name}' does not have a metadata_transformer."
         )
 
+    def prepare_item_metadata(
+        self,
+        item_identifier: str,  # noqa: ARG002  # used by workflow overrides
+        source_metadata: dict,
+    ) -> dict:
+        """Prepare item metadata for an item submission.
+
+        By default, if the workflow defines a metadata_transformer, the source
+        metadata is transformed with it; otherwise the source metadata is
+        returned unchanged, and the workflow's metadata_mapping is applied
+        by ItemSubmission.prepare_dspace_metadata().
+
+        OPTIONAL override by workflow subclasses, e.g. to transform raw source
+        metadata (such as bytes of an XML file) and/or to enrich the
+        transformed metadata with additional fields. The source_metadata is
+        the raw entry for the item as yielded by item_metadata_iter().
+
+        Args:
+            item_identifier: Identifier for the item submission.
+            source_metadata: Raw source metadata for the item from
+                Workflow.batch_metadata.
+        """
+        if self.metadata_transformer:
+            return self._run_metadata_transformer(source_metadata)
+        return source_metadata
+
     def _get_item_collection_handle(self, item_metadata: dict) -> str:
         """Get collection handle for an item submission.
 
@@ -410,6 +457,32 @@ class Workflow(ABC):
             f"The '{self.workflow_name}' workflow expects collection_handle"
             "when calling submit_items()"
         )
+
+    def get_submission_params(
+        self,
+        item_submission: ItemSubmission,  # noqa: ARG002  # used by workflow overrides
+        item_metadata: dict,
+        collection_handle: str | None,
+    ) -> dict[str, Any]:
+        """Assemble kwargs for ItemSubmission.send_submission_message().
+
+        The default implementation returns a kwargs dict with a
+        collection_handle, derived from the collection_handle argument or the
+        item metadata (_get_item_collection_handle), to create a new item.
+
+        OPTIONAL override by workflow subclasses, e.g. to instead update an
+        existing item by returning operation='update' with an item_handle.
+
+        Args:
+            item_submission: The item submission to be sent.
+            item_metadata: Prepared item metadata from prepare_item_metadata.
+            collection_handle: The collection handle argument passed to
+                submit_items(), or None.
+        """
+        return {
+            "collection_handle": collection_handle
+            or self._get_item_collection_handle(item_metadata)
+        }
 
     @final
     def finalize_items(self) -> None:

@@ -160,6 +160,53 @@ def test_base_workflow_submit_items_exceptions_handled(
     assert json.dumps(expected_submission_summary) in caplog.text
 
 
+def test_base_workflow_submit_items_bad_metadata_iter_raises_error(
+    base_workflow_instance,
+    mocked_s3,
+    mock_item_submission_db,
+):
+    ItemSubmissionDB(
+        item_identifier="123",
+        batch_id="batch-aaa",
+        workflow_name="test",
+        status=ItemSubmissionStatus.CREATE_SUCCESS,
+    ).create()
+    with (
+        patch.object(
+            base_workflow_instance,
+            "item_metadata_iter",
+            side_effect=ValueError("bad metadata"),
+        ),
+        pytest.raises(ValueError, match="bad metadata"),
+    ):
+        base_workflow_instance.submit_items(collection_handle="123.4/5678")
+
+    item_submission = ItemSubmissionDB.get(hash_key="batch-aaa", range_key="123")
+    assert item_submission.status == ItemSubmissionStatus.CREATE_SUCCESS
+
+
+def test_base_workflow_submit_items_missing_item_metadata_recorded(
+    caplog,
+    base_workflow_instance,
+    mocked_s3,
+    mocked_sqs_input,
+    mocked_sqs_output,
+    mock_item_submission_db,
+):
+    ItemSubmissionDB(
+        item_identifier="456",
+        batch_id="batch-aaa",
+        workflow_name="test",
+        status=ItemSubmissionStatus.CREATE_SUCCESS,
+    ).create()
+    items = base_workflow_instance.submit_items(collection_handle="123.4/5678")
+
+    item_submission = ItemSubmissionDB.get(hash_key="batch-aaa", range_key="456")
+    assert items == []
+    assert item_submission.status == ItemSubmissionStatus.SUBMIT_FAILED
+    assert item_submission.status_details == "No metadata found for the item submission"
+
+
 def test_base_workflow_finalize_items_success(
     caplog,
     base_workflow_instance,

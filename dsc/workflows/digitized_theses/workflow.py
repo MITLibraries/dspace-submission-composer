@@ -53,11 +53,13 @@ class DigitizedTheses(Workflow):
     the contents of the synced batch folder to create ItemSubmission's
     that are recorded in DynamoDB.
 
-    This workflow provides its own implementation for queueing items for
-    ingest, sending submission messages to DSS based on the "thesis type"
-    (i.e., whether the item submission is a 'New thesis' or 'Replacement thesis').
-    The submission message informs DSS on whether to create or update
-    an item.
+    When this workflow submits a batch, it uses the base Workflow.submit_items()
+    method with workflow-specific hooks: the batch manifest supplies per-item
+    metadata files and bitstream URIs, metadata is transformed from MARC XML
+    to Qualified Dublin Core (QDC), and submission messages are sent based on
+    the "thesis type" (i.e., whether the item submission is a 'New thesis' or
+    'Replacement thesis'): the message informs DSS on whether to create or
+    update an item.
 
     When this workflow "finalizes" a batch, it creates two custom reports:
     1.  A tab-delimited text file with OCLC numbers and DSpace handles
@@ -137,7 +139,19 @@ class DigitizedTheses(Workflow):
         raise NotImplementedError
 
     def item_metadata_iter(self) -> Iterator[dict[str, Any]]:
-        raise NotImplementedError
+        """Iterate through the batch manifest, yielding manifest entries.
+
+        Each manifest entry includes the thesis type, the S3 URI of the item's
+        metadata file, and the S3 URIs of the item's bitstreams (see
+        _load_batch_manifest). The item_identifier is added to each entry to
+        yield the dict shape expected by Workflow.batch_metadata.
+        """
+        for item_identifier, manifest_entry in self._load_batch_manifest().items():
+            yield {**manifest_entry, "item_identifier": item_identifier}
+
+    def get_item_bitstream_uris(self, item_identifier: str) -> list[str]:
+        """Get list of bitstream S3 URIs for an item from the batch manifest."""
+        return self.batch_metadata[item_identifier].get("bitstream_files", [])
 
     def prepare_batch(self, *, synced: bool = False) -> tuple[list, ...]:
         """Prepare a batch folder in the DSC S3 bucket.
@@ -479,119 +493,54 @@ class DigitizedTheses(Workflow):
 
         return True
 
-    def submit_items(self, collection_handle: str | None = None) -> list:
-        """Submit items to the DSpace Submission Service according to the workflow class.
+    def get_submission_params(
+        self,
+        item_submission: ItemSubmission,
+        item_metadata: dict,
+        collection_handle: str | None,
+    ) -> dict[str, Any]:
+        """Assemble kwargs for ItemSubmission.send_submission_message().
 
-        This method begins by creating a manifest for the batch of item submissions. The
-        purpose of this step is to "walk" the contents of the batch in S3 in one go
-        instead  of retrieving assets from S3 per-item. The method retrieves batch
-        item submissions from DynamoDB and performs the following steps for each:
+        The params sent to DSS are based on the thesis type:
 
-        1. Check if the item submission is "ready to submit"
-        2. Transform the item metadata to Qualified Dublin Core (QDC)
-        3. Get the item's collection handle based on the mit.thesis.degree field
-        4. Send a submission message based on the thesis type ("New thesis" vs.
-           "Replacement thesis")
-            - New theses must provide the "CollectionHandle"
-            - Replacement theses must provide the "ItemHandle"
-              and set "Operation" to "update"
+        - New thesis: create a new item with the collection_handle derived
+          from the mit.thesis.degree field
+        - Replacement thesis: update an existing item with the
+          item_handle (dspace_handle) of the item
+
+        Args:
+            item_submission: The item submission to be sent.
+            item_metadata: Prepared QDC metadata from prepare_item_metadata.
+            collection_handle: The collection handle argument passed to
+                submit_items(), or None.
         """
-        logger.info(
-            f"Submitting messages to the DSS input queue '{CONFIG.sqs_queue_dss_input}' "
-            f"for batch '{self.batch_id}'"
+        if item_submission.operation == "update":
+            return {
+                "operation": item_submission.operation,
+                "item_handle": item_submission.dspace_handle,
+            }
+        return super().get_submission_params(
+            item_submission, item_metadata, collection_handle
         )
 
-        manifest = self._load_batch_manifest()
+    def prepare_item_metadata(self, item_identifier: str, source_metadata: dict) -> dict:
+        """Prepare QDC metadata for an item submission from its manifest entry.
 
-        items = []
-        for item_submission in ItemSubmission.get_batch(self.batch_id):
-            self.submission_summary["total"] += 1
-            item_submission.last_run_date = self.run_date
-            logger.debug(
-                f"Preparing submission for item: {item_submission.item_identifier}"
-            )
+        Delegates to _get_transformed_metadata, which transforms the item's
+        MARC XML metadata file in S3 to QDC metadata and adds additional
+        entries for dc.identifier.oclc, dc.description.provenance
+        (replacement theses), and dspace.imported.
 
-            # validate whether a message should be sent for this item submission
-            if not item_submission.ready_to_submit():
-                self.submission_summary["skipped"] += 1
-                continue
-            try:
-                # get item metadata
-                item_metadata = self._get_transformed_metadata(
-                    item_identifier=item_submission.item_identifier,
-                    source_metadata_file=manifest[item_submission.item_identifier][
-                        "metadata_file"
-                    ],
-                )
-
-                # prepare submission assets
-                item_submission.prepare_dspace_metadata(
-                    item_metadata=item_metadata,
-                    s3_bucket=self.s3_bucket,
-                    batch_path=self.batch_path,
-                )
-                item_submission.bitstream_s3_uris = manifest[
-                    item_submission.item_identifier
-                ]["bitstream_files"]
-
-                # send submission message based on thesis type
-                if item_submission.operation == "update":
-                    response = item_submission.send_submission_message(
-                        submission_source=self.workflow_name,
-                        output_queue=self.output_queue,
-                        submission_system=self.submission_system,
-                        operation=item_submission.operation,
-                        item_handle=item_submission.dspace_handle,
-                    )
-                else:
-                    # get collection handle based on mit.thesis.degree
-                    item_submission.collection_handle = (
-                        collection_handle
-                        or self._get_item_collection_handle(item_metadata)
-                    )
-
-                    response = item_submission.send_submission_message(
-                        submission_source=self.workflow_name,
-                        output_queue=self.output_queue,
-                        submission_system=self.submission_system,
-                        collection_handle=item_submission.collection_handle,
-                    )
-
-                # record message id for item submission
-                items.append(
-                    {
-                        "item_identifier": item_submission.item_identifier,
-                        "message_id": response["MessageId"],
-                    }
-                )
-                self.submission_summary["submitted"] += 1
-
-                logger.info(f"Sent item submission message: {response['MessageId']}")
-
-                # set status in DynamoDB
-                item_submission.status = ItemSubmissionStatus.SUBMIT_SUCCESS
-                item_submission.status_details = None
-                item_submission.submit_attempts += 1
-                item_submission.upsert_db()
-            except NotImplementedError:
-                raise
-            except Exception as exception:  # noqa: BLE001
-                logger.info(
-                    f"Error submitting item '{item_submission.item_identifier}': "
-                    f"{exception}"
-                )
-                self.submission_summary["errors"] += 1
-                item_submission.status = ItemSubmissionStatus.SUBMIT_FAILED
-                item_submission.status_details = str(exception)
-                item_submission.submit_attempts += 1
-                item_submission.upsert_db()
-
-        logger.info(
-            f"Submitted messages to the DSS input queue '{CONFIG.sqs_queue_dss_input}' "
-            f"for batch '{self.batch_id}': {json.dumps(self.submission_summary)}"
+        Args:
+            item_identifier: Identifier for the item submission.
+            source_metadata: Manifest entry for the item from
+                Workflow.batch_metadata.
+        """
+        return self._get_transformed_metadata(
+            item_identifier=item_identifier,
+            source_metadata_file=source_metadata["metadata_file"],
+            thesis_type=source_metadata["thesis_type"],
         )
-
-        return items
 
     def _load_batch_manifest(self) -> dict:
         """Create a manifest for a batch of item submissions.
@@ -629,7 +578,7 @@ class DigitizedTheses(Workflow):
         return manifest
 
     def _get_transformed_metadata(
-        self, item_identifier: str, source_metadata_file: str
+        self, item_identifier: str, source_metadata_file: str, thesis_type: str
     ) -> dict:
         """Get transformed metadata for an item submission.
 
@@ -641,7 +590,8 @@ class DigitizedTheses(Workflow):
 
         The method returns a dictionary with the QDC metadata, and
         additional entries for the dc.description.provenance
-        and dspace.imported metadata fields.
+        (if thesis_type is 'Replacement thesis') and dspace.imported
+        metadata fields.
         """
         with smart_open.open(source_metadata_file, "rb") as file:
             source_metadata = file.read()
@@ -652,7 +602,7 @@ class DigitizedTheses(Workflow):
         transformed_metadata["dc.identifier.oclc"] = item_identifier
 
         # if replacement thesis, include additional dc.description.provenance entry
-        if "replacement-theses" in source_metadata_file:
+        if thesis_type == "Replacement thesis":
             replacement_message = f"The thesis import has been updated on {self.run_date.strftime('%Y-%m-%dT%H:%M:%SZ')}"  # noqa: E501
             if transformed_metadata.get("dc.description.provenance"):
                 transformed_metadata["dc.description.provenance"].append(
