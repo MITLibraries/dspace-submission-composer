@@ -7,20 +7,33 @@ from freezegun import freeze_time
 
 from dsc.cli import main
 from dsc.db.models import ItemSubmissionDB, ItemSubmissionStatus
+from dsc.item_submission import ItemSubmission
 
 
+@patch("tests.conftest.TestWorkflow.prepare_batch")
 def test_create_success(
+    mock_workflow_prepare_batch,
+    mock_item_submission_db,
     caplog,
     runner,
-    base_workflow_instance,
-    mock_item_submission_db,
-    mocked_s3,
-    s3_client,
 ):
-    caplog.set_level("DEBUG")
-    s3_client.put_file(file_content="", bucket="dsc", key="test/batch-aaa/123_001.pdf")
-    s3_client.put_file(file_content="", bucket="dsc", key="test/batch-aaa/123_002.jpg")
-    s3_client.put_file(file_content="", bucket="dsc", key="test/batch-aaa/789_001.pdf")
+    mock_workflow_prepare_batch.return_value = (
+        [
+            ItemSubmission(
+                batch_id="batch-aaa",
+                item_identifier="123",
+                workflow_name="test",
+                status=ItemSubmissionStatus.CREATE_SUCCESS,
+            ),
+            ItemSubmission(
+                batch_id="batch-aaa",
+                item_identifier="789",
+                workflow_name="test",
+                status=ItemSubmissionStatus.CREATE_SUCCESS,
+            ),
+        ],
+        [],
+    )
 
     result = runner.invoke(
         main,
@@ -39,19 +52,32 @@ def test_create_success(
     assert "Saved record" in caplog.text
 
 
+@patch("tests.conftest.TestWorkflow.prepare_batch")
 def test_create_with_sync_data_success(
+    mock_workflow_prepare_batch,
+    mock_item_submission_db,
     caplog,
     runner,
-    base_workflow_instance,
-    mock_item_submission_db,
-    mocked_s3,
-    s3_client,
 ):
     caplog.set_level("DEBUG")
-    s3_client.put_file(file_content="", bucket="dsc", key="test/batch-aaa/123_001.pdf")
-    s3_client.put_file(file_content="", bucket="dsc", key="test/batch-aaa/123_002.jpg")
-    s3_client.put_file(file_content="", bucket="dsc", key="test/batch-aaa/789_001.pdf")
 
+    mock_workflow_prepare_batch.return_value = (
+        [
+            ItemSubmission(
+                batch_id="batch-aaa",
+                item_identifier="123",
+                workflow_name="test",
+                status=ItemSubmissionStatus.CREATE_SUCCESS,
+            ),
+            ItemSubmission(
+                batch_id="batch-aaa",
+                item_identifier="789",
+                workflow_name="test",
+                status=ItemSubmissionStatus.CREATE_SUCCESS,
+            ),
+        ],
+        [],
+    )
     mock_sync_callback = MagicMock(name="sync_callback")
 
     with patch.object(main.commands["sync"], "callback", new=mock_sync_callback):
@@ -74,19 +100,32 @@ def test_create_with_sync_data_success(
         assert "Saved record" in caplog.text
 
 
+@patch("tests.conftest.TestWorkflow.prepare_batch")
 def test_create_with_sync_data_error(
+    mock_workflow_prepare_batch,
+    mock_item_submission_db,
     caplog,
     runner,
-    base_workflow_instance,
-    mock_item_submission_db,
-    mocked_s3,
-    s3_client,
 ):
     caplog.set_level("DEBUG")
-    s3_client.put_file(file_content="", bucket="dsc", key="test/batch-aaa/123_001.pdf")
-    s3_client.put_file(file_content="", bucket="dsc", key="test/batch-aaa/123_002.jpg")
-    s3_client.put_file(file_content="", bucket="dsc", key="test/batch-aaa/789_001.pdf")
 
+    mock_workflow_prepare_batch.return_value = (
+        [
+            ItemSubmission(
+                batch_id="batch-aaa",
+                item_identifier="123",
+                workflow_name="test",
+                status=ItemSubmissionStatus.CREATE_SUCCESS,
+            ),
+            ItemSubmission(
+                batch_id="batch-aaa",
+                item_identifier="789",
+                workflow_name="test",
+                status=ItemSubmissionStatus.CREATE_SUCCESS,
+            ),
+        ],
+        [],
+    )
     mock_sync_callback = MagicMock(
         name="sync_callback", side_effect=click.exceptions.Exit(code=1)
     )
@@ -111,20 +150,19 @@ def test_create_with_sync_data_error(
 
 
 @freeze_time("2025-01-01 09:00:00")
+@patch("dsc.workflows.base.workflow.Workflow.get_batch_bitstream_uris")
+@patch("tests.conftest.TestWorkflow.item_metadata_iter")
 def test_submit_success(
+    mock_workflow_item_metadata_iter,
+    mock_workflow_get_batch_bitstream_uris,
     caplog,
     runner,
     mocked_s3,
     mocked_ses,
     mocked_sqs_input,
     mock_item_submission_db,
-    base_workflow_instance,
-    s3_client,
 ):
     caplog.set_level("DEBUG")
-    s3_client.put_file(file_content="", bucket="dsc", key="test/batch-aaa/123_001.pdf")
-    s3_client.put_file(file_content="", bucket="dsc", key="test/batch-aaa/123_002.jpg")
-    s3_client.put_file(file_content="", bucket="dsc", key="test/batch-aaa/789_001.pdf")
     ItemSubmissionDB(
         item_identifier="123",
         batch_id="batch-aaa",
@@ -137,6 +175,26 @@ def test_submit_success(
         workflow_name="test",
         status=ItemSubmissionStatus.CREATE_SUCCESS,
     ).create()
+
+    mock_workflow_item_metadata_iter.return_value = [
+        {
+            "dc.title": "Title",
+            "dc.date.issued": "Year",
+            "dc.contributor": "Author 1|Author 2",
+            "item_identifier": "123",
+        },
+        {
+            "dc.title": "2nd Title",
+            "dc.date.issued": "Year",
+            "dc.contributor": "Author 3|Author 4",
+            "item_identifier": "789",
+        },
+    ]
+    mock_workflow_get_batch_bitstream_uris.return_value = [
+        "s3://dsc/test/batch-aaa/123_01.pdf",
+        "s3://dsc/test/batch-aaa/123_02.pdf",
+        "s3://dsc/test/batch-aaa/789_01.pdf",
+    ]
 
     expected_submission_summary = {"total": 2, "submitted": 2, "skipped": 0, "errors": 0}
 
@@ -176,20 +234,19 @@ def test_submit_success(
 
 
 @freeze_time("2025-01-01 09:00:00")
+@patch("dsc.workflows.base.workflow.Workflow.get_batch_bitstream_uris")
+@patch("tests.conftest.TestWorkflow.item_metadata_iter")
 def test_submit_without_collection_handle_success(
+    mock_workflow_item_metadata_iter,
+    mock_workflow_get_batch_bitstream_uris,
     caplog,
     runner,
     mocked_s3,
     mocked_ses,
     mocked_sqs_input,
     mock_item_submission_db,
-    base_workflow_instance,
-    s3_client,
 ):
     caplog.set_level("DEBUG")
-    s3_client.put_file(file_content="", bucket="dsc", key="test/batch-aaa/123_001.pdf")
-    s3_client.put_file(file_content="", bucket="dsc", key="test/batch-aaa/123_002.jpg")
-    s3_client.put_file(file_content="", bucket="dsc", key="test/batch-aaa/789_001.pdf")
     ItemSubmissionDB(
         item_identifier="123",
         batch_id="batch-aaa",
@@ -202,6 +259,26 @@ def test_submit_without_collection_handle_success(
         workflow_name="test",
         status=ItemSubmissionStatus.CREATE_SUCCESS,
     ).create()
+
+    mock_workflow_item_metadata_iter.return_value = [
+        {
+            "dc.title": "Title",
+            "dc.date.issued": "Year",
+            "dc.contributor": "Author 1|Author 2",
+            "item_identifier": "123",
+        },
+        {
+            "dc.title": "2nd Title",
+            "dc.date.issued": "Year",
+            "dc.contributor": "Author 3|Author 4",
+            "item_identifier": "789",
+        },
+    ]
+    mock_workflow_get_batch_bitstream_uris.return_value = [
+        "s3://dsc/test/batch-aaa/123_01.pdf",
+        "s3://dsc/test/batch-aaa/123_02.pdf",
+        "s3://dsc/test/batch-aaa/789_01.pdf",
+    ]
 
     result = runner.invoke(
         main,
@@ -231,10 +308,10 @@ def test_finalize_success(
     caplog,
     runner,
     mock_item_submission_db,
+    mocked_s3,
     mocked_ses,
     mocked_sqs_input,
     mocked_sqs_output,
-    base_workflow_instance,
     sqs_client,
     result_message_attributes,
     result_message_body_success,

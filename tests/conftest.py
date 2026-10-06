@@ -3,7 +3,9 @@ import json
 import time
 import uuid
 import zipfile
+from collections.abc import Iterable
 from io import StringIO
+from typing import ClassVar
 
 import boto3
 import pytest
@@ -18,61 +20,61 @@ from dsc.item_submission import ItemSubmission
 from dsc.utils.aws.s3 import S3Client
 from dsc.utils.aws.ses import SESClient
 from dsc.utils.aws.sqs import SQSClient
-from dsc.workflows import ArchivesSpace, OpenCourseWare, SimpleCSV, Workflow
+from dsc.workflows import ArchivesSpace, OpenCourseWare, SimpleCSV
+from dsc.workflows.base import DirectMappingTransformer, FieldMethodTransformer, Workflow
+
+# ===============================
+# Test Transformer implementation
+# ===============================
 
 
-# Test Workflow classes ######################
+class ChildDirectMappingTransformer(DirectMappingTransformer):
+    fields: ClassVar[Iterable[str]] = [
+        "dc.title",
+        "dc.date.issued",
+        "dc.contributor.author",
+    ]
+    delimited_fields: ClassVar[dict[str, str]] = {"dc.contributor.author": "|"}
+
+
+class ChildFieldMethodTransformer(FieldMethodTransformer):
+    fields: ClassVar[Iterable[str]] = ["dc.title", "dc.date.issued"]
+
+    @classmethod
+    def dc_title(cls, source_metadata: dict) -> str:
+        return source_metadata["title"]
+
+    @classmethod
+    def dc_date_issued(cls, source_metadata: dict):
+        return source_metadata["date"]
+
+    @staticmethod
+    def deserialize(source_metadata: str) -> dict:
+        return json.loads(source_metadata)
+
+
+# ==============================
+# Test Workflow implementation
+# ==============================
+
+
 class TestWorkflow(Workflow):
     workflow_name: str = "test"
     submission_system: str = "Test@MIT"
-
-    @property
-    def metadata_mapping_path(self) -> str:
-        return "tests/fixtures/test_metadata_mapping.json"
+    metadata_transformer = ChildDirectMappingTransformer
 
     @property
     def output_queue(self) -> str:
         return "mock-output-queue"
 
-    def get_batch_bitstream_uris(self) -> list[str]:
-        return [
-            "s3://dsc/test/batch-aaa/123_01.pdf",
-            "s3://dsc/test/batch-aaa/123_02.pdf",
-            "s3://dsc/test/batch-aaa/789_01.pdf",
-        ]
+    def get_batch_bitstream_uris(self):
+        return super().get_batch_bitstream_uris()
 
     def item_metadata_iter(self):
-        yield from [
-            {
-                "title": "Title",
-                "contributor": "Author 1|Author 2",
-                "item_identifier": "123",
-            },
-            {
-                "title": "2nd Title",
-                "contributor": "Author 3|Author 4",
-                "item_identifier": "789",
-            },
-        ]
+        return super().item_metadata_iter()
 
-    def prepare_batch(self, *, synced: bool = False):  # noqa: ARG002
-        return (
-            [
-                ItemSubmission(
-                    batch_id="batch-aaa",
-                    item_identifier="123",
-                    workflow_name="test",
-                    status=ItemSubmissionStatus.CREATE_SUCCESS,
-                ),
-                ItemSubmission(
-                    batch_id="batch-aaa",
-                    item_identifier="789",
-                    workflow_name="test",
-                    status=ItemSubmissionStatus.CREATE_SUCCESS,
-                ),
-            ],
-            [],
-        )
+    def prepare_batch(self, *, synced=False):
+        return super().prepare_batch(synced=synced)
 
 
 class TestOpenCourseWare(OpenCourseWare):
@@ -86,10 +88,6 @@ class TestSimpleCSV(SimpleCSV):
     submission_system: str = "Test@MIT"
 
     @property
-    def metadata_mapping_path(self) -> str:
-        return "tests/fixtures/test_metadata_mapping.json"
-
-    @property
     def item_identifier_column_names(self) -> list[str]:
         return ["item_identifier", "filename"]
 
@@ -100,18 +98,19 @@ class TestSimpleCSV(SimpleCSV):
 
 # Test Workflow instances ####################
 @pytest.fixture
+@freeze_time("2025-01-01 09:00:00")
 def test_workflow_instance():
     return TestWorkflow(batch_id="batch-aaa")
 
 
 @pytest.fixture
 @freeze_time("2025-01-01 09:00:00")
-def base_workflow_instance(item_metadata, metadata_mapping, mocked_s3):
+def base_workflow_instance(item_metadata, mocked_s3):
     return TestWorkflow(batch_id="batch-aaa")
 
 
 @pytest.fixture
-def simple_csv_workflow_instance(metadata_mapping):
+def simple_csv_workflow_instance():
     return TestSimpleCSV(batch_id="batch-aaa")
 
 
@@ -184,8 +183,9 @@ def dspace_metadata():
 @pytest.fixture
 def item_metadata():
     return {
-        "title": "Title",
-        "contributor": "Author 1|Author 2",
+        "dc.title": "Title",
+        "dc.date.issued": "Year",
+        "dc.contributor": "Author 1|Author 2",
         "item_identifier": "123",
     }
 
@@ -202,12 +202,6 @@ def item_submission_instance(dspace_metadata):
             "s3://dsc/workflow/folder/123_02.pdf",
         ],
     )
-
-
-@pytest.fixture
-def metadata_mapping():
-    with open("tests/fixtures/test_metadata_mapping.json") as mapping_file:
-        return json.load(mapping_file)
 
 
 @pytest.fixture

@@ -84,10 +84,6 @@ class DigitizedTheses(Workflow):
         super().__init__(batch_id)
 
     @property
-    def metadata_mapping_path(self) -> str:
-        raise NotImplementedError
-
-    @property
     def dspace_client(self) -> DSpaceClient:
         if not self._dspace_client:
             logger.debug(

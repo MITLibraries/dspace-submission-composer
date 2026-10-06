@@ -391,7 +391,7 @@ def test_workflow_submit_items_success(
     mock_item_submission,
     caplog,
 ):
-    """Test control flow of DigitizedTheses.submit_items.
+    """Test control flow of DigitizedTheses.submit_items() method.
 
     This tests the scenario in which a batch comprises of two item submissions:
     one ready to submit and one that is not. This assumes a happy path in which
@@ -407,7 +407,7 @@ def test_workflow_submit_items_success(
     mock_item_submission_prepare_dspace_metadata.return_value = None
     mock_item_submission_upsert_db.return_value = None
 
-    # mock workflow methods
+    # mock Workflow methods
     mock_workflow_load_batch_manifest.return_value = {
         "001": {
             "thesis_type": "New thesis",
@@ -449,12 +449,12 @@ def test_workflow_submit_items_handles_errors(
     mock_item_submission,
     caplog,
 ):
-    """Test control flow of DigitizedTheses.submit_items.
+    """Test control flow of DigitizedTheses.submit_items() method.
 
     This tests the scenario in which a batch comprises of two item submissions:
     one ready to submit and one that is not. The test throws
-    exceptions.ItemMetadataNotFoundError when DSC calls _get_item_metadata() for
-    the item submission ready for submission. The test demonstrates that if any
+    exceptions.MetadataTransformationError when transforming source metadata
+    for the item submission. The test demonstrates that if any
     exception is raised in the try-except block, all errors--except for
     NotImplementedError--are handled and simply recorded.
     """
@@ -468,7 +468,7 @@ def test_workflow_submit_items_handles_errors(
     mock_item_submission_prepare_dspace_metadata.return_value = None
     mock_item_submission_upsert_db.return_value = None
 
-    # mock workflow methods
+    # mock Workflow methods
     mock_workflow_load_batch_manifest.return_value = {
         "001": {
             "thesis_type": "New thesis",
@@ -476,7 +476,9 @@ def test_workflow_submit_items_handles_errors(
             "bitstream_files": ["001.pdf"],
         }
     }
-    mock_workflow_get_transformed_metadata.side_effect = Exception
+    mock_workflow_get_transformed_metadata.side_effect = (
+        exceptions.MetadataTransformationError
+    )
     mock_workflow_get_item_bitstream_uris.return_value = None
     mock_workflow_get_item_collection_handle.return_value = None
 

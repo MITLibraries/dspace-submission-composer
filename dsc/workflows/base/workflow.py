@@ -146,16 +146,6 @@ class Workflow(ABC):
         # cache list of bitstreams
         self._batch_bitstream_uris: list[str] | None = None
 
-    @property
-    @abstractmethod
-    def metadata_mapping_path(self) -> str:
-        """Path to the JSON metadata mapping file for the workflow."""
-
-    @property
-    def metadata_mapping(self) -> dict:
-        with open(self.metadata_mapping_path) as mapping_file:
-            return json.load(mapping_file)
-
     @final
     @property
     def s3_bucket(self) -> str:
@@ -319,23 +309,14 @@ class Workflow(ABC):
                 continue
             try:
                 # prepare submission assets
-                if self.metadata_transformer:
-                    item_metadata = self._run_metadata_transformer(
-                        batch_metadata[item_identifier]
-                    )
-                    item_submission.prepare_dspace_metadata(
-                        item_metadata=item_metadata,
-                        s3_bucket=self.s3_bucket,
-                        batch_path=self.batch_path,
-                    )
-                else:
-                    item_metadata = batch_metadata[item_identifier]
-                    item_submission.prepare_dspace_metadata(
-                        metadata_mapping=self.metadata_mapping,
-                        item_metadata=item_metadata,
-                        s3_bucket=self.s3_bucket,
-                        batch_path=self.batch_path,
-                    )
+                item_metadata = self._run_metadata_transformer(
+                    batch_metadata[item_identifier]
+                )
+                item_submission.prepare_dspace_metadata(
+                    item_metadata=item_metadata,
+                    s3_bucket=self.s3_bucket,
+                    batch_path=self.batch_path,
+                )
                 item_submission.bitstream_s3_uris = self.get_item_bitstream_uris(
                     item_identifier
                 )
@@ -407,7 +388,7 @@ class Workflow(ABC):
         OPTIONAL override by workflow subclasses.
         """
         raise NotImplementedError(
-            f"The '{self.workflow_name}' workflow expects collection_handle"
+            f"The '{self.workflow_name}' workflow expects 'collection_handle' "
             "when calling submit_items()"
         )
 
