@@ -67,7 +67,7 @@ class DigitizedTheses(Workflow):
     workflow_name: str = "digitized-theses"
     metadata_transformer = DigitizedThesesTransformer
     required_env_vars: ClassVar[list] = [
-        "OPENSCHOL_RW_API_CREDENTIALS_JSON",
+        "OPENSCHOL_RW_API_CREDS_JSON",
         "DIGITIZED_THESES_COLLECTION_HANDLES",
         "DIGITIZED_THESES_COMMUNITY_UUID",
         "DIGITIZED_THESES_METADATA_API_URL",

@@ -21,7 +21,7 @@ from dsc.workflows.digitized_theses import (
 @pytest.fixture(autouse=True)
 def _test_env_digitized_theses(monkeypatch):
     monkeypatch.setenv(
-        "OPENSCHOL_RW_API_CREDENTIALS_JSON",
+        "OPENSCHOL_RW_API_CREDS_JSON",
         '{"url": "mock://awesome-test-instance/server/api", "user": "user@test.com", "password": "topsecret"}',  # noqa: E501
     )
     monkeypatch.setenv(
