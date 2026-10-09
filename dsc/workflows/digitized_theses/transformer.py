@@ -18,10 +18,10 @@ class DigitizedThesesTransformer(FieldMethodTransformer):
     """Transformer for Digitized Theses source metadata.
 
     The transformer expects a MARC XML record in byte-string form as its input
-    and returns a dictionary with Qualified Dublin Core metadata. The field methods
-    are based on the transformations in the  MIT-customized 'marc21-to-dc.xsl'
-    stylesheet, which itself is based on the Library of Congress MARC-to-DC
-    crosswalk. The transformer includes crosswalks to normalize values
+    and returns a dictionary containing the metadata fields registered in DSpace.
+    The field methods are based on the transformations in the  MIT-customized
+    'marc21-to-dc.xsl' stylesheet, which itself is based on the Library of Congress
+    MARC-to-DC crosswalk. The transformer includes crosswalks to normalize values
     for select fields (dc.relation.orgunit and mit.thesis.degree).
     """
 

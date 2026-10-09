@@ -12,7 +12,7 @@ from dsc.workflows.digitized_theses import DigitizedThesesTransformer
 def create_marc_source_metadata_stub(
     datafield_insert: str = "",
 ) -> bytes:
-    """Create source record for unit tests.
+    """Create source metadata for unit tests.
 
     The generated XML byte string represents the content of the XML file
     that is created by `DigitizedTheses._download_metadata_from_alma`,
