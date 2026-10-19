@@ -1,4 +1,5 @@
 import json
+import re
 from collections.abc import Iterable
 from datetime import UTC, datetime
 from itertools import chain
@@ -42,9 +43,15 @@ class WileyTransformer(FieldMethodTransformer):
 
     @classmethod
     def dc_title(cls, source_metadata: dict) -> str:
-        """Build a title string from title components."""
+        """Build a title string from title components.
+
+        The regex expression matches one or more consecutive whitespace characters
+        and replaces them with a single whitespace. This results in stripping out
+        newline delimiters while keeping HTML tags.
+        """
         return ". ".join(
-            title_components for title_components in source_metadata["title"]
+            re.sub(r"\s+", " ", title_components)
+            for title_components in source_metadata["title"]
         )
 
     @classmethod
