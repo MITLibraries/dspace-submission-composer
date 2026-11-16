@@ -4,7 +4,9 @@
   "extends": [
     "github>MITLibraries/renovate-config"
   ],
-  "dependencyDashboard": true,
+  "dependencyDashboard": {
+    "enabled": true
+  },
   "enabledManagers": [
     "pep621"
   ],
